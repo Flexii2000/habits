@@ -41,6 +41,7 @@ class HabitsServiceTest {
     private static final LocalDate MONDAY = LocalDate.of(2026, 8, 31);
 
     private HabitsRepository repository;
+    private FocusService focus;
     private FoodClient food;
     private StepsClient steps;
     private HabitsService service;
@@ -49,13 +50,54 @@ class HabitsServiceTest {
     @BeforeEach
     void setUp() {
         repository = mock(HabitsRepository.class);
+        focus = mock(FocusService.class);
         food = mock(FoodClient.class);
         steps = mock(StepsClient.class);
         Clock clock = Clock.fixed(
                 ZonedDateTime.of(2026, 9, 2, 21, 30, 0, 0, BERLIN).toInstant(), BERLIN);
-        service = new HabitsService(repository, food, steps, clock, 730);
+        service = new HabitsService(repository, focus, food, steps, clock, 730);
         data = HabitsData.empty();
         when(repository.load()).thenAnswer(inv -> data);
+        when(focus.minutesPerDay(any(), any())).thenReturn(Map.of());
+    }
+
+    // MARK: - FOCUS
+
+    @Test
+    void fokusZeitZaehltDieSessionsDesTagesGegenDasZiel() {
+        Habit h = new Habit("h1", "Fokus", HabitKind.FOCUS, null, TODAY.minusDays(10), 240);
+        when(focus.minutesPerDay(any(), any())).thenReturn(Map.of(
+                TODAY, 150,
+                TODAY.minusDays(1), 260,
+                TODAY.minusDays(2), 240,
+                TODAY.minusDays(3), 100));
+        HabitStatus s = statusOf(h);
+        assertEquals(240, s.focusMinutesGoal());
+        assertEquals(150, s.progress().value());
+        assertEquals(240, s.progress().goal());
+        assertFalse(s.doneToday(), "150 von 240 Minuten - noch nicht");
+        assertEquals(2, s.streak(), "gestern und vorgestern erreicht, heute noch offen");
+        assertTrue(s.atRisk());
+        assertEquals(List.of(false, false, false, false, true, true, false), s.recent());
+
+        when(focus.minutesPerDay(any(), any())).thenReturn(Map.of(TODAY, 250, TODAY.minusDays(1), 260));
+        s = statusOf(h);
+        assertTrue(s.doneToday());
+        assertEquals(2, s.streak());
+        assertFalse(s.atRisk());
+    }
+
+    @Test
+    void fokusZeitBekommtOhneAngabeVierStundenUndLaesstSichNichtAbhaken() {
+        data = HabitsData.empty();
+        HabitStatus created = service.create(new HabitRequest("Fokus", HabitKind.FOCUS, null, null));
+        assertEquals(240, created.focusMinutesGoal());
+        assertEquals(HabitKind.FOCUS, created.kind());
+        assertNotNull(created.progress());
+        assertThrows(ResponseStatusException.class,
+                () -> service.create(new HabitRequest("Fokus", HabitKind.FOCUS, null, 0)));
+        assertThrows(ResponseStatusException.class,
+                () -> service.create(new HabitRequest("Fokus", HabitKind.FOCUS, null, 2000)));
     }
 
     private Habit habit(HabitKind kind, LocalDate createdAt) {

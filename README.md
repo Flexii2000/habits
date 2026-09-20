@@ -5,7 +5,7 @@ nur für Vorsätze. Ein Spring-Boot-Dienst unter `fherrmann.com/habits`, bedient
 ausschließlich vom **Habits-Tab der iOS-App** (`~/Server-Projects/cockpit-ios`).
 Eine Weboberfläche gibt es bewusst nicht.
 
-## Vier Arten von Habits
+## Fünf Arten von Habits
 
 | Art | Wer hakt ab | Sträh­ne |
 |---|---|---|
@@ -13,6 +13,7 @@ Eine Weboberfläche gibt es bewusst nicht.
 | **Quit** | niemand — zählt von selbst | Tage seit dem Vorsatz bzw. seit dem letzten **Rückfall**, den du einträgst |
 | **Track food** | der Kalorienzähler | Tage, an denen der Tag als getrackt gilt (siehe unten) |
 | **Schritte / Woche** | der Weight Tracker | Wochen, in denen das Ziel erreicht wurde |
+| **Fokus-Zeit** | der Wald der Fokus-App | Tage, an denen die Fokus-Sessions zusammen das Tagesziel erreichen (Vorgabe 240 Minuten) |
 
 Die ersten drei Habits legt der Dienst beim ersten Start an: *Track food*,
 *Logbook* und *70.000 Schritte / Woche*.
@@ -42,6 +43,15 @@ die Summe Mo–So das Ziel schafft; die App zeigt den Stand als „55/70k". Die
 laufende Woche zählt zur Sträh­ne, sobald sie erreicht ist, und bis dahin läuft
 die Sträh­ne der Vorwoche weiter.
 
+**Fokus-Zeit rechnet aus dem Wald.** Die Fokus-App meldet jede durchgestandene
+Fokus-Session (`POST /api/focus/sessions`, siehe unten); der Dienst hält sie
+in `data/focus.json`. Ein Tag gilt als erreicht, sobald die Minuten seiner
+Sessions das Tagesziel (`focusMinutesGoal`, ohne Angabe 240) schaffen. Eine
+Session gehört zu dem Tag, an dem sie **begann** (Europe/Berlin): wer um 23:30
+pflanzt und um 0:30 fertig ist, hat am Abend fokussiert. Heute darf offen sein,
+wie bei Build — die nächste Session kann noch kommen. `progress` ist Minuten
+gegen das Ziel.
+
 **Was von selbst zählt, lässt sich nicht abhaken.** `POST …/marks` auf ein
 automatisches Habit ist ein 400. Und die Art eines Habits lässt sich nicht
 ändern: aus einem Build ein Quit zu machen kehrte die Bedeutung jedes
@@ -64,19 +74,45 @@ Alles unter `/habits/api/habits`, hinter dem `fh_private`-Cookie (sonst 403).
 | DELETE | `/api/habits/{id}/marks/{date}` | Haken bzw. Rückfall zurücknehmen |
 
 ```
-HabitStatus  id, name, kind (BUILD|QUIT|FOOD|STEPS), unit (DAYS|WEEKS),
-             weeklyStepGoal, streak, doneToday, atRisk,
+HabitStatus  id, name, kind (BUILD|QUIT|FOOD|STEPS|FOCUS), unit (DAYS|WEEKS),
+             weeklyStepGoal, focusMinutesGoal, streak, doneToday, atRisk,
              progress {value, goal} (nur FOOD: kcal gegen 80 % des Ziels,
-                                     STEPS: Schritte gegen das Wochenziel),
+                                     STEPS: Schritte gegen das Wochenziel,
+                                     FOCUS: Minuten gegen das Tagesziel),
              recent [7 × bool, älteste zuerst], unavailable (String | null)
 ```
+
+`POST /api/habits` nimmt für FOCUS zusätzlich `focusMinutesGoal` (1–1440,
+ohne Angabe 240); `PUT` ändert es wie das Wochenziel.
+
+### Der Wald — `/habits/api/focus/sessions`
+
+Die Fokus-Sessions der Fokus-App, gleicher Cookie.
+
+| Methode | Pfad | Was |
+|---|---|---|
+| POST | `/api/focus/sessions` | `{id, start, end}` (Zeitpunkte ISO-8601) → 201; **dieselbe Id noch einmal → 200** mit dem vorhandenen Baum, nichts ändert sich |
+| GET | `/api/focus/sessions?from=&to=` | Sessions, deren Tag im Zeitraum liegt, neueste zuerst |
+
+```
+FocusSession  id, start, end, minutes, day (yyyy-MM-dd, der Tag des Beginns)
+```
+
+Die Id vergibt die App: ohne Netz legt sie die Meldung in ihren Postausgang,
+und ein Nachsenden darf keinen zweiten Baum pflanzen. Abgelehnt (400) werden
+Sessions unter 30 und über 1440 Minuten sowie ein Ende, das mehr als fünf
+Minuten in der Zukunft liegt — Sessions lassen sich in der App nicht
+abbrechen, gemeldet wird erst, wenn sie durch sind.
 
 Jede Antwort ist der fertige Stand — die App rechnet nichts nach. Fehler
 kommen als Klartext (`Ein Habit braucht einen Namen.`), nicht als JSON.
 
 ## Daten
 
-Alles in `data/habits.json`: die Habits und ihre Einträge (`marks`). Geschrieben
+Die Habits und ihre Einträge (`marks`) in `data/habits.json`, die
+Fokus-Sessions daneben in `data/focus.json` (`habits.focus-file`) — eigene
+Datei, weil sie von einem anderen Teil der App kommen und die Habit-Datei
+nicht anfassen sollen. Geschrieben
 wird erst daneben und dann umbenannt — ein Absturz mitten im Schreiben ließe
 sonst jede je gezählte Sträh­ne in einer halben Datei zurück. Die automatischen
 Habits haben keine Einträge; ihr Stand wird bei jeder Anfrage aus der Quelle

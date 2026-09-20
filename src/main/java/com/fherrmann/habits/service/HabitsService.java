@@ -40,9 +40,13 @@ public class HabitsService {
 
     static final int MAX_NAME_LENGTH = 60;
     static final int MAX_STEP_GOAL = 500_000;
+    /** Vorgabe fuer "Fokus-Zeit": vier Stunden Baumzeit am Tag - so hat Felix es bestellt. */
+    static final int DEFAULT_FOCUS_MINUTES = 240;
+    static final int MAX_FOCUS_MINUTES = 24 * 60;
     static final int RECENT = 7;
 
     private final HabitsRepository repository;
+    private final FocusService focus;
     private final FoodClient food;
     private final StepsClient steps;
     private final Clock clock;
@@ -64,11 +68,13 @@ public class HabitsService {
 
     public HabitsService(
             HabitsRepository repository,
+            FocusService focus,
             FoodClient food,
             StepsClient steps,
             Clock clock,
             @Value("${habits.max-lookback-days:730}") int maxLookbackDays) {
         this.repository = repository;
+        this.focus = focus;
         this.food = food;
         this.steps = steps;
         this.clock = clock;
@@ -102,7 +108,8 @@ public class HabitsService {
                 request.name().trim(),
                 request.kind(),
                 request.kind() == HabitKind.STEPS ? request.weeklyStepGoal() : null,
-                LocalDate.now(clock));
+                LocalDate.now(clock),
+                request.kind() == HabitKind.FOCUS ? focusGoal(request) : null);
         List<Habit> habits = new ArrayList<>(data.habits());
         habits.add(habit);
         HabitsData updated = new HabitsData(habits, data.marks());
@@ -120,13 +127,16 @@ public class HabitsService {
     public HabitStatus update(String id, HabitRequest request) {
         HabitsData data = repository.load();
         Habit existing = find(data, id);
-        validate(new HabitRequest(request.name(), existing.kind(), request.weeklyStepGoal()), false);
+        HabitRequest checked = new HabitRequest(request.name(), existing.kind(),
+                request.weeklyStepGoal(), request.focusMinutesGoal());
+        validate(checked, false);
         Habit habit = new Habit(
                 existing.id(),
                 request.name().trim(),
                 existing.kind(),
                 existing.kind() == HabitKind.STEPS ? request.weeklyStepGoal() : null,
-                existing.createdAt());
+                existing.createdAt(),
+                existing.kind() == HabitKind.FOCUS ? focusGoal(checked) : null);
         List<Habit> habits = new ArrayList<>();
         for (Habit h : data.habits()) {
             habits.add(h.id().equals(id) ? habit : h);
@@ -191,14 +201,32 @@ public class HabitsService {
                 case QUIT -> daily(habit, today, notRelapsed(habit, data), false);
                 case FOOD -> daily(habit, today, this::foodDone, true).withProgress(foodProgress(today));
                 case STEPS -> weekly(habit, today);
+                case FOCUS -> focusDaily(habit, today);
             };
             return toStatus(status);
         } catch (SourceUnavailableException e) {
             // Die Quelle fehlt - dann lieber das sagen als eine Null zeigen,
             // die wie eine gerissene Straehne aussaehe.
             return new HabitStatus(habit.id(), habit.name(), habit.kind(), habit.kind().unit(),
-                    habit.weeklyStepGoal(), 0, false, false, null, List.of(), e.getMessage());
+                    habit.weeklyStepGoal(), 0, false, false, null, List.of(), e.getMessage(),
+                    habit.focusMinutesGoal());
         }
+    }
+
+    /**
+     * "Fokus-Zeit": erledigt, sobald die Sessions des Tages zusammen das Ziel
+     * erreichen. Heute darf offen sein - die naechste Session kann noch kommen.
+     */
+    private Status focusDaily(Habit habit, LocalDate today) {
+        int goal = habit.focusMinutesGoal() == null ? DEFAULT_FOCUS_MINUTES : habit.focusMinutesGoal();
+        Map<LocalDate, Integer> perDay = focus.minutesPerDay(today.minusDays(maxLookbackDays), today);
+        Predicate<LocalDate> done = day -> perDay.getOrDefault(day, 0) >= goal;
+        return daily(habit, today, done, true)
+                .withProgress(new Progress(perDay.getOrDefault(today, 0), goal));
+    }
+
+    private static int focusGoal(HabitRequest request) {
+        return request.focusMinutesGoal() == null ? DEFAULT_FOCUS_MINUTES : request.focusMinutesGoal();
     }
 
     /**
@@ -310,6 +338,12 @@ public class HabitsService {
                 throw badRequest("Das Wochenziel muss zwischen 1 und " + MAX_STEP_GOAL + " Schritten liegen.");
             }
         }
+        if (request.kind() == HabitKind.FOCUS && request.focusMinutesGoal() != null) {
+            int goal = request.focusMinutesGoal();
+            if (goal <= 0 || goal > MAX_FOCUS_MINUTES) {
+                throw badRequest("Das Tagesziel muss zwischen 1 und " + MAX_FOCUS_MINUTES + " Minuten liegen.");
+            }
+        }
     }
 
     private static ResponseStatusException badRequest(String reason) {
@@ -327,6 +361,7 @@ public class HabitsService {
 
     private static HabitStatus toStatus(Status s) {
         return new HabitStatus(s.habit.id(), s.habit.name(), s.habit.kind(), s.habit.kind().unit(),
-                s.habit.weeklyStepGoal(), s.streak, s.doneToday, s.atRisk, s.progress, s.recent, null);
+                s.habit.weeklyStepGoal(), s.streak, s.doneToday, s.atRisk, s.progress, s.recent, null,
+                s.habit.focusMinutesGoal());
     }
 }

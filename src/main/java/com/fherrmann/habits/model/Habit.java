@@ -9,6 +9,7 @@ import java.time.LocalDate;
  * @param name           wie sie in der Liste heisst
  * @param kind           siehe {@link HabitKind}
  * @param weeklyStepGoal nur bei {@link HabitKind#STEPS}: das Wochenziel
+ * @param focusMinutesGoal nur bei {@link HabitKind#FOCUS}: Fokus-Minuten je Tag
  * @param createdAt      ab wann sie zaehlt. Bei BUILD und QUIT gibt es davor
  *                       keine Haken, und die Straehne eines QUIT-Habits
  *                       beginnt an diesem Tag - man kann nicht schon vor dem
@@ -19,5 +20,11 @@ public record Habit(
         String name,
         HabitKind kind,
         Integer weeklyStepGoal,
-        LocalDate createdAt) {
+        LocalDate createdAt,
+        Integer focusMinutesGoal) {
+
+    /** Fuer alle, die das Fokus-Ziel nicht kennen - die Reihenfolge der Felder bleibt. */
+    public Habit(String id, String name, HabitKind kind, Integer weeklyStepGoal, LocalDate createdAt) {
+        this(id, name, kind, weeklyStepGoal, createdAt, null);
+    }
 }

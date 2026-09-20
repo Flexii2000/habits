@@ -13,17 +13,21 @@ package com.fherrmann.habits.model;
  *       {@code HabitsService}). Nichts abzuhaken.</li>
  *   <li>{@link #STEPS} - ein Wochenziel an Schritten, gerechnet aus dem
  *       Weight Tracker. Nichts abzuhaken, die Woche beginnt Montag 0:00.</li>
+ *   <li>{@link #FOCUS} - "Fokus-Zeit": erledigt, wenn die Fokus-Sessions des
+ *       Tages (der Wald der Fokus-App, siehe {@code FocusService}) zusammen
+ *       das Tagesziel an Minuten erreichen. Nichts abzuhaken.</li>
  * </ul>
  */
 public enum HabitKind {
     BUILD,
     QUIT,
     FOOD,
-    STEPS;
+    STEPS,
+    FOCUS;
 
     /** Ob die Quelle woanders liegt und der Nutzer hier nichts abhaken kann. */
     public boolean isAutomatic() {
-        return this == FOOD || this == STEPS;
+        return this == FOOD || this == STEPS || this == FOCUS;
     }
 
     /** Ob die Straehne in Tagen oder in Wochen gezaehlt wird. */

@@ -14,6 +14,7 @@ import java.util.List;
  * @param doneToday   ob der laufende Zeitraum (Tag bzw. Woche) erledigt ist
  * @param atRisk      heute noch nicht erledigt, aber die Straehne lebt noch -
  *                    bis Mitternacht
+ * @param focusMinutesGoal nur bei FOCUS: das Tagesziel an Fokus-Minuten
  * @param progress    nur bei automatischen Habits, sonst {@code null}
  * @param recent      die letzten sieben Zeitraeume, aelteste zuerst - fuer die
  *                    Punktreihe unter dem Namen
@@ -33,5 +34,13 @@ public record HabitStatus(
         boolean atRisk,
         Progress progress,
         List<Boolean> recent,
-        String unavailable) {
+        String unavailable,
+        Integer focusMinutesGoal) {
+
+    /** Fuer Aufrufer ohne Fokus-Ziel. */
+    public HabitStatus(String id, String name, HabitKind kind, Unit unit, Integer weeklyStepGoal,
+                       int streak, boolean doneToday, boolean atRisk, Progress progress,
+                       List<Boolean> recent, String unavailable) {
+        this(id, name, kind, unit, weeklyStepGoal, streak, doneToday, atRisk, progress, recent, unavailable, null);
+    }
 }
