@@ -103,8 +103,8 @@ und ein Nachsenden darf keinen zweiten Baum pflanzen. Abgelehnt (400) werden
 Sessions unter einer Minute und über 1440 Minuten sowie ein Ende, das mehr
 als fünf Minuten in der Zukunft liegt — Sessions lassen sich in der App nicht
 abbrechen, gemeldet wird erst, wenn sie durch sind. Die 30 Minuten, unter
-denen die App keinen Baum anbietet, sind ihre Regel: zum Testen pflanzt sie
-auch einen Baum von einer Minute, und der zählt hier wie jeder andere.
+denen die App keinen Baum anbietet, sind ihre Regel, nicht die des Dienstes;
+ihren Testbaum (20 Sekunden) meldet sie gar nicht erst.
 
 Jede Antwort ist der fertige Stand — die App rechnet nichts nach. Fehler
 kommen als Klartext (`Ein Habit braucht einen Namen.`), nicht als JSON.
