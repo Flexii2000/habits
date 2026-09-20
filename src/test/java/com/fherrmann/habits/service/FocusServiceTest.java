@@ -61,7 +61,10 @@ class FocusServiceTest {
     @Test
     void zuKurzZuLangUndNochNichtVorbeiWerdenAbgelehnt() {
         assertThrows(ResponseStatusException.class,
-                () -> service.record(new FocusSessionRequest("kurz", at(14, 0, 0), at(14, 20, 0))));
+                () -> service.record(new FocusSessionRequest("kurz", at(14, 0, 0), at(14, 0, 0))));
+        // Ein Testbaum von einer Minute ist erlaubt - die 30 Minuten sind die
+        // Regel der App, nicht des Dienstes.
+        assertTrue(service.record(new FocusSessionRequest("test", at(14, 0, 0), at(14, 1, 0))).created());
         assertThrows(ResponseStatusException.class,
                 () -> service.record(new FocusSessionRequest("lang", at(8, 0, 2), at(9, 0, 0))));
         assertThrows(ResponseStatusException.class,

@@ -100,9 +100,11 @@ FocusSession  id, start, end, minutes, day (yyyy-MM-dd, der Tag des Beginns)
 
 Die Id vergibt die App: ohne Netz legt sie die Meldung in ihren Postausgang,
 und ein Nachsenden darf keinen zweiten Baum pflanzen. Abgelehnt (400) werden
-Sessions unter 30 und über 1440 Minuten sowie ein Ende, das mehr als fünf
-Minuten in der Zukunft liegt — Sessions lassen sich in der App nicht
-abbrechen, gemeldet wird erst, wenn sie durch sind.
+Sessions unter einer Minute und über 1440 Minuten sowie ein Ende, das mehr
+als fünf Minuten in der Zukunft liegt — Sessions lassen sich in der App nicht
+abbrechen, gemeldet wird erst, wenn sie durch sind. Die 30 Minuten, unter
+denen die App keinen Baum anbietet, sind ihre Regel: zum Testen pflanzt sie
+auch einen Baum von einer Minute, und der zählt hier wie jeder andere.
 
 Jede Antwort ist der fertige Stand — die App rechnet nichts nach. Fehler
 kommen als Klartext (`Ein Habit braucht einen Namen.`), nicht als JSON.

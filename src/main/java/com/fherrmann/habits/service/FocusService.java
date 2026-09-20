@@ -30,8 +30,12 @@ import java.util.Optional;
 @Service
 public class FocusService {
 
-    /** Kuerzer geht keine Session - die App laesst weniger gar nicht erst zu. */
-    static final int MIN_MINUTES = 30;
+    /**
+     * Kuerzer geht keine Session. Die 30 Minuten, unter denen die App keinen
+     * Baum anbietet, sind ihre Regel, nicht die des Dienstes: zum Testen
+     * pflanzt sie auch einen Baum von einer Minute.
+     */
+    static final int MIN_MINUTES = 1;
     /** Laenger als einen Tag ist keine Session, sondern ein Fehler im Client. */
     static final int MAX_MINUTES = 24 * 60;
     /** So viel darf das Ende in der Zukunft liegen - Uhren gehen nie ganz gleich. */
@@ -68,7 +72,7 @@ public class FocusService {
         }
         long minutes = Duration.between(request.start(), request.end()).toMinutes();
         if (minutes < MIN_MINUTES) {
-            throw badRequest("Eine Session dauert mindestens " + MIN_MINUTES + " Minuten.");
+            throw badRequest("Eine Session dauert mindestens eine Minute.");
         }
         if (minutes > MAX_MINUTES) {
             throw badRequest("Eine Session dauert höchstens einen Tag.");
