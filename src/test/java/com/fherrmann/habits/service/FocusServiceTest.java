@@ -74,6 +74,15 @@ class FocusServiceTest {
     }
 
     @Test
+    void einBaumLaesstSichFaellenEinUnbekannterNicht() {
+        service.record(new FocusSessionRequest("s1", at(14, 0, 0), at(14, 45, 0)));
+        service.record(new FocusSessionRequest("s2", at(15, 0, 0), at(15, 45, 0)));
+        service.delete("s1");
+        assertEquals(List.of("s2"), service.list(TODAY, TODAY).stream().map(FocusSessionView::id).toList());
+        assertThrows(ResponseStatusException.class, () -> service.delete("s1"));
+    }
+
+    @Test
     void sessionsGehoerenZumTagIhresBeginns() {
         // 23:30 gestern bis 0:30 heute: ein Abend, kein Morgen.
         service.record(new FocusSessionRequest("nacht", at(23, 30, 1), at(0, 30, 0)));

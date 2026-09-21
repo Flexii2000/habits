@@ -6,7 +6,9 @@ import com.fherrmann.habits.service.FocusService;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -37,6 +39,13 @@ public class FocusController {
         FocusService.Recorded recorded = service.record(request);
         return ResponseEntity.status(recorded.created() ? HttpStatus.CREATED : HttpStatus.OK)
                 .body(recorded.session());
+    }
+
+    /** Einen Baum faellen - fuer Testbaeume von frueher; die App bietet es nicht an. */
+    @DeleteMapping("/sessions/{id}")
+    public ResponseEntity<Void> delete(@PathVariable("id") String id) {
+        service.delete(id);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/sessions")

@@ -93,6 +93,7 @@ Die Fokus-Sessions der Fokus-App, gleicher Cookie.
 |---|---|---|
 | POST | `/api/focus/sessions` | `{id, start, end}` (Zeitpunkte ISO-8601) → 201; **dieselbe Id noch einmal → 200** mit dem vorhandenen Baum, nichts ändert sich |
 | GET | `/api/focus/sessions?from=&to=` | Sessions, deren Tag im Zeitraum liegt, neueste zuerst |
+| DELETE | `/api/focus/sessions/{id}` | Baum fällen → 204; unbekannt → 404. Für Testbäume von früher — die App bietet es nicht an |
 
 ```
 FocusSession  id, start, end, minutes, day (yyyy-MM-dd, der Tag des Beginns)

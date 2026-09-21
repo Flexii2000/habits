@@ -87,6 +87,18 @@ public class FocusService {
         return new Recorded(view(session), true);
     }
 
+    /** Nimmt einen Baum wieder weg - etwa einen Testbaum von frueher. 404, wenn es ihn nicht gibt. */
+    public void delete(String id) {
+        FocusData data = repository.load();
+        List<FocusSession> remaining = data.sessions().stream()
+                .filter(s -> !s.id().equals(id))
+                .toList();
+        if (remaining.size() == data.sessions().size()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Kein Baum mit dieser Id.");
+        }
+        repository.save(new FocusData(remaining));
+    }
+
     /** Sessions, deren Tag im Zeitraum liegt - neueste zuerst. */
     public List<FocusSessionView> list(LocalDate from, LocalDate to) {
         if (from == null || to == null || to.isBefore(from)) {
