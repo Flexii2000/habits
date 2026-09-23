@@ -9,6 +9,7 @@ import com.fherrmann.habits.dto.Progress;
 import com.fherrmann.habits.model.Habit;
 import com.fherrmann.habits.model.HabitKind;
 import com.fherrmann.habits.model.HabitsData;
+import com.fherrmann.habits.model.Period;
 import com.fherrmann.habits.model.Mark;
 import com.fherrmann.habits.repository.HabitsRepository;
 import org.springframework.beans.factory.annotation.Value;
@@ -25,6 +26,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
+import java.util.function.UnaryOperator;
 
 /**
  * Die Regeln: was ein Habit ist, wann es als erledigt gilt, wie die Straehne
@@ -109,7 +111,9 @@ public class HabitsService {
                 request.kind(),
                 request.kind() == HabitKind.STEPS ? request.weeklyStepGoal() : null,
                 LocalDate.now(clock),
-                request.kind() == HabitKind.FOCUS ? focusGoal(request) : null);
+                request.kind() == HabitKind.FOCUS ? focusGoal(request) : null,
+                rhythm(request),
+                times(request));
         List<Habit> habits = new ArrayList<>(data.habits());
         habits.add(habit);
         HabitsData updated = new HabitsData(habits, data.marks());
@@ -128,7 +132,8 @@ public class HabitsService {
         HabitsData data = repository.load();
         Habit existing = find(data, id);
         HabitRequest checked = new HabitRequest(request.name(), existing.kind(),
-                request.weeklyStepGoal(), request.focusMinutesGoal());
+                request.weeklyStepGoal(), request.focusMinutesGoal(),
+                request.period(), request.timesPerPeriod());
         validate(checked, false);
         Habit habit = new Habit(
                 existing.id(),
@@ -136,7 +141,9 @@ public class HabitsService {
                 existing.kind(),
                 existing.kind() == HabitKind.STEPS ? request.weeklyStepGoal() : null,
                 existing.createdAt(),
-                existing.kind() == HabitKind.FOCUS ? focusGoal(checked) : null);
+                existing.kind() == HabitKind.FOCUS ? focusGoal(checked) : null,
+                rhythm(checked),
+                times(checked));
         List<Habit> habits = new ArrayList<>();
         for (Habit h : data.habits()) {
             habits.add(h.id().equals(id) ? habit : h);
@@ -197,7 +204,9 @@ public class HabitsService {
     HabitStatus status(Habit habit, HabitsData data, LocalDate today) {
         try {
             Status status = switch (habit.kind()) {
-                case BUILD -> daily(habit, today, marked(habit, data), true);
+                case BUILD -> habit.rhythm() == Period.DAY
+                        ? daily(habit, today, marked(habit, data), true)
+                        : periodic(habit, today, marked(habit, data));
                 case QUIT -> daily(habit, today, notRelapsed(habit, data), false);
                 case FOOD -> daily(habit, today, this::foodDone, true).withProgress(foodProgress(today));
                 case STEPS -> weekly(habit, today);
@@ -207,10 +216,56 @@ public class HabitsService {
         } catch (SourceUnavailableException e) {
             // Die Quelle fehlt - dann lieber das sagen als eine Null zeigen,
             // die wie eine gerissene Straehne aussaehe.
-            return new HabitStatus(habit.id(), habit.name(), habit.kind(), habit.kind().unit(),
+            return new HabitStatus(habit.id(), habit.name(), habit.kind(), habit.unit(),
                     habit.weeklyStepGoal(), 0, false, false, null, List.of(), e.getMessage(),
-                    habit.focusMinutesGoal());
+                    habit.focusMinutesGoal(), habit.rhythm(), habit.timesPerPeriod());
         }
+    }
+
+    /**
+     * BUILD je Woche oder je Monat: erfuellt, sobald im Zeitraum genug Tage
+     * abgehakt sind. Der laufende Zeitraum darf offen sein, wie bei den Tagen
+     * das Heute; {@code doneToday} bleibt der Haken von heute - das ist, was
+     * der Knopf in der App zeigt -, {@code progress} zaehlt den Zeitraum.
+     */
+    private Status periodic(Habit habit, LocalDate today, Predicate<LocalDate> marked) {
+        Period period = habit.rhythm();
+        int times = habit.times();
+        UnaryOperator<LocalDate> previous = period == Period.WEEK
+                ? start -> start.minusWeeks(1)
+                : start -> start.minusMonths(1);
+        LocalDate current = period == Period.WEEK ? Streaks.mondayOf(today) : Streaks.firstOfMonth(today);
+        Predicate<LocalDate> periodDone = start -> countMarked(marked, start, period) >= times;
+        int maxPeriods = period == Period.WEEK ? maxLookbackDays / 7 : maxLookbackDays / 28;
+        int streak = Streaks.periodic(current, periodDone, previous, maxPeriods);
+        boolean thisPeriodDone = periodDone.test(current);
+        return new Status(habit, streak, marked.test(today),
+                !thisPeriodDone && streak > 0,
+                new Progress(countMarked(marked, current, period), times),
+                Streaks.recentPeriods(current, periodDone, previous, RECENT));
+    }
+
+    private static int countMarked(Predicate<LocalDate> marked, LocalDate start, Period period) {
+        LocalDate end = period == Period.WEEK ? start.plusWeeks(1) : start.plusMonths(1);
+        int count = 0;
+        for (LocalDate day = start; day.isBefore(end); day = day.plusDays(1)) {
+            if (marked.test(day)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static Period rhythm(HabitRequest request) {
+        return request.kind() == HabitKind.BUILD && request.period() != null ? request.period() : null;
+    }
+
+    private static Integer times(HabitRequest request) {
+        Period period = rhythm(request);
+        if (period == null || period == Period.DAY) {
+            return null;
+        }
+        return request.timesPerPeriod() == null ? 1 : request.timesPerPeriod();
     }
 
     /**
@@ -338,6 +393,15 @@ public class HabitsService {
                 throw badRequest("Das Wochenziel muss zwischen 1 und " + MAX_STEP_GOAL + " Schritten liegen.");
             }
         }
+        if (request.period() != null && request.kind() != HabitKind.BUILD && request.period() != Period.DAY) {
+            throw badRequest("Einen Rhythmus haben nur Habits zum Aufbauen.");
+        }
+        if (request.kind() == HabitKind.BUILD && request.period() != null && request.timesPerPeriod() != null) {
+            int times = request.timesPerPeriod();
+            if (times < 1 || times > request.period().maxTimes()) {
+                throw badRequest("Wie oft je Zeitraum muss zwischen 1 und " + request.period().maxTimes() + " liegen.");
+            }
+        }
         if (request.kind() == HabitKind.FOCUS && request.focusMinutesGoal() != null) {
             int goal = request.focusMinutesGoal();
             if (goal <= 0 || goal > MAX_FOCUS_MINUTES) {
@@ -360,8 +424,8 @@ public class HabitsService {
     }
 
     private static HabitStatus toStatus(Status s) {
-        return new HabitStatus(s.habit.id(), s.habit.name(), s.habit.kind(), s.habit.kind().unit(),
+        return new HabitStatus(s.habit.id(), s.habit.name(), s.habit.kind(), s.habit.unit(),
                 s.habit.weeklyStepGoal(), s.streak, s.doneToday, s.atRisk, s.progress, s.recent, null,
-                s.habit.focusMinutesGoal());
+                s.habit.focusMinutesGoal(), s.habit.rhythm(), s.habit.timesPerPeriod());
     }
 }

@@ -9,7 +9,7 @@ Eine Weboberfläche gibt es bewusst nicht.
 
 | Art | Wer hakt ab | Sträh­ne |
 |---|---|---|
-| **Build** („Logbook") | du, jeden Tag | zusammenhängende abgehakte Tage |
+| **Build** („Logbook") | du — jeden Tag, oder so oft je Woche/Monat, wie eingestellt | zusammenhängende erfüllte Tage, Wochen oder Monate |
 | **Quit** | niemand — zählt von selbst | Tage seit dem Vorsatz bzw. seit dem letzten **Rückfall**, den du einträgst |
 | **Track food** | der Kalorienzähler | Tage, an denen der Tag als getrackt gilt (siehe unten) |
 | **Schritte / Woche** | der Weight Tracker | Wochen, in denen das Ziel erreicht wurde |
@@ -24,6 +24,16 @@ Die ersten drei Habits legt der Dienst beim ersten Start an: *Track food*,
 hat seine Sträh­ne nicht verloren — erst um Mitternacht. Bis dahin zählt sie
 von gestern weiter und ist *gefährdet* (`atRisk: true`). Wer morgens die
 Liste öffnet, sieht also seine 12 Tage mit einem Hinweis, nicht eine Null.
+
+**Build kann einen Rhythmus haben** (`period`: `DAY`, `WEEK`, `MONTH`, dazu
+`timesPerPeriod`): „Zeitungsartikel lesen, 1× die Woche", „politisch aktiv
+sein, 2× im Monat". Abgehakt werden weiter einzelne Tage; erfüllt ist die
+Woche (ab Montag) bzw. der Monat (ab dem Ersten), sobald genug Tage abgehakt
+sind. Die Sträh­ne zählt dann Wochen bzw. Monate (`unit`: `WEEKS`/`MONTHS`), der
+laufende Zeitraum darf offen sein (`atRisk`), `progress` ist Haken gegen Ziel
+im laufenden Zeitraum, `recent` die letzten sieben Zeiträume. `doneToday`
+bleibt der Haken von heute — das, was der Knopf in der App zeigt. Ohne
+`period` gilt täglich, wie bisher.
 
 **Ein Rückfall heute ist entschieden.** Bei Quit-Habits gilt die Regel oben
 nicht: ist heute ein Rückfall eingetragen, steht die Sträh­ne auf null — die
@@ -67,18 +77,20 @@ Alles unter `/habits/api/habits`, hinter dem `fh_private`-Cookie (sonst 403).
 | Methode | Pfad | Was |
 |---|---|---|
 | GET | `/api/habits` | alle Habits als `HabitStatus` |
-| POST | `/api/habits` | `{name, kind, weeklyStepGoal?}` → 201 |
-| PUT | `/api/habits/{id}` | Name und Wochenziel ändern (die Art nicht) |
+| POST | `/api/habits` | `{name, kind, weeklyStepGoal?, focusMinutesGoal?, period?, timesPerPeriod?}` → 201 |
+| PUT | `/api/habits/{id}` | Name, Wochenziel, Tagesziel und Rhythmus ändern (die Art nicht) |
 | DELETE | `/api/habits/{id}` | löscht Habit **und** alle Einträge — kein Archiv |
 | POST | `/api/habits/{id}/marks` | `{date?}` — Haken (Build) bzw. Rückfall (Quit); ohne Datum heute |
 | DELETE | `/api/habits/{id}/marks/{date}` | Haken bzw. Rückfall zurücknehmen |
 
 ```
-HabitStatus  id, name, kind (BUILD|QUIT|FOOD|STEPS|FOCUS), unit (DAYS|WEEKS),
-             weeklyStepGoal, focusMinutesGoal, streak, doneToday, atRisk,
-             progress {value, goal} (nur FOOD: kcal gegen 80 % des Ziels,
+HabitStatus  id, name, kind (BUILD|QUIT|FOOD|STEPS|FOCUS), unit (DAYS|WEEKS|MONTHS),
+             weeklyStepGoal, focusMinutesGoal, period (DAY|WEEK|MONTH), timesPerPeriod,
+             streak, doneToday, atRisk,
+             progress {value, goal} (FOOD: kcal gegen 80 % des Ziels,
                                      STEPS: Schritte gegen das Wochenziel,
-                                     FOCUS: Minuten gegen das Tagesziel),
+                                     FOCUS: Minuten gegen das Tagesziel,
+                                     BUILD mit WEEK/MONTH: Haken gegen Ziel im Zeitraum),
              recent [7 × bool, älteste zuerst], unavailable (String | null)
 ```
 

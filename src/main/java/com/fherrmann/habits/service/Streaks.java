@@ -6,6 +6,7 @@ import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
+import java.util.function.UnaryOperator;
 
 /**
  * Wie eine Straehne gezaehlt wird. Ohne Zustand, ohne Uhr - alles kommt herein.
@@ -57,6 +58,46 @@ final class Streaks {
             start = start.minusWeeks(1);
         }
         return streak;
+    }
+
+    /**
+     * Straehne in Zeitraeumen (Wochen oder Monate): zusammenhaengende erfuellte
+     * Zeitraeume rueckwaerts ab dem laufenden. Der laufende darf offen sein -
+     * er ist ja noch nicht vorbei.
+     *
+     * @param start    der Anfang des laufenden Zeitraums
+     * @param previous liefert den Anfang des Zeitraums davor
+     */
+    static int periodic(LocalDate start, Predicate<LocalDate> periodDone,
+                        UnaryOperator<LocalDate> previous, int maxPeriods) {
+        LocalDate period = periodDone.test(start) ? start : previous.apply(start);
+        int streak = 0;
+        while (streak < maxPeriods && periodDone.test(period)) {
+            streak++;
+            period = previous.apply(period);
+        }
+        return streak;
+    }
+
+    /** Die letzten {@code count} Zeitraeume, aelteste zuerst, der laufende als letzter. */
+    static List<Boolean> recentPeriods(LocalDate start, Predicate<LocalDate> periodDone,
+                                       UnaryOperator<LocalDate> previous, int count) {
+        List<LocalDate> starts = new ArrayList<>(count);
+        LocalDate period = start;
+        for (int i = 0; i < count; i++) {
+            starts.add(period);
+            period = previous.apply(period);
+        }
+        List<Boolean> recent = new ArrayList<>(count);
+        for (int i = count - 1; i >= 0; i--) {
+            recent.add(periodDone.test(starts.get(i)));
+        }
+        return recent;
+    }
+
+    /** Der Erste des Monats, in dem der Tag liegt. */
+    static LocalDate firstOfMonth(LocalDate day) {
+        return day.withDayOfMonth(1);
     }
 
     /** Die letzten {@code count} Tage, aelteste zuerst, heute als letzter. */

@@ -7,6 +7,8 @@ import com.fherrmann.habits.dto.HabitRequest;
 import com.fherrmann.habits.dto.HabitStatus;
 import com.fherrmann.habits.model.Habit;
 import com.fherrmann.habits.model.HabitKind;
+import com.fherrmann.habits.model.Period;
+import com.fherrmann.habits.model.Unit;
 import com.fherrmann.habits.model.HabitsData;
 import com.fherrmann.habits.model.Mark;
 import com.fherrmann.habits.repository.HabitsRepository;
@@ -59,6 +61,67 @@ class HabitsServiceTest {
         data = HabitsData.empty();
         when(repository.load()).thenAnswer(inv -> data);
         when(focus.minutesPerDay(any(), any())).thenReturn(Map.of());
+    }
+
+    // MARK: - BUILD je Woche / je Monat
+
+    @Test
+    void wochenHabitZaehltAbgehakteTageDerWocheGegenDasZiel() {
+        // Mittwoch, 2. September 2026 - die Woche begann Montag, den 31. August.
+        Habit h = new Habit("w1", "Zeitungsartikel lesen", HabitKind.BUILD, null, TODAY.minusDays(60),
+                null, Period.WEEK, 1);
+        // statusOf setzt die Daten selbst - die Haken gehen als Argumente mit.
+        HabitStatus s = statusOf(h,
+                new Mark("w1", TODAY.minusDays(9)),    // Vorwoche (Montag 24.8.)
+                new Mark("w1", TODAY.minusDays(15)));  // Woche davor (Montag 17.8.)
+        assertEquals(Period.WEEK, s.period());
+        assertEquals(Unit.WEEKS, s.unit());
+        assertEquals(1, s.timesPerPeriod());
+        assertEquals(0, s.progress().value());
+        assertFalse(s.doneToday());
+        assertEquals(2, s.streak(), "zwei Wochen erfuellt, die laufende noch offen");
+        assertTrue(s.atRisk());
+        assertEquals(List.of(false, false, false, false, true, true, false), s.recent());
+
+        s = statusOf(h, new Mark("w1", TODAY), new Mark("w1", TODAY.minusDays(9)));
+        assertTrue(s.doneToday());
+        assertEquals(1, s.progress().value());
+        assertEquals(2, s.streak(), "laufende Woche erfuellt, plus die davor");
+        assertFalse(s.atRisk());
+    }
+
+    @Test
+    void monatsHabitBrauchtZweiTageImMonat() {
+        Habit h = new Habit("m1", "Politisch aktiv", HabitKind.BUILD, null, TODAY.minusDays(120),
+                null, Period.MONTH, 2);
+        // September: ein Tag; August: zwei Tage; Juli: zwei Tage; Juni: einer.
+        HabitStatus s = statusOf(h,
+                new Mark("m1", TODAY.minusDays(1)),
+                new Mark("m1", LocalDate.of(2026, 8, 3)), new Mark("m1", LocalDate.of(2026, 8, 20)),
+                new Mark("m1", LocalDate.of(2026, 7, 1)), new Mark("m1", LocalDate.of(2026, 7, 31)),
+                new Mark("m1", LocalDate.of(2026, 6, 15)));
+        assertEquals(Unit.MONTHS, s.unit());
+        assertEquals(1, s.progress().value());
+        assertEquals(2, s.progress().goal());
+        assertEquals(2, s.streak(), "August und Juli erfuellt, Juni nicht, September offen");
+        assertTrue(s.atRisk());
+        assertEquals(List.of(false, false, false, false, true, true, false), s.recent());
+    }
+
+    @Test
+    void rhythmusNurBeimAufbauenUndImRahmen() {
+        data = HabitsData.empty();
+        HabitStatus created = service.create(new HabitRequest("Lesen", HabitKind.BUILD, null, null, Period.WEEK, 1));
+        assertEquals(Period.WEEK, created.period());
+        assertEquals(Unit.WEEKS, created.unit());
+        assertThrows(ResponseStatusException.class,
+                () -> service.create(new HabitRequest("x", HabitKind.BUILD, null, null, Period.WEEK, 8)));
+        assertThrows(ResponseStatusException.class,
+                () -> service.create(new HabitRequest("x", HabitKind.QUIT, null, null, Period.MONTH, 1)));
+        // Taeglich bleibt taeglich, auch wenn die App den Rhythmus mitschickt.
+        HabitStatus daily = service.create(new HabitRequest("y", HabitKind.BUILD, null, null, Period.DAY, 1));
+        assertEquals(Period.DAY, daily.period());
+        assertEquals(Unit.DAYS, daily.unit());
     }
 
     // MARK: - FOCUS
