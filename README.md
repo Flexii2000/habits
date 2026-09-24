@@ -91,8 +91,14 @@ HabitStatus  id, name, kind (BUILD|QUIT|FOOD|STEPS|FOCUS), unit (DAYS|WEEKS|MONT
                                      STEPS: Schritte gegen das Wochenziel,
                                      FOCUS: Minuten gegen das Tagesziel,
                                      BUILD mit WEEK/MONTH: Haken gegen Ziel im Zeitraum),
-             recent [7 × bool, älteste zuerst], unavailable (String | null)
+             recent [7 × bool, älteste zuerst], unavailable (String | null),
+             markedDays [yyyy-MM-dd … — Tage mit Eintrag in den letzten 31 Tagen,
+                         nur BUILD/QUIT], createdAt (yyyy-MM-dd)
 ```
+
+`POST …/marks {date}` und `DELETE …/marks/{date}` nehmen jeden Tag ab
+`createdAt` bis heute — so lässt sich rückwirkend abhaken oder ein Rückfall
+für gestern eintragen; die App zeigt dafür die letzten 14 Tage.
 
 `POST /api/habits` nimmt für FOCUS zusätzlich `focusMinutesGoal` (1–1440,
 ohne Angabe 240); `PUT` ändert es wie das Wochenziel.

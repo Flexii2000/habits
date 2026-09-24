@@ -63,6 +63,19 @@ class HabitsServiceTest {
         when(focus.minutesPerDay(any(), any())).thenReturn(Map.of());
     }
 
+    // MARK: - Markierte Tage fuer das rueckwirkende Abhaken
+
+    @Test
+    void standListetDieMarkiertenTageDerLetztenWochen() {
+        Habit h = new Habit("b9", "Lesen", HabitKind.BUILD, null, TODAY.minusDays(100));
+        HabitStatus s = statusOf(h,
+                new Mark("b9", TODAY.minusDays(1)),
+                new Mark("b9", TODAY.minusDays(40)),   // zu alt fuer die Liste
+                new Mark("b9", TODAY.minusDays(3)));
+        assertEquals(List.of(TODAY.minusDays(3), TODAY.minusDays(1)), s.markedDays());
+        assertEquals(TODAY.minusDays(100), s.createdAt());
+    }
+
     // MARK: - BUILD je Woche / je Monat
 
     @Test

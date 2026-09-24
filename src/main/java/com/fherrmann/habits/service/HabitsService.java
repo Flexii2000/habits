@@ -46,6 +46,8 @@ public class HabitsService {
     static final int DEFAULT_FOCUS_MINUTES = 240;
     static final int MAX_FOCUS_MINUTES = 24 * 60;
     static final int RECENT = 7;
+    /** So weit zurueck listet der Stand die markierten Tage - zum rueckwirkenden Abhaken. */
+    static final int MARKED_DAYS = 31;
 
     private final HabitsRepository repository;
     private final FocusService focus;
@@ -202,6 +204,7 @@ public class HabitsService {
     // MARK: - Der Stand eines Habits
 
     HabitStatus status(Habit habit, HabitsData data, LocalDate today) {
+        List<LocalDate> markedDays = markedDays(habit, data, today);
         try {
             Status status = switch (habit.kind()) {
                 case BUILD -> habit.rhythm() == Period.DAY
@@ -212,14 +215,32 @@ public class HabitsService {
                 case STEPS -> weekly(habit, today);
                 case FOCUS -> focusDaily(habit, today);
             };
-            return toStatus(status);
+            return toStatus(status, markedDays);
         } catch (SourceUnavailableException e) {
             // Die Quelle fehlt - dann lieber das sagen als eine Null zeigen,
             // die wie eine gerissene Straehne aussaehe.
             return new HabitStatus(habit.id(), habit.name(), habit.kind(), habit.unit(),
                     habit.weeklyStepGoal(), 0, false, false, null, List.of(), e.getMessage(),
-                    habit.focusMinutesGoal(), habit.rhythm(), habit.timesPerPeriod());
+                    habit.focusMinutesGoal(), habit.rhythm(), habit.timesPerPeriod(),
+                    markedDays, habit.createdAt());
         }
+    }
+
+    /**
+     * Die Tage mit Eintrag in den letzten {@link #MARKED_DAYS} Tagen - nur bei
+     * Habits, die man selbst abhakt; automatische haben keine Eintraege.
+     */
+    private static List<LocalDate> markedDays(Habit habit, HabitsData data, LocalDate today) {
+        if (habit.kind().isAutomatic()) {
+            return List.of();
+        }
+        LocalDate from = today.minusDays(MARKED_DAYS - 1);
+        return data.marks().stream()
+                .filter(m -> m.habitId().equals(habit.id()))
+                .map(Mark::date)
+                .filter(d -> !d.isBefore(from) && !d.isAfter(today))
+                .sorted()
+                .toList();
     }
 
     /**
@@ -423,9 +444,10 @@ public class HabitsService {
         }
     }
 
-    private static HabitStatus toStatus(Status s) {
+    private static HabitStatus toStatus(Status s, List<LocalDate> markedDays) {
         return new HabitStatus(s.habit.id(), s.habit.name(), s.habit.kind(), s.habit.unit(),
                 s.habit.weeklyStepGoal(), s.streak, s.doneToday, s.atRisk, s.progress, s.recent, null,
-                s.habit.focusMinutesGoal(), s.habit.rhythm(), s.habit.timesPerPeriod());
+                s.habit.focusMinutesGoal(), s.habit.rhythm(), s.habit.timesPerPeriod(),
+                markedDays, s.habit.createdAt());
     }
 }
