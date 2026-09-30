@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Erstinstallation von Habits (fherrmann.com/habits) auf dem Heimserver.
+# Erstinstallation von habits auf dem Heimserver - heute das Backend von coHabit
+# (fherrmann.com/cohabit) und der Wald der Fokus-App (fherrmann.com/habits).
+# coHabit selbst (Healthy-Token, Push, nginx /cohabit/) richtet danach
+# setup-cohabit.sh ein.
 #
 # Vom Laptop aus, das -t ist noetig (sudo fragt nach dem Passwort):
 #
@@ -75,10 +78,23 @@ TOKEN="$(sudo grep -oE '"[0-9a-fA-F]{24,}"' "$PRIVATE_MODE_CONF" | head -1 | tr 
 [[ -n "$TOKEN" ]] || fail "Kein Token in $PRIVATE_MODE_CONF gefunden."
 WEIGHT_TOKEN="$(sudo grep -E '^WEIGHT_APP_TOKEN=' "$WEIGHT_ENV" | head -1 | cut -d= -f2- | tr -d '"'"'"'')"
 [[ -n "$WEIGHT_TOKEN" ]] || fail "Kein WEIGHT_APP_TOKEN in $WEIGHT_ENV - ohne ihn gibt es keine Schritte."
-{
-    printf 'FH_PRIVATE_TOKEN=%s\n' "$TOKEN"
-    printf 'WEIGHT_APP_TOKEN=%s\n' "$WEIGHT_TOKEN"
-} | sudo tee /etc/habits.env >/dev/null
+# Nur diese beiden Zeilen setzen, nie die Datei neu schreiben: setup-cohabit.sh
+# legt dort weitere Werte ab (Healthy-Token, Push), die hier niemand kennt.
+sudo touch /etc/habits.env
+set_env() {
+    local file="$1" key="$2" value="$3" current updated
+    current="$(sudo cat "$file")"
+    if grep -qE "^${key}=" <<<"$current"; then
+        updated="$(awk -v k="$key" -v v="$value" 'index($0, k "=") == 1 { print k "=" v; next } { print }' <<<"$current")"
+    elif [[ -z "$current" ]]; then
+        updated="$key=$value"
+    else
+        updated="$(printf '%s\n%s=%s' "$current" "$key" "$value")"
+    fi
+    printf '%s\n' "$updated" | sudo tee "$file" >/dev/null
+}
+set_env /etc/habits.env FH_PRIVATE_TOKEN "$TOKEN"
+set_env /etc/habits.env WEIGHT_APP_TOKEN "$WEIGHT_TOKEN"
 sudo chown root:"$SERVICE_USER" /etc/habits.env
 sudo chmod 640 /etc/habits.env
 echo "    /etc/habits.env geschrieben (Privat-Token ${TOKEN:0:6}…, Weight-Token ${WEIGHT_TOKEN:0:6}…)."
@@ -119,22 +135,21 @@ PY
 fi
 
 step "7/7 Health-Check"
-for i in $(seq 1 30); do
-    code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "http://127.0.0.1:$PORT/habits/api/habits" || true)"
+for i in $(seq 1 45); do
+    code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "http://127.0.0.1:$PORT/cohabit/api/me" || true)"
     [[ "$code" != "000" ]] && break
     sleep 1
 done
 [[ "${code:-000}" != "000" ]] || fail "App antwortet nicht. Log: journalctl -u habits -n 50"
-[[ "$code" == "403" ]] || echo "    HINWEIS: ohne Cookie kam HTTP $code statt 403."
+[[ "$code" == "401" ]] || echo "    HINWEIS: ohne Anmeldung kam HTTP $code statt 401."
 # Mit Cookie muss es 200 sein - das prueft Token-Datei und App-Pruefung zugleich.
-authed="$(curl -s --max-time 10 --cookie "fh_private=$TOKEN" "http://127.0.0.1:$PORT/habits/api/habits" || true)"
-echo "$authed" | grep -q '"streak"' || fail "Mit Cookie kam keine Habit-Liste - Antwort: ${authed:0:200}"
-echo "    Habit-Liste mit Cookie: $(echo "$authed" | grep -o '"name":"[^"]*"' | tr '\n' ' ')"
-if echo "$authed" | grep -q '"unavailable":"'; then
-    echo "    HINWEIS: mindestens eine Quelle antwortet nicht:"
-    echo "$authed" | grep -o '"unavailable":"[^"]*"' | sort -u | sed 's/^/      /'
-fi
+authed="$(curl -s --max-time 10 --cookie "fh_private=$TOKEN" "http://127.0.0.1:$PORT/cohabit/api/me" || true)"
+echo "$authed" | grep -q '"isOwner":true' || fail "Mit Cookie kam kein MeView - Antwort: ${authed:0:200}"
+focus="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 --cookie "fh_private=$TOKEN" \
+    "http://127.0.0.1:$PORT/habits/api/focus/sessions?from=2026-01-01&to=2030-01-01" || true)"
+[[ "$focus" == "200" ]] || fail "Wald-Sessions mit Cookie: HTTP $focus statt 200."
+echo "    coHabit und Wald antworten."
 
 echo
-echo "Fertig. https://fherrmann.com/habits/api/habits antwortet, sobald der Client den fh_private-Cookie hat."
+echo "Fertig. Weiter mit coHabit: ssh -t HeimServerRemote '~/services/habits/deploy/setup-cohabit.sh'"
 echo "Spaetere Updates: ssh -t HeimServerRemote '~/services/habits/deploy/update-habits.sh'"

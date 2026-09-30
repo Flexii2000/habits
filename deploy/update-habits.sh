@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Deployt eine neue Version von Habits (fherrmann.com/habits).
+# Deployt eine neue Version von habits - dem Backend von coHabit
+# (fherrmann.com/cohabit) und dem Wald der Fokus-App (fherrmann.com/habits).
 #
 #     ssh -t HeimServerRemote '~/services/habits/deploy/update-habits.sh'
 #
@@ -9,7 +10,9 @@ set -euo pipefail
 # Der Build laeuft als flexii, nur die Installation braucht Root - deshalb
 # NICHT das ganze Skript mit sudo starten (das -t braucht sudo fuers Passwort).
 #
-# /opt/habits/data/ wird NICHT angefasst: habits.json ist der Live-Bestand.
+# /opt/habits/data/ wird NICHT angefasst - auch nicht data/cohabit/. Beim ersten
+# Start mit coHabit uebernimmt der Dienst die Habits aus habits.json (danach nur
+# noch gelesen); Umgebung, Push und nginx richtet einmalig setup-cohabit.sh ein.
 
 BUILD_DIR="$HOME/services/habits"
 APP_DIR="/opt/habits"
@@ -37,11 +40,15 @@ sudo install -o habits -g habits -m 644 "$JAR" "$TARGET"
 sudo systemctl restart habits
 
 echo "[5/5] Health-Check ..."
-for i in $(seq 1 30); do
-    code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "http://127.0.0.1:$PORT/habits/api/habits" || true)"
-    # Ohne Cookie ist 403 die richtige Antwort; jeder Status heisst "App bedient".
+for i in $(seq 1 45); do
+    code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "http://127.0.0.1:$PORT/cohabit/api/me" || true)"
+    # Ohne Anmeldung ist 401 die richtige Antwort; jeder Status heisst "App bedient".
     if [[ "$code" != "000" ]]; then
         echo "    OK (HTTP $code)"
+        if ! sudo grep -q '^COHABIT_PUBLIC_URL=' /etc/habits.env; then
+            echo "    HINWEIS: coHabit ist noch nicht eingerichtet -"
+            echo "             ssh -t HeimServerRemote '~/services/habits/deploy/setup-cohabit.sh'"
+        fi
         echo "habits erfolgreich aktualisiert."
         exit 0
     fi

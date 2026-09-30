@@ -1,6 +1,7 @@
-# systemd-Unit fuer Habits (fherrmann.com/habits).
+# systemd-Unit fuer habits - das Backend von coHabit (fherrmann.com/cohabit) und den
+# Wald der Fokus-App (fherrmann.com/habits/api/focus).
 #
-# Installiert deploy/setup-habits.sh. Von Hand:
+# Installiert deploy/setup-habits.sh, aufgefrischt von setup-cohabit.sh. Von Hand:
 #   sudo cp deploy/habits.service /etc/systemd/system/habits.service
 #   sudo systemctl daemon-reload && sudo systemctl enable --now habits
 #
@@ -8,7 +9,7 @@
 # root und den Dienstnutzer - nirgends im Repo.
 
 [Unit]
-Description=Habits (fherrmann.com/habits)
+Description=Habits / coHabit (fherrmann.com/cohabit)
 After=network.target
 
 [Service]
@@ -22,8 +23,10 @@ ExecStart=/opt/java/jdk-25.0.1+8/bin/java -jar /opt/habits/app.jar
 Restart=on-failure
 RestartSec=5
 
-# Der Dienst braucht nichts ausser seinem Datenverzeichnis. Anders als beim
-# Kalorienzaehler startet er keine Claude-Session - NoNewPrivileges darf also an.
+# Der Dienst schreibt nur in sein Datenverzeichnis (samt data/cohabit/ mit den
+# Fotos). Lesen darf er, was er braucht: /etc/apns-cohabit.p8, /etc/fcm-cohabit.json
+# und die Android-App in /opt/cohabit-android. Anders als beim Kalorienzaehler
+# startet er keine Claude-Session - NoNewPrivileges darf also an.
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
