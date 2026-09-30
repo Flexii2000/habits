@@ -5,10 +5,10 @@ set -euo pipefail
 # Verzeichnis der Android-App und den Pfad in nginx. Der Dienst selbst ist habits -
 # erst den neuen Stand deployen, dann dieses Skript:
 #
-#     ssh HeimServerRemote '~/services/habits/deploy/update-habits.sh'
+#     ssh -t HeimServerRemote '~/services/habits/deploy/update-habits.sh'
 #     ssh -t HeimServerRemote '~/services/habits/deploy/setup-cohabit.sh'
 #
-# Das -t ist noetig (sudo fragt nach dem Passwort). NICHT mit sudo starten.
+# Beide brauchen das -t (sudo fragt nach dem Passwort). NICHT mit sudo starten.
 #
 # Optionen:
 #     --fcm-key <datei>   ein anderes Firebase-Dienstkonto nach /etc/fcm-cohabit.json legen

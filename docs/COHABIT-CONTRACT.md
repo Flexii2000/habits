@@ -125,7 +125,7 @@ Clients formatieren nur Datum/Uhrzeit und rendern, was kommt.
 ### 1.5 Einmalige Schritte für Felix (in den Bericht an ihn)
 1. Firebase-Konsole, Projekt `fherrmann-apps`: Android-App `com.fherrmann.cohabit` hinzufügen,
    `google-services.json` nach `cohabit-android/app/`.
-2. `ssh HeimServerRemote '~/services/habits/deploy/update-habits.sh'`, danach
+2. `ssh -t HeimServerRemote '~/services/habits/deploy/update-habits.sh'`, danach
    `ssh -t HeimServerRemote '~/services/habits/deploy/setup-cohabit.sh'`.
 3. iPhone: `tools/install-device.sh coHabit` und `tools/install-device.sh Fokus` (ohne Habits-Tab).
 4. Android: `tools/publish.sh` in `cohabit-android`.
