@@ -212,9 +212,11 @@ public class OverviewService {
                 String detail = !dayBased && s.progress() != null
                         ? s.progress().done() + "/" + s.progress().goal()
                         : Views.remainingText(x.eval, m);
-                yield StreakModel.scheme(c).unit().plural() + " · " + detail;
+                // Die Einheit der Kopfzahl, nicht stur die Mehrzahl: das Widget zeigt
+                // "1" gross und darunter "Tag · …", nicht "Tage".
+                yield s.headline().unit() + " · " + detail;
             }
-            case ABSTINENCE -> "Tage · Rekord " + m.abstinence.record();
+            case ABSTINENCE -> s.headline().unit() + " · Rekord " + m.abstinence.record();
             case GOAL -> (c.goal.mode() == GoalMode.TEAM ? "Teamziel" : "Einzelziel") + " · "
                     + Texts.number(Views.goalTotal(x.eval, m));
             case CHALLENGE -> {

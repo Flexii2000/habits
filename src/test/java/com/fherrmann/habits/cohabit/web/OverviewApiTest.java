@@ -108,7 +108,7 @@ class OverviewApiTest extends ApiTestBase {
         assertEquals("Wochen · 0/3", kraft.path("sub").asString());
         JsonNode zucker = find(w.path("cohabits"), "Ohne Zucker");
         assertEquals("1 T", zucker.path("statusText").asString());
-        assertEquals("Tage · Rekord 1", zucker.path("sub").asString());
+        assertEquals("Tag · Rekord 1", zucker.path("sub").asString());
         assertFalse(zucker.path("quickCheckIn").asBoolean(), "eine Unterbrechung nie per Tipp");
         assertEquals("Wer kocht öfter?", w.path("challenge").path("ref").path("name").asString());
         assertEquals("endet in 4 Tagen", w.path("challenge").path("endsText").asString());
