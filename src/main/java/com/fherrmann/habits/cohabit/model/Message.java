@@ -14,6 +14,8 @@ public class Message {
     public String photoId;
     public String checkinId;
     public String systemText;
+    /** Bei Systemmeldungen: wer sie ausgeloest hat - fuer die ist sie nicht ungelesen. */
+    public String actorId;
     /** Bei einem Check-in-Post: das Ereignis, dessen Reaktionen der Post zeigt. */
     public String eventId;
     public List<Reaction> reactions = new ArrayList<>();

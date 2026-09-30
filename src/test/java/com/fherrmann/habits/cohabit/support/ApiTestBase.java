@@ -222,6 +222,32 @@ public abstract class ApiTestBase {
         }
     }
 
+    /** Eine neue Person ueber den Freundes-Link von {@code inviter} - danach befreundet. */
+    protected Registered register(String displayName, String username, Who inviter) {
+        String code = post("/cohabit/api/me/friend-link", inviter, null).expect(200).json().path("code").asString();
+        JsonNode r = post("/cohabit/api/invite-links/" + code + "/accept", Who.nobody(),
+                map("displayName", displayName, "username", username, "acceptTerms", true)).expect(200).json();
+        return new Registered(r.path("me").path("person").path("id").asString(), Who.bearer(r.path("token").asString()));
+    }
+
+    public record Registered(String id, Who who) {
+    }
+
+    protected static Map<String, Object> streak(String name, Object rhythm) {
+        return map("type", "STREAK", "name", name, "color", "peach", "timezone", "Europe/Berlin",
+                "tracking", map("mode", "CHECK"), "photoRequired", false, "backfillHours", 48,
+                "reminderTime", null, "membersCanInvite", false,
+                "streak", map("rhythm", rhythm, "groupStreak", false));
+    }
+
+    protected static Map<String, Object> daily() {
+        return map("kind", "DAILY");
+    }
+
+    protected JsonNode create(Who who, Map<String, Object> config) {
+        return post("/cohabit/api/cohabits", who, config).expect(201).json();
+    }
+
     protected static Map<String, Object> map(Object... keyValues) {
         java.util.LinkedHashMap<String, Object> m = new java.util.LinkedHashMap<>();
         for (int i = 0; i < keyValues.length; i += 2) {
