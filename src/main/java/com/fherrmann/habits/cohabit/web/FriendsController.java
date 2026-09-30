@@ -6,7 +6,6 @@ import com.fherrmann.habits.cohabit.api.PersonView;
 import com.fherrmann.habits.cohabit.api.SearchResult;
 import com.fherrmann.habits.cohabit.service.FriendsService;
 import com.fherrmann.habits.security.Viewer;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -47,8 +46,8 @@ public class FriendsController {
     }
 
     @PostMapping("/friends/requests")
-    public ResponseEntity<FriendRequestView> request(Viewer viewer, @RequestBody UsernameRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(friends.request(viewer, request.username()));
+    public FriendRequestView request(Viewer viewer, @RequestBody UsernameRequest request) {
+        return friends.request(viewer, request.username());
     }
 
     @PostMapping("/friends/requests/{id}/accept")

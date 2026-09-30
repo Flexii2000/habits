@@ -22,7 +22,7 @@ class FriendsApiTest extends ApiTestBase {
 
     @Test
     void anfrageAnnehmenMachtBeideZuFreunden() {
-        JsonNode request = post("/cohabit/api/friends/requests", FELIX, map("username", "torben")).expect(201).json();
+        JsonNode request = post("/cohabit/api/friends/requests", FELIX, map("username", "torben")).expect(200).json();
         assertEquals("felix", request.path("from").path("id").asString());
         List<PushMessage> pushes = androidTransport.to("torben-phone");
         assertEquals(1, pushes.size());
@@ -47,11 +47,11 @@ class FriendsApiTest extends ApiTestBase {
 
     @Test
     void ablehnenUndZuruecknehmen() {
-        String id = post("/cohabit/api/friends/requests", FELIX, map("username", "torben")).expect(201)
+        String id = post("/cohabit/api/friends/requests", FELIX, map("username", "torben")).expect(200)
                 .json().path("id").asString();
         post("/cohabit/api/friends/requests/" + id + "/decline", TORBEN_APP, null).expect(200);
         assertEquals(0, get("/cohabit/api/friends", FELIX).json().path("outgoing").size());
-        String again = post("/cohabit/api/friends/requests", FELIX, map("username", "torben")).expect(201)
+        String again = post("/cohabit/api/friends/requests", FELIX, map("username", "torben")).expect(200)
                 .json().path("id").asString();
         assertEquals(403, post("/cohabit/api/friends/requests/" + again + "/accept", FELIX, null).status());
         post("/cohabit/api/friends/requests/" + again + "/decline", FELIX, null).expect(200);
@@ -62,7 +62,7 @@ class FriendsApiTest extends ApiTestBase {
         JsonNode results = get("/cohabit/api/people/search?q=tor", FELIX).expect(200).json();
         assertEquals(1, results.size());
         assertEquals("NONE", results.get(0).path("relation").asString());
-        post("/cohabit/api/friends/requests", FELIX, map("username", "torben")).expect(201);
+        post("/cohabit/api/friends/requests", FELIX, map("username", "torben")).expect(200);
         assertEquals("REQUEST_SENT", get("/cohabit/api/people/search?q=tor", FELIX).json().get(0)
                 .path("relation").asString());
         assertEquals("REQUEST_RECEIVED", get("/cohabit/api/people/search?q=fel", TORBEN_APP).json().get(0)
@@ -74,7 +74,7 @@ class FriendsApiTest extends ApiTestBase {
 
     @Test
     void blockierenTrenntUndVersteckt() {
-        String id = post("/cohabit/api/friends/requests", FELIX, map("username", "torben")).expect(201)
+        String id = post("/cohabit/api/friends/requests", FELIX, map("username", "torben")).expect(200)
                 .json().path("id").asString();
         post("/cohabit/api/friends/requests/" + id + "/accept", TORBEN_APP, null).expect(200);
         post("/cohabit/api/blocks", TORBEN_APP, map("personId", "felix")).expect(204);
@@ -86,6 +86,6 @@ class FriendsApiTest extends ApiTestBase {
         assertEquals("felix", blocks.get(0).path("id").asString());
         delete("/cohabit/api/blocks/felix", TORBEN_APP).expect(204);
         assertTrue(get("/cohabit/api/blocks", TORBEN_APP).json().isEmpty());
-        post("/cohabit/api/friends/requests", FELIX, map("username", "torben")).expect(201);
+        post("/cohabit/api/friends/requests", FELIX, map("username", "torben")).expect(200);
     }
 }
