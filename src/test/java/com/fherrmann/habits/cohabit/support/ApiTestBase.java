@@ -248,6 +248,66 @@ public abstract class ApiTestBase {
         return post("/cohabit/api/cohabits", who, config).expect(201).json();
     }
 
+    /**
+     * Legt ein Co-Habit vor {@code daysAgo} Tagen an - Eintraege gehen nie vor den
+     * Start eines Co-Habits zurueck, wer Geschichte braucht, muss frueher anfangen.
+     */
+    protected String createDaysAgo(Who who, Map<String, Object> config, int daysAgo, Who... members) {
+        java.time.Instant now = clock.instant();
+        clock.set(now.minus(java.time.Duration.ofDays(daysAgo)));
+        try {
+            return withMembersAt(config, who, members);
+        } finally {
+            clock.set(now);
+        }
+    }
+
+    private String withMembersAt(Map<String, Object> config, Who creator, Who... others) {
+        String cohabitId = id(create(creator, config));
+        if (others.length > 0) {
+            String code = post("/cohabit/api/cohabits/" + cohabitId + "/invite-link", creator, null).expect(200)
+                    .json().path("code").asString();
+            for (Who who : others) {
+                post("/cohabit/api/invite-links/" + code + "/accept", who, null).expect(200);
+            }
+        }
+        return cohabitId;
+    }
+
+    /** Legt ein Foto-Datensatz an, als waere es hochgeladen - fuer Tests ohne Bilddatei. */
+    protected String fakePhoto(String ownerId) {
+        String id = java.util.UUID.randomUUID().toString();
+        store.update(tx -> {
+            com.fherrmann.habits.cohabit.model.PhotoMeta meta = new com.fherrmann.habits.cohabit.model.PhotoMeta();
+            meta.id = id;
+            meta.ownerId = ownerId;
+            meta.createdAt = clock.instant();
+            meta.width = 10;
+            meta.height = 10;
+            tx.photosW().photos.add(meta);
+        });
+        return id;
+    }
+
+    protected String id(JsonNode detail) {
+        return detail.path("summary").path("ref").path("id").asString();
+    }
+
+    /** Ein Co-Habit von Felix mit weiteren Mitgliedern (ueber einen Einladungslink). */
+    protected String withMembers(Map<String, Object> config, Who... others) {
+        String cohabitId = id(create(FELIX, config));
+        String code = post("/cohabit/api/cohabits/" + cohabitId + "/invite-link", FELIX, null).expect(200)
+                .json().path("code").asString();
+        for (Who who : others) {
+            post("/cohabit/api/invite-links/" + code + "/accept", who, null).expect(200);
+        }
+        return cohabitId;
+    }
+
+    protected JsonNode checkin(String cohabitId, Who who, Object body) {
+        return post("/cohabit/api/cohabits/" + cohabitId + "/checkins", who, body).expect(201).json();
+    }
+
     protected static Map<String, Object> map(Object... keyValues) {
         java.util.LinkedHashMap<String, Object> m = new java.util.LinkedHashMap<>();
         for (int i = 0; i < keyValues.length; i += 2) {
