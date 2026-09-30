@@ -37,6 +37,13 @@ public class CohabitAuthFilter extends OncePerRequestFilter {
 
     private static final String BEARER = "Bearer ";
 
+    /**
+     * Der Vorgabewert aus application.properties fuer die lokale Entwicklung. Fehlt
+     * FH_PRIVATE_TOKEN auf dem Server, stuende er sonst als Eigentuemer-Token offen -
+     * und er steht im oeffentlichen Repo.
+     */
+    static final String PLACEHOLDER_TOKEN = "changeme-local-token";
+
     private final String privateToken;
     private final HealthUsers users;
     private final AppTokens appTokens;
@@ -45,7 +52,7 @@ public class CohabitAuthFilter extends OncePerRequestFilter {
 
     public CohabitAuthFilter(String privateToken, HealthUsers users, AppTokens appTokens, PeopleService people,
                              Clock clock) {
-        this.privateToken = privateToken;
+        this.privateToken = effectivePrivateToken(privateToken);
         this.users = users;
         this.appTokens = appTokens;
         this.people = people;
@@ -120,6 +127,11 @@ public class CohabitAuthFilter extends OncePerRequestFilter {
     private Viewer health(String name, AuthVia via) {
         people.ensureHealthPerson(name);
         return new Viewer(name, via, null, users.isOwner(name));
+    }
+
+    /** Der Platzhalter zaehlt nie als Eigentuemer-Token - dann gibt es eben keinen. */
+    static String effectivePrivateToken(String configured) {
+        return configured == null || configured.isBlank() || PLACEHOLDER_TOKEN.equals(configured) ? null : configured;
     }
 
     private boolean matchesPrivate(String supplied) {
