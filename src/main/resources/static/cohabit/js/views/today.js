@@ -250,7 +250,10 @@ export function mount(root, params, ctx) {
             const text = summary.status === 'UNAVAILABLE' && summary.unavailableText ? summary.unavailableText : summary.listLine;
             sub = h('span', { class: 'row-sub' }, dots, text ? h('span', null, text) : null);
         }
-        const action = checkButton(summary, 'sm') || h('span', { class: 'row-chevron', 'aria-hidden': 'true' }, icon('chevronRight'));
+        // Wie im Entwurf: Abhak-Knopf nur, wo heute etwas offen ist; was einfach
+        // laeuft (Ziel, Abstinenz), fuehrt mit dem Pfeil zur Detailseite.
+        const chevron = h('span', { class: 'row-chevron', 'aria-hidden': 'true' }, icon('chevronRight'));
+        const action = summary.status === 'OPEN' || summary.status === 'DONE' ? (checkButton(summary, 'sm') || chevron) : chevron;
         return h('article', { class: `card row-card ${cardClasses(summary, '')}` },
             cardLink(summary),
             h('span', { class: 'row-metric' }, summary.headline.short),

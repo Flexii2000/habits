@@ -103,6 +103,9 @@ function outside(el, event) {
 export function openDialog(content, { kind = 'sheet', className = '', label, onClose, dismissable = true } = {}) {
     const dialog = h('dialog', { class: `dlg ${kind} ${className}`, 'aria-label': label });
     append(dialog, [content]);
+    // Ohne ausdruecklichen Fokuswunsch bekommt der Dialog selbst den Fokus -
+    // sonst traegt sein erster Knopf beim Oeffnen einen Fokusring.
+    if (!dialog.querySelector('[autofocus]')) dialog.setAttribute('autofocus', '');
     document.body.append(dialog);
     let pressedOutside = false;
     dialog.addEventListener('pointerdown', event => {
@@ -134,7 +137,7 @@ export function sheetHead(title, subtitle, dialogRef) {
                 h('h2', { class: 'sheet-title' }, title),
                 subtitle ? h('p', { class: 'sheet-sub' }, subtitle) : null),
             h('button', {
-                type: 'button', class: 'close-btn', 'aria-label': 'Schließen', autofocus: true,
+                type: 'button', class: 'close-btn', 'aria-label': 'Schließen',
                 onclick: () => dialogRef.current && dialogRef.current.close(),
             }, icon('close'))),
     ];

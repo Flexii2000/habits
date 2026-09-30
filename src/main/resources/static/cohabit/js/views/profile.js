@@ -96,7 +96,7 @@ async function deleteAccount() {
     if (!first) return;
     const ref = {};
     const input = h('input', {
-        class: 'field', type: 'text', autocomplete: 'off', autocapitalize: 'characters', spellcheck: 'false',
+        class: 'field center', type: 'text', autocomplete: 'off', autocapitalize: 'characters', spellcheck: 'false',
         placeholder: 'LÖSCHEN', 'aria-label': 'Zur Bestätigung LÖSCHEN eingeben',
     });
     const confirmBtn = h('button', { type: 'button', class: 'btn danger', disabled: true }, 'Löschen');

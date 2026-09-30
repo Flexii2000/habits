@@ -293,26 +293,15 @@ function settingsForm(d, { edit = false, errorEl, onChange } = {}) {
     }
 
     function streakSection() {
-        const parts = [];
-        if (sources.length || d.auto) {
-            const options = [[null, 'Aus'], ...sources.map(s => [s, SOURCES[s] || s])];
-            if (d.auto && !sources.includes(d.auto)) options.push([d.auto, SOURCES[d.auto] || d.auto]);
-            parts.push(h('div', { class: 'set-group', style: 'margin:0;padding:0 2px' },
-                selectRow('Automatisch', options, d.auto, v => { d.auto = v; rerender(); })));
-        }
-        if (d.auto === 'STEPS_WEEKLY') {
-            parts.push(field('Schritte pro Woche', textInput(d.weeklyStepGoal, v => { d.weeklyStepGoal = v; }, { inputmode: 'numeric', 'data-fid': 'autoGoal' })));
-        } else if (d.auto === 'FOCUS') {
-            parts.push(field('Minuten pro Tag', textInput(d.focusMinutesGoal, v => { d.focusMinutesGoal = v; }, { inputmode: 'numeric', 'data-fid': 'autoGoal' })));
-        } else if (!d.auto) {
-            parts.unshift(h('span', { class: 'field-label' }, 'Rhythmus'));
-            const seg = segmented([
+        const sections = [];
+        if (!d.auto) {
+            const parts = [h('span', { class: 'field-label' }, 'Rhythmus')];
+            parts.push(segmented([
                 ['DAILY', 'Täglich'], ['WEEKDAYS', 'Wochentage'], ['TIMES_PER_WEEK', 'pro Woche'],
                 ['TIMES_PER_MONTH', 'pro Monat'], ['INTERVAL', 'Intervall'],
-            ], d.rhythm.kind, v => { d.rhythm.kind = v; rerender(); }, { className: 'rhythm-seg', label: 'Rhythmus' });
-            parts.push(seg);
+            ], d.rhythm.kind, v => { d.rhythm.kind = v; rerender(); }, { className: 'rhythm-seg', label: 'Rhythmus' }));
             if (d.rhythm.kind === 'WEEKDAYS') {
-                parts.push(h('div', { class: 'weekday-picks', role: 'group', 'aria-label': 'Wochentage' },
+                parts.push(h('div', { class: 'weekday-picks', role: 'group', 'aria-label': 'Wochentage', 'data-fid': 'weekdays', tabindex: '-1' },
                     ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map((label, i) => {
                         const iso = i + 1;
                         return h('button', {
@@ -332,8 +321,29 @@ function settingsForm(d, { edit = false, errorEl, onChange } = {}) {
             } else if (d.rhythm.kind === 'INTERVAL') {
                 parts.push(stepper(d.rhythm.days, 2, 30, n => `alle ${n} Tage`, n => { d.rhythm.days = n; }));
             }
+            sections.push(h('section', { class: 'set-group pad stack' }, parts));
         }
-        return h('section', { class: 'set-group pad stack' }, parts);
+        // Automatische Quellen (Vertrag 5.2, Punkt 13) nur fuer Personen, die sie haben.
+        if (sources.length || d.auto) {
+            const options = [[null, 'Aus'], ...sources.map(s => [s, SOURCES[s] || s])];
+            if (d.auto && !sources.includes(d.auto)) options.push([d.auto, SOURCES[d.auto] || d.auto]);
+            const rows = [selectRow('Automatisch', options, d.auto, v => { d.auto = v; rerender(); })];
+            if (d.auto === 'STEPS_WEEKLY') {
+                rows.push(h('label', { class: 'set-row' }, h('span', { class: 'set-label' }, 'Schritte pro Woche'),
+                    inlineNumber(d.weeklyStepGoal, v => { d.weeklyStepGoal = v; }, 'autoGoal')));
+            } else if (d.auto === 'FOCUS') {
+                rows.push(h('label', { class: 'set-row' }, h('span', { class: 'set-label' }, 'Minuten pro Tag'),
+                    inlineNumber(d.focusMinutesGoal, v => { d.focusMinutesGoal = v; }, 'autoGoal')));
+            }
+            sections.push(h('section', { class: 'set-group' }, rows));
+        }
+        return sections;
+    }
+
+    function inlineNumber(value, onInput, fid) {
+        const input = h('input', { class: 'inline-number', type: 'text', inputmode: 'numeric', value: String(value ?? ''), 'data-fid': fid, autocomplete: 'off' });
+        input.addEventListener('input', () => onInput(input.value));
+        return input;
     }
 
     function goalSection() {

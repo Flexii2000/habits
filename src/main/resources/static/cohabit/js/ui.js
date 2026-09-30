@@ -141,12 +141,8 @@ export function errorState(message, retry) {
  * (wie der „Beweisfoto"-Platzhalter der Entwuerfe). Tippen oeffnet es gross.
  */
 export function photo(id, { alt = 'Beweisfoto', onOpen } = {}) {
-    const img = h('img', {
-        src: photoUrl(id, 'thumb'),
-        srcset: `${photoUrl(id, 'thumb')} 512w, ${photoUrl(id, 'full')} 2048w`,
-        sizes: '(min-width: 600px) 520px, 100vw',
-        alt, loading: 'lazy', decoding: 'async',
-    });
+    // In Listen das Vorschaubild (Vertrag 6), gross erst auf Tipp.
+    const img = h('img', { src: photoUrl(id, 'thumb'), alt, loading: 'lazy', decoding: 'async' });
     const frame = h('button', { type: 'button', class: 'photo', 'aria-label': 'Foto groß anzeigen' }, img);
     img.addEventListener('load', () => frame.classList.add('loaded'));
     img.addEventListener('error', () => frame.classList.add('failed'));
@@ -158,7 +154,7 @@ export function openPhoto(id) {
     const ref = {};
     ref.current = openDialog(h('div', { class: 'lightbox-inner' },
         h('img', { src: photoUrl(id, 'full'), alt: 'Foto' }),
-        h('button', { type: 'button', class: 'close-btn lightbox-close', 'aria-label': 'Schließen', autofocus: true, onclick: () => ref.current.close() }, icon('close'))),
+        h('button', { type: 'button', class: 'close-btn lightbox-close', 'aria-label': 'Schließen', onclick: () => ref.current.close() }, icon('close'))),
     { kind: 'lightbox', label: 'Foto' });
 }
 
