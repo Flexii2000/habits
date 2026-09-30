@@ -13,7 +13,7 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.test.web.servlet.request.AbstractMockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 import tools.jackson.databind.JsonNode;
@@ -132,7 +132,7 @@ public abstract class ApiTestBase {
     protected static final Who FELIX = Who.bearer(PRIVATE);
     protected static final Who TORBEN_APP = Who.bearer(TORBEN);
 
-    protected MockHttpServletRequestBuilder as(MockHttpServletRequestBuilder builder, Who who) {
+    protected <B extends AbstractMockHttpServletRequestBuilder<B>> B as(B builder, Who who) {
         if (who.bearer() != null) {
             builder.header("Authorization", "Bearer " + who.bearer());
         }
@@ -142,7 +142,7 @@ public abstract class ApiTestBase {
         return builder;
     }
 
-    protected Response call(MockHttpServletRequestBuilder builder, Who who) {
+    protected <B extends AbstractMockHttpServletRequestBuilder<B>> Response call(B builder, Who who) {
         try {
             MvcResult result = mvc.perform(as(builder, who)).andReturn();
             return new Response(result.getResponse());
