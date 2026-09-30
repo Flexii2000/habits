@@ -1,6 +1,7 @@
 // Abschlussdialog (S. 17) fuer Challenge-Runden und Ziele - einmal je Person
 // (dialogs/{id}/seen). „Gratulieren" setzt „Stark" auf die Systemmeldung zum
-// Ende und oeffnet den Chat (Vertrag 5.2, Punkt 17).
+// Ende und oeffnet den Chat (Vertrag 5.2, Punkt 17). Welche Meldung das ist,
+// sagt der Dienst in dialog.reactionTarget; fehlt das Feld, sucht die Seite sie.
 import { get, post, enc } from './api.js';
 import { h, openDialog, showError } from './dom.js';
 import { colorClass } from './ui.js';
@@ -52,10 +53,14 @@ export function finishedDialog(detail, { onTimeline, onCongratulate }) {
     congratulate.addEventListener('click', async () => {
         congratulate.classList.add('busy');
         try {
-            const message = await endMessage(cohabitId, dialog);
-            if (message) {
-                const mine = (message.reactions || []).some(r => r.reaction === 'STARK' && r.mine);
-                if (!mine) await setReaction(message.reactionTarget, 'STARK', true);
+            if (dialog.reactionTarget) {
+                await setReaction(dialog.reactionTarget, 'STARK', true);
+            } else {
+                const message = await endMessage(cohabitId, dialog);
+                if (message) {
+                    const mine = (message.reactions || []).some(r => r.reaction === 'STARK' && r.mine);
+                    if (!mine) await setReaction(message.reactionTarget, 'STARK', true);
+                }
             }
             markSeen();
             ref.current.close();

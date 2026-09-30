@@ -4,7 +4,6 @@
 import { get, post, del, enc } from '../api.js';
 import { h, icon, actionSheet, confirmDialog, shareLink, showError, toast, fill } from '../dom.js';
 import { avatar, colorClass, errorState, loadingState, sectionLabel } from '../ui.js';
-import { state } from '../state.js';
 import { invitationDialog } from '../invitation.js';
 import { blockPerson, unblockPerson } from '../social.js';
 import { navigate, refreshMe } from '../app.js';
@@ -215,4 +214,3 @@ export function mount(root, params, ctx) {
 }
 
 export { personRow };
-export const meId = () => state.me.person.id;

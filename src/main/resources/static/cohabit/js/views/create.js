@@ -2,8 +2,8 @@
 // allein). Der Typ steht nach dem Anlegen fest. Die Schritte sind Eintraege im
 // Verlauf: Zurueck im Browser fuehrt zum vorigen Schritt, der Entwurf bleibt.
 import { get, post, put, enc } from '../api.js';
-import { h, icon, openDialog, shareLink, showError, toast, fill } from '../dom.js';
-import { avatar, colorClass, errorState, loadingState, PALETTE, segmented, selectRow, stepper, toggle, toggleRow } from '../ui.js';
+import { h, icon, shareLink, showError, toast, fill } from '../dom.js';
+import { avatar, errorState, loadingState, PALETTE, segmented, selectRow, stepper, toggle, toggleRow } from '../ui.js';
 import { state, remember, forget } from '../state.js';
 import { addDays, dayIn, parseNumber, TYPE_NAMES, UNIT_LABELS } from '../format.js';
 import { peopleSearch } from './friends.js';

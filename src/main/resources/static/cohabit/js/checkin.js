@@ -212,7 +212,7 @@ function photoSheet(summary, knownDetail, presetDate, onDone) {
         if (!detail || !ref.current.isConnected) return;
         day = dayPicker(detail, presetDate);
         fill(dayArea, day.el);
-        setHint(detail.members.filter(m => m.state !== 'LEFT').map(m => m.person));
+        setHint(detail.members.filter(m => m.state !== 'INVITED').map(m => m.person));
     });
 }
 

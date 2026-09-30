@@ -3,7 +3,7 @@
 // bzw. Rechtsklick oeffnet Reagieren, Loeschen, Melden, Blockieren. Neue
 // Nachrichten alle 20 s, solange die Seite sichtbar ist.
 import { get, post, del, enc } from './api.js';
-import { h, icon, actionSheet, autoGrow, poll, showError, toast, uuid, fill } from './dom.js';
+import { h, icon, actionSheet, autoGrow, poll, showError, uuid, fill } from './dom.js';
 import { avatar, photo } from './ui.js';
 import { dayHeading, dayIn, fmtTime, isMe, personName } from './format.js';
 import { reactionBar, reactionPicker } from './reactions.js';

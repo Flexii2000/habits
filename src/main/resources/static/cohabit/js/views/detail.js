@@ -4,9 +4,9 @@
 // Einladen, Benachrichtigungen, Archivieren, Verlassen/Loeschen.
 import { get, post, put, del, enc } from '../api.js';
 import { h, icon, actionSheet, confirmDialog, openDialog, sheetHead, poll, shareLink, showError, toast, fill } from '../dom.js';
-import { avatar, chip, colorClass, errorState, loadingState, progressBar, segmented, selectRow, toggleRow } from '../ui.js';
+import { avatar, chip, colorClass, errorState, loadingState, progressBar, selectRow, toggleRow } from '../ui.js';
 import { cached, remember, forget } from '../state.js';
-import { TYPE_NAMES, dateLong, dayIn, dayShort, fmtTime, isMe, joinNames, personName, plural } from '../format.js';
+import { TYPE_NAMES, dateLong, dayIn, dayShort, fmtTime, isMe, personName, plural } from '../format.js';
 import { backfillDays, checkIn, editCheckin } from '../checkin.js';
 import { finishedDialog } from '../finished.js';
 import { nudgeDialog, blockPerson } from '../social.js';
@@ -109,7 +109,7 @@ export function mount(root, params, ctx) {
 
     function compactHeader() {
         const s = summary();
-        const names = detail.members.filter(m => m.state !== 'LEFT').map(m => personName(m.person));
+        const names = detail.members.filter(m => m.state !== 'INVITED').map(m => personName(m.person));
         const ordered = [...names.filter(n => n === 'Du'), ...names.filter(n => n !== 'Du')];
         return h('header', { class: 'd-head compact deco tr' },
             h('div', { class: 'd-bar' },
@@ -377,9 +377,10 @@ export function mount(root, params, ctx) {
                     const me = isMe(m.person);
                     const sub = [m.role === 'ADMIN' ? 'Admin' : null, `@${m.person.username}`, m.state && m.state !== 'ACTIVE' ? memberState(m.state) : null].filter(Boolean).join(' · ');
                     const actions = [];
-                    if (!me && !archived()) actions.push({ label: 'Anstupsen', icon: 'poke', onSelect: () => nudgeDialog(summary().ref, m.person) });
-                    if (admin && !me && m.state === 'ACTIVE' && !archived()) actions.push({ label: 'Zum Admin machen', icon: 'trophy', onSelect: () => transferAdmin(m.person, renderMembers) });
-                    if (admin && !me) actions.push({ label: 'Entfernen', icon: 'leave', danger: true, onSelect: () => removeMember(m.person, renderMembers) });
+                    const invited = m.state === 'INVITED';
+                    if (!me && !invited && !archived()) actions.push({ label: 'Anstupsen', icon: 'poke', onSelect: () => nudgeDialog(summary().ref, m.person) });
+                    if (admin && !me && !invited && !archived()) actions.push({ label: 'Zum Admin machen', icon: 'trophy', onSelect: () => transferAdmin(m.person, renderMembers) });
+                    if (admin && !me) actions.push({ label: invited ? 'Einladung zurückziehen' : 'Entfernen', icon: 'leave', danger: true, onSelect: () => removeMember(m.person, renderMembers) });
                     if (!me) actions.push({ label: 'Blockieren', icon: 'block', danger: true, onSelect: () => blockPerson(m.person) });
                     return h('div', { class: 'person-row' },
                         avatar(m.person, 44),
@@ -401,7 +402,7 @@ export function mount(root, params, ctx) {
     }
 
     function memberState(state) {
-        return { INVITED: 'eingeladen', LEFT: 'ausgetreten', ACTIVE: '' }[state] || state.toLowerCase();
+        return { INVITED: 'eingeladen', PAUSED: 'pausiert', ACTIVE: '' }[state] ?? state.toLowerCase();
     }
 
     async function transferAdmin(person, after) {
@@ -434,7 +435,9 @@ export function mount(root, params, ctx) {
         const body = h('div', { class: 'sheet-body' });
         const zone = detail.config.timezone;
         const today = dayIn(new Date(), zone);
-        const from = h('input', { type: 'date', value: today, min: today, 'aria-label': 'Von' });
+        // Rueckwirkend bis zur Nachtragsfrist - wer gestern krank war, traegt es heute nach.
+        const earliest = detail.backfillFrom && detail.backfillFrom < today ? detail.backfillFrom : today;
+        const from = h('input', { type: 'date', value: today, min: earliest, 'aria-label': 'Von' });
         const to = h('input', { type: 'date', value: today, min: today, 'aria-label': 'Bis' });
         from.addEventListener('change', () => {
             to.min = from.value;

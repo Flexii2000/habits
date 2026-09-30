@@ -43,6 +43,23 @@ const VIEWS = {
     missing: () => Promise.resolve({ mount: mountMissing }),
 };
 
+const TITLES = {
+    today: 'coHabit',
+    timeline: 'Timeline',
+    create: 'Neues Co-Habit',
+    edit: 'Bearbeiten',
+    stats: 'Statistik',
+    profile: 'Profil',
+    notifications: 'Benachrichtigungen',
+    archive: 'Archivierte Co-Habits',
+    applinks: 'App verbinden',
+    friends: 'Freunde & Einladungen',
+    detail: 'coHabit',
+    join: 'Einladung',
+    start: 'coHabit',
+    missing: 'coHabit',
+};
+
 function matchRoute(pathname) {
     let rest = pathname.startsWith(BASE) ? pathname.slice(BASE.length) : pathname;
     if (!rest.startsWith('/')) rest = `/${rest}`;
@@ -132,6 +149,8 @@ export async function render() {
 
     const root = $('view');
     root.className = `view view-${viewName}`;
+    const title = TITLES[viewName] || 'coHabit';
+    document.title = title === 'coHabit' ? title : `${title} – coHabit`;
     fill(root, loadingState());
     let module;
     try {
