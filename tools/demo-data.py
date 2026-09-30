@@ -23,6 +23,7 @@ import urllib.error
 import urllib.request
 import uuid
 import zlib
+from zoneinfo import ZoneInfo
 
 FELIX = "local-private"
 TORBEN = "0123456789abcdef0123456789abcdef"
@@ -127,8 +128,19 @@ def main():
     if api.get("/cohabit/api/cohabits", FELIX):
         raise SystemExit("Die Instanz hat schon Co-Habits - bitte gegen ein leeres Datenverzeichnis laufen lassen.")
 
+    real_now = dt.datetime.fromisoformat(clock["now"].replace("Z", "+00:00"))
+    berlin = ZoneInfo("Europe/Berlin")
+
     def shift(days_back):
         api.post("/cohabit/api/dev/clock", FELIX, {"offsetSeconds": -days_back * 86400})
+
+    def at(date, hour, minute):
+        """Stellt die Demo-Uhr auf eine Ortszeit (Berlin) - heute nie in die Zukunft."""
+        target = dt.datetime.combine(date, dt.time(hour, minute), berlin)
+        if target > real_now:
+            target = real_now - dt.timedelta(minutes=max(1, 24 * 60 - hour * 60 - minute) % 180 + 1)
+        offset = int((target - real_now).total_seconds())
+        api.post("/cohabit/api/dev/clock", FELIX, {"offsetSeconds": offset})
 
     def tick():
         api.post("/cohabit/api/dev/tick", FELIX)
@@ -237,22 +249,26 @@ def main():
         if day in (1, 4, 6, 9, 11, 13):
             runners.append("max")
         for i, person in enumerate(runners):
+            at(date, 6 + i, 12 + 7 * i + day % 20)
             photo = None
             if photos_supported:
                 top, bottom = colors[person]
                 photo = upload(api, who[person], png(96, 64, top, bottom, stripes=8 + day % 5))
             checkin(laufen, who[person], photoId=photo, caption=captions[(day + i) % len(captions)])
         # Ohne Zucker: Felix unterbricht einmal (nicht geteilt), Sara einmal (geteilt).
+        at(date, 12, 30)
         if day == 3:
             checkin(zucker, FELIX, kind="BREAK")
         if day == 8:
             checkin(zucker, SARA, kind="BREAK")
-        # 100k Schritte: Health-Werte aus den Apps.
+        # Schritte: Health-Werte aus den Apps, abends synchronisiert.
+        at(date, 21, 40)
         for i, token in enumerate((FELIX, LENA, MAX, SARA)):
             if (day + i) % 4 != 3:
                 api.put(f"/cohabit/api/cohabits/{schritte}/health/{date.isoformat()}", token,
                         {"value": 3200 + ((day * 7 + i * 13) % 9) * 900})
         # Erster bei 42 km: in jeder Runde; wer die 42 zuerst schafft, beendet sie sofort.
+        at(date, 17, 5 + day % 40)
         state = api.get(f"/cohabit/api/cohabits/{first_to}", FELIX)["challenge"]
         if state["start"] <= date.isoformat() <= state["end"]:
             for token, km in ((FELIX, 7 + day % 3), (TORBEN, 5.5), (LENA, 9.5 - day % 4)):
@@ -260,32 +276,44 @@ def main():
                 if running:
                     checkin(first_to, token, value=km)
         # Wer kocht oefter: nur im laufenden Monat.
+        at(date, 19, 10 + day % 45)
         if month_start <= date <= month_end:
             cooks = [p for j, p in enumerate(["lena", "felix", "max", "sara", "torben"]) if (day + j) % (j + 2) == 0]
             for p in cooks:
                 checkin(kochen, who[p])
         # Lesen: Felix jeden Tag, Torben meist.
+        at(date, 22, 15)
         checkin(lesen, FELIX)
         if day % 5 != 2:
             checkin(lesen, TORBEN)
         # Ein bisschen Chat.
+        at(date, 20, 45)
         if day == 2:
             message(laufen, MAX, "Morgen 7 Uhr zusammen an der Alster?")
             message(laufen, FELIX, "Bin dabei!")
         if day == 9:
             message(kochen, LENA, "Heute gibt's Linsencurry.")
             message(kochen, SARA, "Lecker, Rezept bitte!")
+        at(date, 23, 50)
         tick()
 
     # --- Heute ----------------------------------------------------------------------
     shift(0)
     if chat_supported:
-        timeline = api.get("/cohabit/api/timeline?limit=10", FELIX)["items"]
-        for item in timeline[:4]:
-            if item.get("person") and item["person"]["id"] != "felix":
-                api.post("/cohabit/api/reactions", FELIX, {"target": item["reactionTarget"], "reaction": "STARK"})
-                api.post("/cohabit/api/reactions", SARA if item["cohabit"]["id"] == kochen else LENA,
+        tokens_by_id = {"felix": FELIX, "torben": TORBEN, lena_id: LENA, max_id: MAX, sara_id: SARA}
+        timeline = api.get("/cohabit/api/timeline?limit=12", FELIX)["items"]
+        reacted = 0
+        for item in timeline:
+            if reacted >= 5 or not item.get("person") or item["person"]["id"] == "felix":
+                continue
+            api.post("/cohabit/api/reactions", FELIX, {"target": item["reactionTarget"], "reaction": "STARK"})
+            members = api.get(f"/cohabit/api/cohabits/{item['cohabit']['id']}", FELIX)["members"]
+            others = [m["person"]["id"] for m in members
+                      if m["state"] != "INVITED" and m["person"]["id"] not in ("felix", item["person"]["id"])]
+            if others:
+                api.post("/cohabit/api/reactions", tokens_by_id[others[0]],
                          {"target": item["reactionTarget"], "reaction": "RESPEKT"})
+            reacted += 1
         today_felix = api.get(f"/cohabit/api/cohabits/{laufen}", FELIX)["summary"]
         if today_felix["status"] == "OPEN":
             api.post(f"/cohabit/api/cohabits/{laufen}/nudges", MAX, {"to": "felix", "text": "Heute noch laufen?"})

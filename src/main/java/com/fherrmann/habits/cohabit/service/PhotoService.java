@@ -77,6 +77,12 @@ public class PhotoService {
     public record Image(byte[] bytes) {
     }
 
+    static {
+        // Kein Plattencache fuer ImageIO: der Dienst laeuft mit ProtectSystem=strict, und im
+        // Speicher ist es bei 10 MB ohnehin schneller.
+        ImageIO.setUseCache(false);
+    }
+
     /** Zwei Fotos gleichzeitig - jedes braucht beim Verkleinern ein paar Dutzend MB. */
     private final Semaphore decoding = new Semaphore(2);
     private final CohabitStore store;
