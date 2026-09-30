@@ -1,12 +1,51 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="de">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>coHabit</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>coHabit</title>
+    <!-- Absolute Pfade: die SPA liefert index.html auch unter /cohabit/c/<id>/chat
+         aus, relative Verweise zeigten dort ins Leere. -->
+    <link rel="icon" href="/cohabit/icons/icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/cohabit/icons/apple-touch-icon.png">
+    <link rel="manifest" href="/cohabit/manifest.json">
+    <meta name="theme-color" content="#F3F0FB" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#14131C" media="(prefers-color-scheme: dark)">
+    <meta name="color-scheme" content="light dark">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="coHabit">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <link rel="stylesheet" href="/cohabit/styles.css">
+    <script type="module" src="/cohabit/js/app.js"></script>
 </head>
 <body>
-<!-- Platzhalter des Backends. Die Weboberflaeche baut der Web-Agent (Branch cohabit-web). -->
-<h1>coHabit</h1>
+<div class="shell">
+    <nav class="nav" id="nav" aria-label="Hauptnavigation" hidden>
+        <a class="nav-logo logo" href="/cohabit/" data-nav>co<b>H</b>abit</a>
+        <a class="nav-item" href="/cohabit/" data-nav data-tab="today">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10.2 12 4l8 6.2V19a1 1 0 0 1-1 1h-4.6v-5.6H9.6V20H5a1 1 0 0 1-1-1z"/></svg>
+            <span>Heute</span>
+        </a>
+        <a class="nav-item" href="/cohabit/timeline" data-nav data-tab="timeline">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16M11 7h9M11 12h9M11 17h9"/><circle cx="7" cy="7" r="1.6"/><circle cx="7" cy="12" r="1.6"/><circle cx="7" cy="17" r="1.6"/></svg>
+            <span>Timeline</span>
+        </a>
+        <a class="nav-item nav-plus" href="/cohabit/neu" data-nav data-tab="new">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            <span>Neues Co-Habit</span>
+        </a>
+        <a class="nav-item" href="/cohabit/statistik" data-nav data-tab="stats">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 20v-8M12 20V5M18 20v-5"/></svg>
+            <span>Statistik</span>
+        </a>
+        <a class="nav-item" href="/cohabit/profil" data-nav data-tab="profile">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4.5 20c.9-3.6 3.9-5.5 7.5-5.5s6.6 1.9 7.5 5.5"/></svg>
+            <span>Profil</span>
+        </a>
+    </nav>
+    <main class="view" id="view"></main>
+</div>
+<p class="toast" id="toast" popover="manual" role="status" aria-live="polite"></p>
+<noscript><p class="noscript">coHabit braucht JavaScript.</p></noscript>
 </body>
 </html>
