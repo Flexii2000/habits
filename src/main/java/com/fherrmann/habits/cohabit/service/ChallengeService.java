@@ -97,6 +97,7 @@ public class ChallengeService {
         Event e = events.event(tx, c, EventKind.CHALLENGE_ENDED, round.winners.isEmpty() ? null
                 : round.winners.getFirst(), now);
         e.detail = round.label;
+        e.value = (double) round.number;
         state.rounds.add(round);
         state.roundEndedAt = now;
         for (Place p : places) {
