@@ -105,7 +105,8 @@ export function openDialog(content, { kind = 'sheet', className = '', label, onC
     append(dialog, [content]);
     // Ohne ausdruecklichen Fokuswunsch bekommt der Dialog selbst den Fokus -
     // sonst traegt sein erster Knopf beim Oeffnen einen Fokusring.
-    if (!dialog.querySelector('[autofocus]')) dialog.setAttribute('autofocus', '');
+    const focusSelf = !dialog.querySelector('[autofocus]');
+    if (focusSelf) dialog.setAttribute('tabindex', '-1');
     document.body.append(dialog);
     let pressedOutside = false;
     dialog.addEventListener('pointerdown', event => {
@@ -121,6 +122,7 @@ export function openDialog(content, { kind = 'sheet', className = '', label, onC
         if (onClose) onClose(dialog.returnValue);
     });
     dialog.showModal();
+    if (focusSelf) dialog.focus({ preventScroll: true });
     return dialog;
 }
 
