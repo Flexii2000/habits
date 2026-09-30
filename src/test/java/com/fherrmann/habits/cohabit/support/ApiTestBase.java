@@ -65,6 +65,7 @@ public abstract class ApiTestBase {
     @DynamicPropertySource
     static void dataDir(DynamicPropertyRegistry registry) {
         registry.add("habits.data-dir", DATA::toString);
+        registry.add("cohabit.android.dir", () -> DATA.resolve("android").toString());
     }
 
     @Autowired
@@ -96,6 +97,12 @@ public abstract class ApiTestBase {
             }
         }
         Files.deleteIfExists(DATA.resolve("focus.json"));
+        Path android = DATA.resolve("android");
+        if (Files.exists(android)) {
+            try (Stream<Path> files = Files.walk(android)) {
+                files.sorted(Comparator.reverseOrder()).forEach(p -> p.toFile().delete());
+            }
+        }
         store.reload();
         clock.set(TestBeans.START);
         iosTransport.sent.clear();
