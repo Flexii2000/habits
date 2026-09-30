@@ -24,7 +24,7 @@ import java.util.List;
  * rechnet aus denselben Sessions.
  */
 @RestController
-@RequestMapping("/api/focus")
+@RequestMapping("/habits/api/focus")
 public class FocusController {
 
     private final FocusService service;

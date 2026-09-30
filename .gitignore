@@ -9,3 +9,5 @@ out/
 
 # Live-Daten: entsteht zur Laufzeit, gehoert nicht ins Repo.
 data/habits.json
+data/focus.json
+data/cohabit/

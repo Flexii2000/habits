@@ -58,7 +58,7 @@ class FocusControllerTest {
 
     @Test
     void ohneCookieVerboten() throws Exception {
-        mockMvc.perform(get("/api/focus/sessions").param("from", "2026-09-01").param("to", "2026-09-02"))
+        mockMvc.perform(get("/habits/api/focus/sessions").param("from", "2026-09-01").param("to", "2026-09-02"))
                 .andExpect(status().isForbidden());
     }
 
@@ -66,27 +66,27 @@ class FocusControllerTest {
     void neuerBaum201BekannterBaum200() throws Exception {
         String body = "{\"id\":\"s1\",\"start\":\"2026-09-02T12:00:00Z\",\"end\":\"2026-09-02T12:45:00Z\"}";
         when(service.record(any())).thenReturn(new FocusService.Recorded(session("s1"), true));
-        mockMvc.perform(post("/api/focus/sessions").cookie(COOKIE)
+        mockMvc.perform(post("/habits/api/focus/sessions").cookie(COOKIE)
                         .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.minutes").value(45))
                 .andExpect(jsonPath("$.day").value("2026-09-02"));
         when(service.record(any())).thenReturn(new FocusService.Recorded(session("s1"), false));
-        mockMvc.perform(post("/api/focus/sessions").cookie(COOKIE)
+        mockMvc.perform(post("/habits/api/focus/sessions").cookie(COOKIE)
                         .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isOk());
     }
 
     @Test
     void faellenAntwortet204() throws Exception {
-        mockMvc.perform(delete("/api/focus/sessions/s1").cookie(COOKIE))
+        mockMvc.perform(delete("/habits/api/focus/sessions/s1").cookie(COOKIE))
                 .andExpect(status().isNoContent());
     }
 
     @Test
     void listeLiefertDieSessionsDesZeitraums() throws Exception {
         when(service.list(any(), any())).thenReturn(List.of(session("s2"), session("s1")));
-        mockMvc.perform(get("/api/focus/sessions").cookie(COOKIE)
+        mockMvc.perform(get("/habits/api/focus/sessions").cookie(COOKIE)
                         .param("from", "2026-08-01").param("to", "2026-09-02"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(2))
