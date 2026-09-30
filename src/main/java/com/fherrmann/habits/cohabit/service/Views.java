@@ -819,7 +819,8 @@ public final class Views {
         MemberEval me = e.member(viewerId);
         double total = goalTotal(e, me);
         double planDelta = total - g.target() * e.goalElapsedShare();
-        planDelta = integral(c) ? Math.round(planDelta) : Texts.round2(planDelta);
+        // Kaufmaennisch vom Nullpunkt weg: +1,5 und -1,5 werden gleich weit gerundet.
+        planDelta = integral(c) ? Math.signum(planDelta) * Math.round(Math.abs(planDelta)) : Texts.round2(planDelta);
         String planText = planDelta > 0 ? Texts.signed(planDelta) + " vor Plan"
                 : planDelta < 0 ? Texts.signed(planDelta) + " hinter Plan" : "im Plan";
         long remainingDays = Math.max(0, ChronoUnit.DAYS.between(e.today, g.deadline()));
