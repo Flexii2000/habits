@@ -4,7 +4,7 @@
 // ein Objekt mit unmount() zurueckgibt - dort enden ihre Timer.
 import { api, setUnauthorizedHandler } from './api.js';
 import { state } from './state.js';
-import { $, h, closeAllDialogs, showError } from './dom.js';
+import { $, h, closeAllDialogs, showError, fill } from './dom.js';
 import { errorState, loadingState } from './ui.js';
 
 export const BASE = '/cohabit';
@@ -71,6 +71,22 @@ export function navigate(path, { replace = false, state: extra } = {}) {
     render();
 }
 
+let pendingReplace = null;
+
+/**
+ * Springt `stepsBack` Eintraege zurueck und ersetzt den erreichten Eintrag
+ * durch `path` - so verschwinden die Schritte des Anlegens aus dem Verlauf,
+ * und Zurueck von der neuen Detailseite fuehrt dorthin, woher man kam.
+ */
+export function replaceFlow(stepsBack, path) {
+    if (stepsBack <= 0) {
+        navigate(path, { replace: true });
+        return;
+    }
+    pendingReplace = path.startsWith(BASE) ? path : BASE + path;
+    history.go(-stepsBack);
+}
+
 /** Zurueck innerhalb der Seite; kam man von aussen, zur Startseite statt hinaus. */
 export function goBack(fallback = '/') {
     if (history.state && history.state.app && history.length > 1) history.back();
@@ -116,17 +132,17 @@ export async function render() {
 
     const root = $('view');
     root.className = `view view-${viewName}`;
-    root.replaceChildren(loadingState());
+    fill(root, loadingState());
     let module;
     try {
         module = await VIEWS[viewName]();
     } catch (err) {
-        root.replaceChildren(errorState('Die Seite konnte nicht geladen werden.', () => location.reload()));
+        fill(root, errorState('Die Seite konnte nicht geladen werden.', () => location.reload()));
         return;
     }
     if (token !== renderToken) return;
     const container = h('div', { class: 'view-inner' });
-    root.replaceChildren(container);
+    fill(root, container);
     const ctx = {
         alive: () => token === renderToken,
         restoreScroll: () => {
@@ -173,7 +189,14 @@ function bind() {
         event.preventDefault();
         navigate(url.pathname + url.search);
     });
-    window.addEventListener('popstate', render);
+    window.addEventListener('popstate', () => {
+        if (pendingReplace) {
+            const target = pendingReplace;
+            pendingReplace = null;
+            history.replaceState({ app: true }, '', target);
+        }
+        render();
+    });
     if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
     setUnauthorizedHandler(() => {
         // Anmeldung weg (widerrufen, Konto geloescht): zurueck zum Start.

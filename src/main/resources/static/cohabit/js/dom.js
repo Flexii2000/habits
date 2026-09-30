@@ -22,6 +22,15 @@ export function h(tag, props, ...children) {
     return el;
 }
 
+/**
+ * Ersetzt den Inhalt eines Elements. Anders als replaceChildren() werden
+ * null, false und Arrays verarbeitet - replaceChildren(null) schriebe „null".
+ */
+export function fill(el, ...children) {
+    el.replaceChildren();
+    return append(el, children);
+}
+
 export function append(el, children) {
     for (const child of children.flat(Infinity)) {
         if (child == null || child === false) continue;

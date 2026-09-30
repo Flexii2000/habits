@@ -1,5 +1,5 @@
 // Wiederkehrende Bausteine der Oberflaeche.
-import { h, icon, openDialog } from './dom.js';
+import { h, icon, openDialog, fill } from './dom.js';
 import { photoUrl } from './api.js';
 import { isMe } from './format.js';
 
@@ -63,7 +63,7 @@ export function toggleRow(label, options) {
 export function segmented(options, value, onchange, { className = '', label } = {}) {
     const wrap = h('div', { class: `seg ${className}`, role: 'group', 'aria-label': label });
     const render = current => {
-        wrap.replaceChildren(...options.map(([key, text]) => h('button', {
+        fill(wrap, ...options.map(([key, text]) => h('button', {
             type: 'button',
             'aria-pressed': String(key === current),
             onclick: () => {
