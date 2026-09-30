@@ -100,7 +100,7 @@ export function mount(root, params, ctx) {
             const info = await get('/app/android');
             if (!ctx.alive() || !info) return;
             const size = info.sizeBytes ? ` · ${fmtNumber(Math.round(info.sizeBytes / 1e5) / 10)} MB` : '';
-            fill(apkBox, h('a', { class: 'list', href: `${API}/app/android/apk`, download: 'cohabit.apk' },
+            fill(apkBox, h('a', { class: 'list', href: `${API}/app/android/apk`, download: true },
                 h('span', { class: 'list-row' },
                     icon('download'),
                     h('span', { class: 'row-label' }, 'Android-App', h('small', { class: 'row-note' }, ` ${info.versionName}${size}`)),

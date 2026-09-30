@@ -50,7 +50,7 @@ export function mount(root, params, ctx) {
                 listRow('Benachrichtigungen', { href: '/cohabit/profil/benachrichtigungen' }),
                 listRow('Freunde & Einladungen', { href: '/cohabit/freunde', trailing: news ? badge(`${news} neu`) : null }),
                 listRow('Archivierte Co-Habits', { href: '/cohabit/profil/archiv' }),
-                listRow('Daten exportieren', { href: `${API}/me/export`, download: 'cohabit-export.zip' }),
+                listRow('Daten exportieren', { href: `${API}/me/export`, download: true }),
                 listRow('App verbinden', { href: '/cohabit/profil/app' }),
                 listRow('Rechtliches', { href: '/cohabit/rechtliches', external: true })),
             h('div', { class: 'list' },

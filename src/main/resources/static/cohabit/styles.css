@@ -2336,7 +2336,8 @@ dialog.invite, dialog.finished { background: transparent; overflow: visible; }
 
     .page { padding-bottom: 72px; }
     .d-head { border-radius: 36px; margin-top: 20px; }
-    .d-head.compact { top: 12px; border-radius: 32px; }
+    /* Der Streifen ueber dem klebenden Kopf verdeckt, was darunter durchscrollt. */
+    .d-head.compact { top: 12px; border-radius: 32px; box-shadow: 0 -12px 0 0 var(--bg); }
     .toast { bottom: 40px; }
 }
 
