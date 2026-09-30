@@ -478,12 +478,18 @@ public final class Views {
         return "Eintrag hinzufügen";
     }
 
+    /** Beim Teamziel das festgehaltene Ergebnis, beim Einzelziel das eigene. */
+    static boolean goalReached(Cohabit c, double total) {
+        if (c.goal.mode() == GoalMode.TEAM && c.goalState != null && c.goalState.finishedAt != null) {
+            return c.goalState.reached;
+        }
+        return total >= c.goal.target();
+    }
+
     static String goalRemainingText(CohabitEval e, double total) {
         GoalConfig g = e.cohabit.goal;
         if (e.today.isAfter(g.deadline())) {
-            boolean reached = e.cohabit.goalState != null && e.cohabit.goalState.finishedAt != null
-                    ? e.cohabit.goalState.reached : total >= g.target();
-            return reached ? "Ziel erreicht" : "Ziel verfehlt";
+            return goalReached(e.cohabit, total) ? "Ziel erreicht" : "Ziel verfehlt";
         }
         long days = ChronoUnit.DAYS.between(e.today, g.deadline());
         if (days == 0) {
@@ -831,8 +837,7 @@ public final class Views {
         }
         GoalBlock.Finished finished = null;
         if (e.today.isAfter(g.deadline())) {
-            boolean reached = c.goalState != null && c.goalState.finishedAt != null
-                    ? c.goalState.reached : total >= g.target();
+            boolean reached = goalReached(c, total);
             finished = new GoalBlock.Finished(reached, reached ? "Ziel erreicht" : "Ziel verfehlt");
         }
         String unitLabel = g.counting() == GoalCounting.ENTRIES ? "Einträge" : Texts.unitLabel(c.tracking.unit());
@@ -946,7 +951,8 @@ public final class Views {
                     podium.add(new FinishedDialog.PodiumEntry(rank, p, num(x.amount), Texts.number(x.amount)));
                 }
             }
-            String title = (c.goalState.reached ? "Ziel erreicht: „" : "Ziel verfehlt: „") + c.name + "“";
+            boolean reached = goalReached(c, goalTotal(e, e.member(viewerId)));
+            String title = (reached ? "Ziel erreicht: „" : "Ziel verfehlt: „") + c.name + "“";
             return new FinishedDialog("goal", "GOAL", title, podium, null, null,
                     c.goalState.messageId == null ? null : "message:" + c.goalState.messageId);
         }
