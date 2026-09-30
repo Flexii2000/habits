@@ -131,6 +131,16 @@ public class CohabitStore {
         return result;
     }
 
+    /** Liest alles neu von der Platte - etwa nachdem jemand die Dateien zurueckgespielt hat. */
+    public void reload() {
+        lock.writeLock().lock();
+        try {
+            loadAll();
+        } finally {
+            lock.writeLock().unlock();
+        }
+    }
+
     public void update(Consumer<Tx> fn) {
         write(tx -> {
             fn.accept(tx);

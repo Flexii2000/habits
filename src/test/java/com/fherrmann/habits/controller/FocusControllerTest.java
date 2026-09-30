@@ -1,95 +1,43 @@
 package com.fherrmann.habits.controller;
 
-import com.fherrmann.habits.dto.FocusSessionView;
-import com.fherrmann.habits.security.SecurityConfig;
-import com.fherrmann.habits.service.FocusService;
+import com.fherrmann.habits.cohabit.support.ApiTestBase;
 import jakarta.servlet.http.Cookie;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.context.annotation.Import;
-import org.springframework.http.MediaType;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.web.context.WebApplicationContext;
 
-import java.time.Instant;
-import java.time.LocalDate;
-import java.util.List;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.when;
-import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+/** Der Wald der Fokus-App: {@code /habits/api/focus/sessions} bleibt, wie er war. */
+class FocusControllerTest extends ApiTestBase {
 
-@WebMvcTest(FocusController.class)
-@Import({SecurityConfig.class, PlainTextErrors.class})
-@TestPropertySource(properties = "habits.security.token=testtoken")
-class FocusControllerTest {
+    private static final Who PRIVATE_COOKIE = Who.cookies(new Cookie("fh_private", PRIVATE));
+    private static final String BODY =
+            "{\"id\":\"s1\",\"start\":\"2026-09-30T06:00:00Z\",\"end\":\"2026-09-30T06:45:00Z\"}";
 
-    private static final Cookie COOKIE = new Cookie("fh_private", "testtoken");
-
-    @Autowired
-    private WebApplicationContext webApplicationContext;
-
-    @MockitoBean
-    private FocusService service;
-
-    private MockMvc mockMvc;
-
-    @BeforeEach
-    void setUpMockMvc() {
-        mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext)
-                .apply(springSecurity())
-                .build();
-    }
-
-    private static FocusSessionView session(String id) {
-        return new FocusSessionView(id, Instant.parse("2026-09-02T12:00:00Z"),
-                Instant.parse("2026-09-02T12:45:00Z"), 45, LocalDate.of(2026, 9, 2));
+    @Test
+    void ohneCookieVerbotenUndNurDieEigentuemerinDarf() {
+        get("/habits/api/focus/sessions?from=2026-09-01&to=2026-09-30", Who.nobody()).expect(403);
+        get("/habits/api/focus/sessions?from=2026-09-01&to=2026-09-30", TORBEN_APP).expect(403);
+        get("/habits/api/focus/sessions?from=2026-09-01&to=2026-09-30", PRIVATE_COOKIE).expect(200);
     }
 
     @Test
-    void ohneCookieVerboten() throws Exception {
-        mockMvc.perform(get("/habits/api/focus/sessions").param("from", "2026-09-01").param("to", "2026-09-02"))
-                .andExpect(status().isForbidden());
+    void neuerBaum201BekannterBaum200UndFaellen204() {
+        Response created = post("/habits/api/focus/sessions", PRIVATE_COOKIE, BODY).expect(201);
+        assertEquals(45, created.json().path("minutes").asInt());
+        assertEquals("2026-09-30", created.json().path("day").asString());
+        post("/habits/api/focus/sessions", PRIVATE_COOKIE, BODY).expect(200);
+        Response list = get("/habits/api/focus/sessions?from=2026-09-01&to=2026-09-30", PRIVATE_COOKIE).expect(200);
+        assertEquals(1, list.json().size());
+        delete("/habits/api/focus/sessions/s1", PRIVATE_COOKIE).expect(204);
+        delete("/habits/api/focus/sessions/s1", PRIVATE_COOKIE).expect(404);
     }
 
     @Test
-    void neuerBaum201BekannterBaum200() throws Exception {
-        String body = "{\"id\":\"s1\",\"start\":\"2026-09-02T12:00:00Z\",\"end\":\"2026-09-02T12:45:00Z\"}";
-        when(service.record(any())).thenReturn(new FocusService.Recorded(session("s1"), true));
-        mockMvc.perform(post("/habits/api/focus/sessions").cookie(COOKIE)
-                        .contentType(MediaType.APPLICATION_JSON).content(body))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.minutes").value(45))
-                .andExpect(jsonPath("$.day").value("2026-09-02"));
-        when(service.record(any())).thenReturn(new FocusService.Recorded(session("s1"), false));
-        mockMvc.perform(post("/habits/api/focus/sessions").cookie(COOKIE)
-                        .contentType(MediaType.APPLICATION_JSON).content(body))
-                .andExpect(status().isOk());
-    }
-
-    @Test
-    void faellenAntwortet204() throws Exception {
-        mockMvc.perform(delete("/habits/api/focus/sessions/s1").cookie(COOKIE))
-                .andExpect(status().isNoContent());
-    }
-
-    @Test
-    void listeLiefertDieSessionsDesZeitraums() throws Exception {
-        when(service.list(any(), any())).thenReturn(List.of(session("s2"), session("s1")));
-        mockMvc.perform(get("/habits/api/focus/sessions").cookie(COOKIE)
-                        .param("from", "2026-08-01").param("to", "2026-09-02"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(2))
-                .andExpect(jsonPath("$[0].id").value("s2"));
+    void fehlerKommenHierWeiterAlsKlartext() {
+        Response bad = post("/habits/api/focus/sessions", PRIVATE_COOKIE,
+                "{\"id\":\"kurz\",\"start\":\"2026-09-30T06:00:00Z\",\"end\":\"2026-09-30T06:00:00Z\"}").expect(400);
+        assertEquals("Eine Session dauert mindestens eine Minute.", bad.body());
+        assertTrue(bad.header("Content-Type").startsWith("text/plain"));
     }
 }

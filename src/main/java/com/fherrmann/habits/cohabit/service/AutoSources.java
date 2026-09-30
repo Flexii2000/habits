@@ -54,6 +54,11 @@ public class AutoSources {
         this.users = users;
     }
 
+    /** Vergisst die gemerkten Tage des Kalorienzaehlers. */
+    public void forgetHistory() {
+        foodHistory.clear();
+    }
+
     /** Welche Quellen eine Person hat: FOOD und Schritte alle Healthy-Personen, FOCUS nur die Eigentuemerin. */
     public List<AutoSource> sourcesOf(String personId) {
         if (users.isOwner(personId)) {
