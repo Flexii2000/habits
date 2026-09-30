@@ -43,7 +43,8 @@ import static org.springframework.security.test.web.servlet.setup.SecurityMockMv
         "health.tokens=torben:" + ApiTestBase.TORBEN,
         "cohabit.scheduler.enabled=false",
         "cohabit.public-url=https://fherrmann.com/cohabit",
-        "habits.weight.token=test-weight"
+        "habits.weight.token=test-weight",
+        "cohabit.push.async=false"
 })
 @Import(TestBeans.class)
 public abstract class ApiTestBase {

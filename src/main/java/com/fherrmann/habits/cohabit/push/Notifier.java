@@ -6,6 +6,7 @@ import com.fherrmann.habits.cohabit.model.MemberSettings;
 import com.fherrmann.habits.cohabit.model.NotificationPrefs;
 import com.fherrmann.habits.cohabit.model.Person;
 import com.fherrmann.habits.cohabit.store.CohabitStore;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -14,6 +15,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -23,7 +26,9 @@ import java.util.stream.Collectors;
  *
  * <p>Innerhalb der Transaktion wird nur ausgewaehlt (Schalter, Stummschaltung,
  * Blocks, nie an die ausloesende Person); zugestellt wird danach, ausserhalb des
- * Locks - ein haengender Push-Dienst haelt so niemanden auf.
+ * Locks und auf einem eigenen Thread - ein haengender Push-Dienst haelt weder einen
+ * Schreibvorgang noch die Antwort an die App auf. Ein Thread genuegt und haelt die
+ * Reihenfolge.
  */
 @Component
 public class Notifier {
@@ -33,12 +38,20 @@ public class Notifier {
 
     private final Map<String, PushTransport> transports;
     private final CohabitStore store;
+    private final ExecutorService sender;
 
-    public Notifier(List<PushTransport> transports, CohabitStore store) {
+    /** @param async false in Tests: dann ist die Zustellung erledigt, wenn der Aufruf zurueckkehrt */
+    public Notifier(List<PushTransport> transports, CohabitStore store,
+                    @Value("${cohabit.push.async:true}") boolean async) {
         this.transports = transports.stream()
                 .collect(Collectors.toMap(PushTransport::platform, Function.identity(),
                         (a, b) -> a.isConfigured() ? a : b));
         this.store = store;
+        this.sender = async ? Executors.newSingleThreadExecutor(r -> {
+            Thread thread = new Thread(r, "cohabit-push");
+            thread.setDaemon(true);
+            return thread;
+        }) : null;
     }
 
     /**
@@ -63,7 +76,15 @@ public class Notifier {
             }
         }
         if (!deliveries.isEmpty()) {
-            tx.afterCommit(() -> deliver(deliveries));
+            tx.afterCommit(() -> dispatch(deliveries));
+        }
+    }
+
+    private void dispatch(List<Delivery> deliveries) {
+        if (sender == null) {
+            deliver(deliveries);
+        } else {
+            sender.execute(() -> deliver(deliveries));
         }
     }
 
@@ -78,7 +99,7 @@ public class Notifier {
             }
         }
         if (!deliveries.isEmpty()) {
-            tx.afterCommit(() -> deliver(deliveries));
+            tx.afterCommit(() -> dispatch(deliveries));
         }
     }
 

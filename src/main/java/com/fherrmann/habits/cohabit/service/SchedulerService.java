@@ -111,6 +111,7 @@ public class SchedulerService implements DevController.Tickable {
             }
             expireLinks(tx, at);
             pruneSent(tx, at);
+            pruneNudges(tx, at);
         });
         if (Duration.between(lastCleanup, at).toMinutes() >= 60 || at.isBefore(lastCleanup)) {
             lastCleanup = at;
@@ -341,6 +342,14 @@ public class SchedulerService implements DevController.Tickable {
         Instant cutoff = now.minus(Duration.ofDays(1));
         if (tx.cohabits().inviteLinks.stream().anyMatch(l -> l.expiresAt.isBefore(cutoff))) {
             tx.cohabitsW().inviteLinks.removeIf(l -> l.expiresAt.isBefore(cutoff));
+        }
+    }
+
+    /** Stupser zeigen nur heute einen Banner - nach einem Monat sind sie Ballast. */
+    private static void pruneNudges(CohabitStore.Tx tx, Instant now) {
+        Instant cutoff = now.minus(Duration.ofDays(30));
+        if (tx.events().nudges.stream().anyMatch(n -> n.createdAt.isBefore(cutoff))) {
+            tx.eventsW().nudges.removeIf(n -> n.createdAt.isBefore(cutoff));
         }
     }
 
