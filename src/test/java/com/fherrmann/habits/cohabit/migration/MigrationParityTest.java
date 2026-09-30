@@ -1,6 +1,7 @@
 package com.fherrmann.habits.cohabit.migration;
 
 import com.fherrmann.habits.client.FoodClient;
+import com.fherrmann.habits.cohabit.api.ClassicHabit;
 import com.fherrmann.habits.cohabit.model.AutoSource;
 import com.fherrmann.habits.cohabit.model.Checkin;
 import com.fherrmann.habits.cohabit.model.CheckinKind;
@@ -12,10 +13,12 @@ import com.fherrmann.habits.cohabit.model.Person;
 import com.fherrmann.habits.cohabit.model.RhythmKind;
 import com.fherrmann.habits.cohabit.model.Role;
 import com.fherrmann.habits.cohabit.rules.AutoFacts;
+import com.fherrmann.habits.cohabit.rules.CohabitEval;
 import com.fherrmann.habits.cohabit.rules.Evaluations;
 import com.fherrmann.habits.cohabit.rules.StreakCalc;
 import com.fherrmann.habits.cohabit.rules.StreakModel;
 import com.fherrmann.habits.cohabit.service.AutoSources;
+import com.fherrmann.habits.cohabit.service.ClassicService;
 import com.fherrmann.habits.cohabit.store.CohabitStore;
 import com.fherrmann.habits.cohabit.support.FakeSources;
 import com.fherrmann.habits.legacy.Habit;
@@ -221,6 +224,65 @@ class MigrationParityTest {
     @Test
     void amStichtagStimmtJedeSerie() {
         assertParity(STICHTAG);
+    }
+
+    /**
+     * Die klassische Liste der iOS-App zeigt Feld fuer Feld, was die alte App an
+     * dem Tag gezeigt haette - Flamme, Punkte, Haken, Stand des Zeitraums.
+     */
+    @Test
+    void dieKlassischeListeZeigtDieAlteAntwort() {
+        for (LocalDate day = LocalDate.of(2026, 9, 23); !day.isAfter(LocalDate.of(2026, 10, 31)); day = day.plusDays(1)) {
+            assertClassicParity(day);
+        }
+    }
+
+    private void assertClassicParity(LocalDate day) {
+        Clock clock = Clock.fixed(day.atTime(21, 0).atZone(BERLIN).toInstant(), BERLIN);
+        LegacyHabitsService old = new LegacyHabitsService(
+                d -> food.day("felix", d),
+                (from, to) -> steps.steps("felix", from, to),
+                focus::minutesPerDay,
+                clock, 730);
+        List<Mark> marksThen = legacy.marks().stream().filter(m -> !m.date().isAfter(day)).toList();
+        HabitsData then = new HabitsData(legacy.habits(), marksThen);
+        store.read(data -> {
+            for (Habit habit : legacy.habits()) {
+                HabitStatus expected = old.status(habit, then, day);
+                Cohabit c = data.cohabit("c-" + habit.id()).orElseThrow();
+                Member m = c.members.getFirst();
+                List<Checkin> checkins = data.checkins(c.id).stream()
+                        .filter(ch -> !ch.date.isAfter(day)).toList();
+                Map<String, AutoFacts> facts = c.auto == null ? Map.of()
+                        : Map.of("felix", sources.fetch(c.auto, "felix", Evaluations.memberStart(c, m), day,
+                        StreakModel.paused(m.pauses)));
+                ClassicHabit actual = ClassicService.habit(
+                        CohabitEval.evaluate(c, checkins, facts, clock.instant()), "felix");
+                String label = habit.name() + " am " + day;
+                assertEquals(expected.kind(), actual.kind(), label);
+                assertEquals(expected.unit().name(), actual.unit().name(), label + " (unit)");
+                assertEquals(expected.streak(), actual.streak(), label + " (streak)");
+                assertEquals(expected.doneToday(), actual.doneToday(), label + " (doneToday)");
+                assertEquals(expected.atRisk(), actual.atRisk(), label + " (atRisk)");
+                assertEquals(expected.recent(), actual.recent(), label + " (recent)");
+                assertEquals(expected.markedDays(), actual.markedDays(), label + " (markedDays)");
+                assertEquals(expected.createdAt(), actual.createdAt(), label + " (createdAt)");
+                assertEquals(expected.unavailable(), actual.unavailable(), label + " (unavailable)");
+                assertEquals(expected.weeklyStepGoal(), actual.weeklyStepGoal(), label + " (weeklyStepGoal)");
+                assertEquals(expected.focusMinutesGoal(), actual.focusMinutesGoal(), label + " (focusMinutesGoal)");
+                assertEquals(expected.progress() == null ? null
+                                : List.of(expected.progress().value(), expected.progress().goal()),
+                        actual.progress() == null ? null
+                                : List.of(actual.progress().value(), actual.progress().goal()),
+                        label + " (progress)");
+                if (habit.kind() == HabitKind.BUILD) {
+                    // Bei den anderen Arten nannte die alte API immer DAY; die App las es nur bei BUILD.
+                    assertEquals(expected.period(), actual.period(), label + " (period)");
+                    assertEquals(expected.timesPerPeriod(), actual.timesPerPeriod(), label + " (timesPerPeriod)");
+                }
+            }
+            return null;
+        });
     }
 
     private void assertParity(LocalDate day) {

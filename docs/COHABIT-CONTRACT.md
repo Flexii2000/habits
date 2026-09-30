@@ -566,6 +566,38 @@ aus Lauf-Sessions), `WORKOUTS` Anzahl Trainings, `WORKOUT_MINUTES` Minuten. Einw
 über die System-Dialoge, Widerruf jederzeit (`healthConsent:false` im Co-Habit, und in den
 System-Einstellungen). Der Dienst sieht nur den einen Tageswert.
 
+### 3.10 Klassische Liste (nur iOS, seit 2026-09-30)
+Felix mochte die alte Habit-Liste der Fokus-App lieber: coHabit (iOS) bekommt dafür im Profil den
+Schalter „Klassische Liste“; ist er an, zeigt der Tab Heute die alte Liste. Der Dienst liefert
+dafür die Antwortform der alten Habits-API, je Person:
+
+| Methode | Pfad | Rumpf → Antwort |
+|---|---|---|
+| GET | `/classic/habits` | → `[ClassicHabit]`: aktive STREAK und ABSTINENCE der Person, auch geteilte, in Anlegereihenfolge (die App sortiert wie früher: erst selbst abgehakte, dann automatische) |
+| POST | `/classic/habits` | `{"name","kind":"BUILD\|QUIT\|FOOD\|STEPS\|FOCUS","weeklyStepGoal"?,"focusMinutesGoal"?,"period":"DAY\|WEEK\|MONTH"?,"timesPerPeriod"?}` → 201 `ClassicHabit`; allein, Europe/Berlin, Farbe reihum, Nachtragsfrist 336 h wie früher |
+| PUT | `/classic/habits/{id}` | gleicher Rumpf → `ClassicHabit`; nur Admin; Art bleibt (sonst 400); `period: null` lässt den Rhythmus; Farbe, Erinnerung, Foto-Pflicht, Frist, Health bleiben |
+| DELETE | `/classic/habits/{id}` | → 204; allein: löschen, geteilt: verlassen (`DELETE …/members/me`) |
+| POST | `/classic/habits/{id}/marks` | `{"date","id"?}` → `ClassicHabit`; BUILD = Haken, QUIT = Rückfall, als Check-in mit allen Prüfungen (Foto-Pflicht 400, Frist 400, Tag schon erledigt 409, automatisch 403); dieselbe `id` noch einmal → nichts Neues |
+| DELETE | `/classic/habits/{id}/marks/{date}` | → `ClassicHabit`; nimmt den eigenen Eintrag des Tages zurück, ohne Eintrag unverändert |
+
+Ziele und Challenges: 400 „In der klassischen Liste gibt es nur Streaks und Abstinenz.“
+
+```
+ClassicHabit {"id","name","kind":"BUILD|QUIT|FOOD|STEPS|FOCUS","unit":"DAYS|WEEKS|MONTHS|WINDOWS",
+  "weeklyStepGoal":70000|null,"focusMinutesGoal":240|null,
+  "period":"DAY|WEEK|MONTH"|null,       // BUILD mit täglich/pro Woche/pro Monat; null bei Wochentagen,
+                                        // Intervall und allen anderen Arten
+  "timesPerPeriod":2|null,
+  "streak":11,"doneToday":false,"atRisk":true,
+  "progress":{"value":1,"goal":2}|null, // BUILD Woche/Monat: Einträge; FOOD kcal/80 %; STEPS Woche; FOCUS Minuten
+  "recent":[false,true,…],              // 7 Zeiträume, älteste zuerst; [] wenn die Quelle nicht antwortet
+  "unavailable":null,"markedDays":["2026-09-28"],"createdAt":"2026-08-01",
+  "photoRequired":false,"shared":false,"admin":true,"backfillFrom":"2026-09-16"}
+```
+Eigenheiten der alten Antwort, bewusst übernommen: `recent` bei QUIT zählt Tage ohne Rückfall ab dem
+Start, `atRisk` ist bei QUIT und bei den Schritten nie gesetzt, `markedDays` umfasst 31 Tage und ist bei
+automatischen leer. `MigrationParityTest` vergleicht die Antwort Feld für Feld mit der alten Rechnung.
+
 ---
 
 ## 4. Push

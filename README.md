@@ -117,6 +117,16 @@ coHabit-Vertrag; hier der Überblick:
 | Übersicht | `GET /today`, `GET /timeline`, `POST /timeline/seen`, `GET /stats?range=WEEK\|MONTH\|YEAR`, `GET /widget`, `POST /cohabits/{id}/nudges`, `POST /nudges/{id}/seen` |
 | Fotos | `POST /photos` (multipart `photo`, ≤ 10 MB, `Idempotency-Key`), `GET /photos/{id}?size=thumb\|full` |
 | Geräte, App | `POST /devices`, `DELETE /devices/{token}`, `GET /app/android`, `GET /app/android/apk` |
+| Klassische Liste | `GET/POST /classic/habits`, `PUT/DELETE /classic/habits/{id}`, `POST /classic/habits/{id}/marks`, `DELETE /classic/habits/{id}/marks/{date}` |
+
+**Klassische Liste** (seit 2026-09-30): Felix' alte Habit-Ansicht aus der Fokus-App lässt sich in
+der iOS-App von coHabit per Schalter zurückholen. Dafür liefert `/classic/habits` Streaks und
+Abstinenz der Person – auch geteilte – genau in der Form der alten Habits-API (`HabitStatus`:
+Flamme, sieben Punkte, markierte Tage, Stand des Zeitraums), dazu `photoRequired`, `shared`,
+`admin` und `backfillFrom`. Gerechnet wird mit den Regeln von coHabit; `MigrationParityTest`
+prüft Feld für Feld gegen die alte Rechnung. Abhaken, Anlegen, Ändern und Löschen laufen über
+die normalen Dienste (Nachtragsfrist, Foto-Pflicht, Timeline, Push gelten also genauso); Löschen
+heißt bei einem geteilten Co-Habit Verlassen. Details im Vertrag, §3.10.
 
 **Fotos** werden neu kodiert (2048 px, JPEG 0,85; Vorschau 512 px, 0,8) – damit sind alle
 Metadaten weg. Sichtbar für die hochladende Person, für Mitglieder des Co-Habits, in dem
