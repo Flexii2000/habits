@@ -163,9 +163,7 @@ export function mount(root, params, ctx) {
                 h('div', { class: 'tile-value' }, `${detail.seats.used} / ${detail.seats.max}`),
                 h('div', { class: 'tile-label' }, 'Mitglieder'))));
         if (s.group) {
-            out.push(h('div', { class: 'tiles two' },
-                tile(`${s.group.current} ${s.group.unitLabel}`, 'Gruppen-Streak'),
-                tile(s.atRisk ? 'gefährdet' : 'läuft', 'Deine Serie')));
+            out.push(h('div', { class: 'tiles one' }, tile(`${s.group.current} ${s.group.unitLabel}`, 'Gruppen-Streak')));
         }
         return out;
     }
@@ -178,6 +176,7 @@ export function mount(root, params, ctx) {
 
     function weekPanel(week) {
         const days = backfillDays(detail);
+        const rhythmKind = detail.config.streak && detail.config.streak.rhythm ? detail.config.streak.rhythm.kind : 'DAILY';
         const grid = h('div', { class: 'week', role: 'table', 'aria-label': 'Diese Woche' },
             h('span', { 'aria-hidden': 'true' }),
             WEEKDAYS.map((d, i) => h('span', { class: `week-day${i === week.todayIndex ? ' today' : ''}` }, d)));
@@ -195,7 +194,11 @@ export function mount(root, params, ctx) {
                     : personName(row.person)));
             row.cells.forEach((state, i) => {
                 const day = week.days[i];
-                const tappable = me && !archived() && !detail.config.auto && (state === 'MISSED' || state === 'OPEN') && days.includes(day);
+                // Nachtragen per Tipp auf die eigene Zelle - bei „x-mal pro Woche/Monat"
+                // und Intervall zaehlt jeder Tag, dort auch die nicht faelligen.
+                const anyDay = ['TIMES_PER_WEEK', 'TIMES_PER_MONTH', 'INTERVAL'].includes(rhythmKind);
+                const open = state === 'MISSED' || state === 'OPEN' || (anyDay && state === 'NOT_DUE');
+                const tappable = me && !archived() && !detail.config.auto && open && days.includes(day);
                 const label = `${personName(row.person)}, ${WEEKDAYS[i]}: ${cellLabel(state)}`;
                 grid.append(tappable
                     ? h('button', { type: 'button', class: `cell ${state} mine`, 'aria-label': `${label} – eintragen`, title: 'Eintragen', onclick: () => startCheckIn(i === week.todayIndex ? null : day) })
@@ -713,7 +716,8 @@ export function mount(root, params, ctx) {
             if (pendingCheckIn) {
                 pendingCheckIn = false;
                 history.replaceState(history.state, '', `/cohabit/c/${enc(id)}`);
-                if (detail.summary.canCheckIn) startCheckIn(null);
+                // Erst den Abschlussdialog zeigen - zwei Dialoge uebereinander waeren zu viel.
+                if (detail.summary.canCheckIn && !detail.dialog) startCheckIn(null);
             }
         } catch (err) {
             if (err.status === 401) return;

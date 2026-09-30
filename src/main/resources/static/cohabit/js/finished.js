@@ -18,8 +18,14 @@ function podium(entries) {
         order.map(entry => h('div', { class: `podium-place r${Math.min(3, entry.rank)}` },
             h('span', { class: 'podium-name' }, personName(entry.person)),
             h('div', { class: 'podium-block' },
-                h('b', null, entry.scoreText != null ? entry.scoreText : String(entry.score)),
+                podiumScore(entry.scoreText != null ? entry.scoreText : String(entry.score)),
                 h('span', null, `Platz ${entry.rank}`)))));
+}
+
+/** Lange Werte („41,5 km") kleiner, damit sie in den schmalen Block passen. */
+function podiumScore(text) {
+    const size = text.length <= 3 ? '' : text.length <= 5 ? ' mid' : ' long';
+    return h('b', { class: `podium-score${size}` }, text);
 }
 
 /**
