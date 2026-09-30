@@ -2286,6 +2286,12 @@ dialog.invite, dialog.finished { background: transparent; overflow: visible; }
 .legal ul { list-style: disc; padding-left: 20px; margin-top: 8px; }
 .legal li + li { margin-top: 4px; }
 
+
+/* Zierkreise ragen ueber ihre Karte hinaus. overflow: hidden allein macht die
+   Karte zu einem (per Skript, Fokus oder Seitensuche) scrollbaren Kasten - dann
+   rutscht der Inhalt seitlich weg. clip schneidet nur ab; wo clip fehlt, bleibt hidden. */
+.card, .d-head, .inv, .inv-top, .fin-top, .start, .camera, .photo, .list, .profile-card { overflow: clip; }
+
 /* --- Desktop ------------------------------------------------------------ */
 
 @media (min-width: 1100px) {
