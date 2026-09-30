@@ -25,7 +25,7 @@ public class HabitsApplication {
      * damit Tests "heute" festnageln koennen.
      */
     @Bean
-    public Clock clock(@Value("${habits.zone}") String zone) {
-        return Clock.system(ZoneId.of(zone));
+    public ShiftableClock clock(@Value("${habits.zone}") String zone) {
+        return new ShiftableClock(Clock.system(ZoneId.of(zone)));
     }
 }
