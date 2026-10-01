@@ -222,8 +222,14 @@ public class ClassicService {
         Cohabit c = e.cohabit;
         MemberEval m = e.member(me);
         CohabitSummary summary = Views.summary(data, e, me);
+        // Die sieben Punkte wie bei "Track food": Tage mit eigenem Eintrag - so sieht man in
+        // der Zeile, dass heute schon eingetragen ist (Felix, 01.10.).
+        List<Boolean> recent = new ArrayList<>();
+        for (int i = RECENT - 1; i >= 0; i--) {
+            recent.add(m.doneDays.contains(e.today.minusDays(i)));
+        }
         return new ClassicHabit(c.id, c.name, c.type == CohabitType.GOAL ? ClassicKind.GOAL : ClassicKind.CHALLENGE,
-                StreakUnit.DAYS, null, 0, m.entryToday, false, null, List.of(), summary.unavailableText(), null,
+                StreakUnit.DAYS, null, 0, m.entryToday, false, null, recent, summary.unavailableText(), null,
                 null, null, List.of(), m.start, c.photoRequired, c.members.size() > 1,
                 m.member.role == Role.ADMIN, Views.backfillFrom(e, m), summary, null);
     }

@@ -628,7 +628,9 @@ ClassicHabit {"id","name","kind":"BUILD|QUIT|FOOD|STEPS|FOCUS","unit":"DAYS|WEEK
                                         // atRisk nie gesetzt (wie die Schritte)
 ```
 `kind` kennt zusätzlich `GOAL` und `CHALLENGE`; bei ihnen stehen die alten Felder neutral (`unit` DAYS, `streak` 0,
-leere Listen, `doneToday` = heute schon eingetragen), damit eine ältere App nicht stolpert.
+`markedDays` leer, `doneToday` = heute schon eingetragen), damit eine ältere App nicht stolpert. `recent` sind wie bei
+den anderen die letzten sieben Tage – hier die Tage mit eigenem Eintrag (seit 01.10., Felix: „Punkte drunter wie bei
+Track food“).
 Eigenheiten der alten Antwort, bewusst übernommen: `recent` bei QUIT zählt Tage ohne Rückfall ab dem
 Start, `atRisk` ist bei QUIT und bei den Schritten nie gesetzt, `markedDays` umfasst 31 Tage und ist bei
 automatischen leer. `MigrationParityTest` vergleicht die Antwort Feld für Feld mit der alten Rechnung.

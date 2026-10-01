@@ -94,7 +94,7 @@ class ClassicApiTest extends ApiTestBase {
         assertEquals("GOAL", g.path("kind").asString());
         assertEquals("DAYS", g.path("unit").asString(), "neutral, damit aeltere Apps nicht stolpern");
         assertEquals(0, g.path("streak").asInt());
-        assertTrue(g.path("recent").isEmpty());
+        assertEquals(7, g.path("recent").size(), "sieben Tage, wie bei den anderen");
         assertEquals("0%", g.path("summary").path("headline").path("value").asString());
         assertTrue(g.path("summary").path("canCheckIn").asBoolean());
         assertEquals("100k Schritte", g.path("summary").path("ref").path("name").asString());
@@ -105,8 +105,11 @@ class ClassicApiTest extends ApiTestBase {
         assertTrue(ch.path("admin").asBoolean());
         assertFalse(ch.path("doneToday").asBoolean());
         checkin(cooking, FELIX, map("id", java.util.UUID.randomUUID().toString()));
+        assertEquals(List.of(false, false, false, false, false, false, false), bools(ch.path("recent")));
         JsonNode after = find(FELIX, cooking);
         assertTrue(after.path("doneToday").asBoolean(), "heute eingetragen");
+        assertEquals(List.of(false, false, false, false, false, false, true), bools(after.path("recent")),
+                "die Punkte wie bei Track food - heute gefuellt");
         assertEquals("#1", after.path("summary").path("headline").path("value").asString());
 
         assertEquals(List.of(cooking), list(TORBEN_APP).stream().map(h -> h.path("id").asString()).toList(),
