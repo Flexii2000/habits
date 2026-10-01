@@ -11,6 +11,7 @@ import com.fherrmann.habits.cohabit.model.CheckinKind;
 import com.fherrmann.habits.cohabit.model.CheckinSource;
 import com.fherrmann.habits.cohabit.model.Cohabit;
 import com.fherrmann.habits.cohabit.model.CohabitType;
+import com.fherrmann.habits.cohabit.model.FocusPeriod;
 import com.fherrmann.habits.cohabit.model.Palette;
 import com.fherrmann.habits.cohabit.model.Rhythm;
 import com.fherrmann.habits.cohabit.model.Role;
@@ -55,9 +56,14 @@ public class ClassicService {
     /** Neu angelegte Habits bekommen die 14 Tage Nachtragen der alten App. */
     static final int BACKFILL_HOURS = 336;
 
-    /** Was die alte App beim Anlegen und Bearbeiten schickte ({@code HabitDraft}). */
+    /**
+     * Was die alte App beim Anlegen und Bearbeiten schickte ({@code HabitDraft}), dazu seit
+     * 01.10. Kategorie und Zeitraum fuer Fokus-Habits. {@code focusCategoryId} weglassen
+     * heisst beim Bearbeiten "unveraendert", {@code ""} heisst "alle Baeume" - ein aelterer
+     * Editor, der das Feld nicht kennt, setzt so nichts zurueck.
+     */
     public record Draft(String name, HabitKind kind, Integer weeklyStepGoal, Integer focusMinutesGoal,
-                        Period period, Integer timesPerPeriod) {
+                        Period period, Integer timesPerPeriod, String focusCategoryId, FocusPeriod focusPeriod) {
     }
 
     /**
@@ -136,7 +142,7 @@ public class ClassicService {
             boolean doneToday = !today.isBefore(m.start) && !m.breakDays.contains(today);
             return new ClassicHabit(c.id, c.name, ClassicKind.QUIT, StreakUnit.DAYS, null,
                     m.abstinence.current(), doneToday, false, null, recent, null, null, null, null,
-                    marked(m.breakDays, today), m.start, false, shared, admin, backfillFrom, null);
+                    marked(m.breakDays, today), m.start, false, shared, admin, backfillFrom, null, null);
         }
 
         PeriodScheme scheme = StreakModel.scheme(c);
@@ -147,6 +153,7 @@ public class ClassicService {
         Period period = null;
         Integer times = null;
         ClassicHabit.Progress progress = null;
+        ClassicHabit.Focus focus = null;
         boolean atRisk = streak.atRisk();
         if (c.auto == null) {
             Rhythm rhythm = StreakModel.rhythm(c);
@@ -174,20 +181,29 @@ public class ClassicService {
                 }
                 case FOCUS -> {
                     focusGoal = c.auto.focusGoal();
-                    progress = m.unavailable != null ? null
-                            : new ClassicHabit.Progress(m.facts.todayValue(), m.facts.todayGoal());
+                    focus = new ClassicHabit.Focus(c.auto.focusCategoryId(), c.auto.focusCategoryName(),
+                            c.auto.focusWeekly() ? FocusPeriod.WEEK : FocusPeriod.DAY);
+                    if (c.auto.focusWeekly()) {
+                        // Wie die Schritte: der Stand der Woche, und gefaehrdet ist eine Woche nie.
+                        progress = m.unavailable != null ? null
+                                : new ClassicHabit.Progress(streak.currentAchieved(), required(streak, focusGoal));
+                        atRisk = false;
+                    } else {
+                        progress = m.unavailable != null ? null
+                                : new ClassicHabit.Progress(m.facts.todayValue(), m.facts.todayGoal());
+                    }
                 }
             }
         }
         if (m.unavailable != null) {
             return new ClassicHabit(c.id, c.name, kind, scheme.unit(), stepGoal, 0, false, false, null, List.of(),
                     m.unavailable, focusGoal, period, times, List.of(), m.start, c.photoRequired, shared, admin,
-                    backfillFrom, null);
+                    backfillFrom, null, focus);
         }
         List<LocalDate> markedDays = c.auto == null ? marked(m.doneDays, today) : List.of();
         return new ClassicHabit(c.id, c.name, kind, scheme.unit(), stepGoal, streak.current(), m.doneToday, atRisk,
                 progress, recent(scheme, m.judge, today), null, focusGoal, period, times, markedDays, m.start,
-                c.photoRequired, shared, admin, backfillFrom, null);
+                c.photoRequired, shared, admin, backfillFrom, null, focus);
     }
 
     /**
@@ -202,7 +218,7 @@ public class ClassicService {
         return new ClassicHabit(c.id, c.name, c.type == CohabitType.GOAL ? ClassicKind.GOAL : ClassicKind.CHALLENGE,
                 StreakUnit.DAYS, null, 0, m.entryToday, false, null, List.of(), summary.unavailableText(), null,
                 null, null, List.of(), m.start, c.photoRequired, c.members.size() > 1,
-                m.member.role == Role.ADMIN, Views.backfillFrom(e, m), summary);
+                m.member.role == Role.ADMIN, Views.backfillFrom(e, m), summary, null);
     }
 
     static ClassicKind kindOf(Cohabit c) {
@@ -304,7 +320,9 @@ public class ClassicService {
             case QUIT -> abstinence = new AbstinenceConfig(false);
             case FOOD -> auto = new AutoConfig(AutoSource.FOOD, null, null);
             case STEPS -> auto = new AutoConfig(AutoSource.STEPS_WEEKLY, draft.weeklyStepGoal(), null);
-            case FOCUS -> auto = new AutoConfig(AutoSource.FOCUS, null, draft.focusMinutesGoal());
+            case FOCUS -> auto = new AutoConfig(AutoSource.FOCUS, null, draft.focusMinutesGoal(),
+                    blankToNull(draft.focusCategoryId()), null,
+                    draft.focusPeriod() == null ? FocusPeriod.DAY : draft.focusPeriod());
         }
         CohabitInput input = new CohabitInput(type, draft.name(), Palette.roundRobin(index), "Europe/Berlin",
                 Tracking.CHECK, false, BACKFILL_HOURS, null, false, streak, abstinence, null, null, null, auto,
@@ -335,7 +353,10 @@ public class ClassicService {
             }
             AutoConfig auto = c.auto == null ? null : new AutoConfig(c.auto.source(),
                     draft.weeklyStepGoal() != null ? draft.weeklyStepGoal() : c.auto.weeklyStepGoal(),
-                    draft.focusMinutesGoal() != null ? draft.focusMinutesGoal() : c.auto.focusMinutesGoal());
+                    draft.focusMinutesGoal() != null ? draft.focusMinutesGoal() : c.auto.focusMinutesGoal(),
+                    draft.focusCategoryId() == null ? c.auto.focusCategoryId() : blankToNull(draft.focusCategoryId()),
+                    c.auto.focusCategoryName(),
+                    draft.focusPeriod() != null ? draft.focusPeriod() : c.auto.focusPeriod());
             return new CohabitInput(c.type, draft.name() == null ? c.name : draft.name(), c.color, c.timezone,
                     c.tracking, c.photoRequired, c.backfillHours, c.reminderTime, c.membersCanInvite, streak,
                     c.abstinence, null, null, c.health, auto, null);
@@ -352,6 +373,10 @@ public class ClassicService {
         String me = viewer.personId();
         store.read(data -> ViewService.visible(data, cohabitId, me));
         cohabits.removeMember(viewer, cohabitId, "me");
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     static Rhythm rhythm(Period period, Integer times) {

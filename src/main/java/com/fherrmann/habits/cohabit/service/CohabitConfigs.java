@@ -7,6 +7,7 @@ import com.fherrmann.habits.cohabit.model.ChallengeConfig;
 import com.fherrmann.habits.cohabit.model.Cohabit;
 import com.fherrmann.habits.cohabit.model.CohabitType;
 import com.fherrmann.habits.cohabit.model.GoalConfig;
+import com.fherrmann.habits.cohabit.model.FocusPeriod;
 import com.fherrmann.habits.cohabit.model.GoalCounting;
 import com.fherrmann.habits.cohabit.model.GoalMode;
 import com.fherrmann.habits.cohabit.model.HealthConfig;
@@ -40,6 +41,7 @@ public final class CohabitConfigs {
     static final int MAX_STAKE = 80;
     static final int MAX_STEP_GOAL = 500_000;
     static final int MAX_FOCUS_MINUTES = 24 * 60;
+    static final int MAX_FOCUS_MINUTES_WEEK = 7 * 24 * 60;
     private static final Pattern TIME = Pattern.compile("([01]\\d|2[0-3]):[0-5]\\d");
 
     private CohabitConfigs() {
@@ -148,10 +150,10 @@ public final class CohabitConfigs {
     private static void streak(Cohabit c, CohabitInput in, boolean existing, List<AutoSource> sources) {
         AutoConfig auto = in.auto();
         if (existing && c.auto != null) {
-            // Die Quelle bleibt; nur die Ziele lassen sich aendern.
+            // Die Quelle bleibt; Ziele, Fokus-Kategorie und -Zeitraum lassen sich aendern.
             AutoSource source = c.auto.source();
-            auto = new AutoConfig(source, auto == null ? c.auto.weeklyStepGoal() : auto.weeklyStepGoal(),
-                    auto == null ? c.auto.focusMinutesGoal() : auto.focusMinutesGoal());
+            auto = auto == null ? c.auto : new AutoConfig(source, auto.weeklyStepGoal(), auto.focusMinutesGoal(),
+                    auto.focusCategoryId(), auto.focusCategoryName(), auto.focusPeriod());
         } else if (existing && auto != null && auto.source() != null) {
             throw Errors.badRequest("Ein Co-Habit wird nachträglich nicht automatisch.");
         }
@@ -161,6 +163,9 @@ public final class CohabitConfigs {
             }
             Integer steps = null;
             Integer minutes = null;
+            String categoryId = null;
+            String categoryName = null;
+            FocusPeriod period = null;
             if (auto.source() == AutoSource.STEPS_WEEKLY) {
                 steps = auto.weeklyStepGoal();
                 if (steps == null || steps < 1 || steps > MAX_STEP_GOAL) {
@@ -168,13 +173,22 @@ public final class CohabitConfigs {
                 }
             }
             if (auto.source() == AutoSource.FOCUS) {
+                period = auto.focusPeriod() == FocusPeriod.WEEK ? FocusPeriod.WEEK : FocusPeriod.DAY;
                 minutes = auto.focusMinutesGoal() == null ? AutoConfig.DEFAULT_FOCUS_MINUTES : auto.focusMinutesGoal();
-                if (minutes < 1 || minutes > MAX_FOCUS_MINUTES) {
+                if (period == FocusPeriod.DAY && (minutes < 1 || minutes > MAX_FOCUS_MINUTES)) {
                     throw Errors.badRequest("Das Tagesziel muss zwischen 1 und 1440 Minuten liegen.");
                 }
+                if (period == FocusPeriod.WEEK && (minutes < 1 || minutes > MAX_FOCUS_MINUTES_WEEK)) {
+                    throw Errors.badRequest("Das Wochenziel muss zwischen 1 und 10.080 Minuten liegen.");
+                }
+                // Den Namen hat CohabitService aus dem Wald eingetragen - nie, was der Client schickt.
+                categoryId = auto.focusCategoryId() == null || auto.focusCategoryId().isBlank() ? null : auto.focusCategoryId();
+                categoryName = categoryId == null ? null : auto.focusCategoryName();
             }
-            c.auto = new AutoConfig(auto.source(), steps, minutes);
-            Rhythm rhythm = auto.source() == AutoSource.STEPS_WEEKLY ? Rhythm.timesPerWeek(1) : Rhythm.daily();
+            c.auto = new AutoConfig(auto.source(), steps, minutes, categoryId, categoryName,
+                    auto.source() == AutoSource.FOCUS ? period : null);
+            Rhythm rhythm = auto.source() == AutoSource.STEPS_WEEKLY || c.auto.focusWeekly()
+                    ? Rhythm.timesPerWeek(1) : Rhythm.daily();
             c.streak = new StreakConfig(rhythm, in.streak() != null && in.streak().groupStreak());
             c.tracking = Tracking.CHECK;
             c.photoRequired = false;

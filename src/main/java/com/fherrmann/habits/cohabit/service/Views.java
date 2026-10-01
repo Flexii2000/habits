@@ -301,7 +301,7 @@ public final class Views {
 
     static boolean isDayBased(Cohabit c) {
         if (c.auto != null) {
-            return c.auto.source() != AutoSource.STEPS_WEEKLY;
+            return !StreakModel.weeklyAuto(c.auto);
         }
         RhythmKind kind = StreakModel.rhythm(c).kind();
         return kind == RhythmKind.DAILY || kind == RhythmKind.WEEKDAYS;
@@ -317,15 +317,15 @@ public final class Views {
         if (me.unavailable != null) {
             return me.unavailable;
         }
-        if (c.auto != null && c.auto.source() == AutoSource.STEPS_WEEKLY) {
+        if (c.auto != null && StreakModel.weeklyAuto(c.auto)) {
             if (me.streak.currentRequired() == 0) {
                 return "pausiert";
             }
             if (me.streak.currentDone()) {
                 return "diese Woche geschafft";
             }
-            return "noch " + Texts.number(me.streak.currentRequired() - me.streak.currentAchieved())
-                    + " Schritte diese Woche";
+            String missing = Texts.number(me.streak.currentRequired() - me.streak.currentAchieved());
+            return c.auto.focusWeekly() ? "noch " + missing + " Min. diese Woche" : "noch " + missing + " Schritte diese Woche";
         }
         if (isDayBased(c)) {
             if (me.doneToday) {
@@ -380,7 +380,7 @@ public final class Views {
             return null;
         }
         if (c.auto != null) {
-            if (c.auto.source() == AutoSource.STEPS_WEEKLY) {
+            if (StreakModel.weeklyAuto(c.auto)) {
                 return new ProgressView(me.streak.currentAchieved(), me.streak.currentRequired(),
                         fraction(me.streak.currentAchieved(), me.streak.currentRequired()));
             }
@@ -762,7 +762,7 @@ public final class Views {
         boolean done;
         if (c.auto == null) {
             done = m.doneDays.contains(d);
-        } else if (c.auto.source() == AutoSource.STEPS_WEEKLY) {
+        } else if (StreakModel.weeklyAuto(c.auto)) {
             done = m.streak.currentDone();
         } else {
             done = m.facts.done(d);

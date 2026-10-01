@@ -172,15 +172,20 @@ public final class Texts {
         return switch (auto.source()) {
             case FOOD -> "täglich · Kalorienzähler";
             case STEPS_WEEKLY -> number(auto.stepGoal()) + " Schritte pro Woche";
-            case FOCUS -> auto.focusGoal() + " Min. Fokus täglich";
+            case FOCUS -> auto.focusGoal() + " Min. " + focusWhat(auto) + (auto.focusWeekly() ? " pro Woche" : " täglich");
         };
+    }
+
+    /** "Fokus" fuer alle Baeume, sonst der Name der Kategorie ("Bachelorarbeit"). */
+    public static String focusWhat(AutoConfig auto) {
+        return auto.focusCategoryId() == null || auto.focusCategoryName() == null ? "Fokus" : auto.focusCategoryName();
     }
 
     public static String autoRule(AutoConfig auto) {
         return switch (auto.source()) {
             case FOOD -> "Automatisch: Kalorienzähler";
             case STEPS_WEEKLY -> "Automatisch: " + number(auto.stepGoal()) + " Schritte/Woche";
-            case FOCUS -> "Automatisch: " + auto.focusGoal() + " Min. Fokus/Tag";
+            case FOCUS -> "Automatisch: " + auto.focusGoal() + " Min. " + focusWhat(auto) + (auto.focusWeekly() ? "/Woche" : "/Tag");
         };
     }
 

@@ -143,7 +143,10 @@ public class AutoSources {
             return AutoFacts.unavailable(AutoSource.FOCUS, "Keine Fokus-Sessions");
         }
         int goal = cfg.focusGoal();
-        Map<LocalDate, Integer> perDay = focus.minutesPerDay(today.minusDays(StreakModel.AUTO_LOOKBACK_DAYS), today);
+        // Mit Kategorie zaehlen nur deren Baeume ("1 h Bachelorarbeit"); je Woche rechnet der
+        // Judge aus den Minuten je Tag, der Tages-Haken gilt nur bei Tageszielen.
+        Map<LocalDate, Integer> perDay = focus.minutesPerDay(today.minusDays(StreakModel.AUTO_LOOKBACK_DAYS), today,
+                cfg.focusCategoryId());
         Map<LocalDate, Boolean> done = new HashMap<>();
         for (LocalDate d = today.minusDays(StreakModel.AUTO_LOOKBACK_DAYS); !d.isAfter(today); d = d.plusDays(1)) {
             done.put(d, perDay.getOrDefault(d, 0) >= goal);

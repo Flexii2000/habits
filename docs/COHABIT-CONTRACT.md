@@ -175,7 +175,8 @@ Avatar-Kreis (aus der ID abgeleitet, stabil).
   aus Apple Health / Health Connect über die Apps (§3.9); `KCAL` (seit 01.10., Felix) holt der Dienst selbst
   aus dem Kalorienzähler (Healthy). Sinnvoll für GOAL/CHALLENGE/STREAK mit Wert; Einheit dann `KCAL`.
 - `auto` **[Entscheidung, für Felix' bisherige automatische Habits]**: `{"source":"FOOD|STEPS_WEEKLY|FOCUS",
-  "weeklyStepGoal": int|null, "focusMinutesGoal": int|null}` oder `null`. Nur bei STREAK. Ein
+  "weeklyStepGoal": int|null, "focusMinutesGoal": int|null, "focusCategoryId": string|null,
+  "focusCategoryName": string|null, "focusPeriod": "DAY|WEEK"|null}` oder `null`. Nur bei STREAK. Ein
   automatisches Co-Habit hakt man nicht selbst ab; der Dienst rechnet je Mitglied aus der Quelle:
   - `FOOD`: Tag erfüllt, wenn ≥ 80 % des kcal-Ziels **oder** Frühstück, Mittag- und Abendessen je ein
     Eintrag (wie heute). Quelle `food` über localhost, für Felix mit `fh_private`, für andere
@@ -183,7 +184,13 @@ Avatar-Kreis (aus der ID abgeleitet, stabil).
   - `STEPS_WEEKLY`: Woche (Mo–So) erfüllt, wenn Schritte ≥ `weeklyStepGoal` (Weight Tracker
     `/api/steps`, Felix mit `WEIGHT_APP_TOKEN`, andere per Bearer). Streak in Wochen.
   - `FOCUS`: Tag erfüllt, wenn die Minuten der Wald-Sessions ≥ `focusMinutesGoal` (Vorgabe 240).
-    Nur Felix hat diese Quelle (die Sessions gehören ihm, §7.3).
+    Nur Felix hat diese Quelle (die Sessions gehören ihm, §7.3). **Seit 01.10. (Felix):** mit
+    `focusCategoryId` zählen nur Bäume dieser Wald-Kategorie („1 h Bachelorarbeit am Tag“); den Namen
+    (`focusCategoryName`) trägt der Dienst aus dem Wald ein und zieht ihn bei Umbenennung nach – was ein
+    Client schickt, gilt nicht. `focusPeriod: WEEK` zählt die Summe Mo–So (Minuten je Woche, bis 10.080),
+    Streak dann in Wochen wie bei den Schritten; `DAY` (Vorgabe) wie bisher. Die Kategorie muss im Wald
+    zur Auswahl stehen (sonst 400 „Unbekannte Kategorie.“); eine inzwischen gelöschte darf ein bestehendes
+    Co-Habit behalten. Zur Auswahl: `GET /focus/categories` (§3.9).
   - Mitglied kann nur werden, wer die Quelle hat (`me.sources`). Quelle nicht erreichbar →
     `status: "UNAVAILABLE"` mit Text, wie heute `unavailable`.
 - Mitglieder: höchstens **8 inklusive Ersteller**; offene Einladungen zählen mit. Rollen `ADMIN`
@@ -560,6 +567,7 @@ Ein hochgeladenes, nach 24 h nirgends verwendetes Foto wird gelöscht.
 | POST | `/devices` | `{"token","platform":"ios\|android"}` → 204 |
 | DELETE | `/devices/{token}` | → 204 |
 | GET | `/app/android` · `/app/android/apk` | siehe §1.1 |
+| GET | `/focus/categories` | → `[{"id","name"}]`: die Kategorien aus dem Wald zur Auswahl für Fokus-Habits; nur für Felix, sonst `[]` |
 
 Health: Die Apps lesen je Co-Habit mit `health` und `healthConsent` die Tageswerte der letzten
 `backfillHours` (mindestens heute und gestern) und schreiben sie mit `PUT /cohabits/{id}/health/{date}`:
@@ -587,8 +595,8 @@ dafür die Antwortform der alten Habits-API, je Person:
 | Methode | Pfad | Rumpf → Antwort |
 |---|---|---|
 | GET | `/classic/habits` | → `[ClassicHabit]`: **alle** aktiven Co-Habits der Person, auch geteilte, seit 01.10. auch GOAL und CHALLENGE (Felix: „alles, was die neue Liste zeigt“), in Anlegereihenfolge (die App sortiert: erst selbst abgehakte, dann automatische) |
-| POST | `/classic/habits` | `{"name","kind":"BUILD\|QUIT\|FOOD\|STEPS\|FOCUS","weeklyStepGoal"?,"focusMinutesGoal"?,"period":"DAY\|WEEK\|MONTH"?,"timesPerPeriod"?}` → 201 `ClassicHabit`; allein, Europe/Berlin, Farbe reihum, Nachtragsfrist 336 h wie früher |
-| PUT | `/classic/habits/{id}` | gleicher Rumpf → `ClassicHabit`; nur Admin; Art bleibt (sonst 400); `period: null` lässt den Rhythmus; Farbe, Erinnerung, Foto-Pflicht, Frist, Health bleiben |
+| POST | `/classic/habits` | `{"name","kind":"BUILD\|QUIT\|FOOD\|STEPS\|FOCUS","weeklyStepGoal"?,"focusMinutesGoal"?,"period":"DAY\|WEEK\|MONTH"?,"timesPerPeriod"?,"focusCategoryId"?,"focusPeriod":"DAY\|WEEK"?}` → 201 `ClassicHabit`; allein, Europe/Berlin, Farbe reihum, Nachtragsfrist 336 h wie früher |
+| PUT | `/classic/habits/{id}` | gleicher Rumpf → `ClassicHabit`; nur Admin; Art bleibt (sonst 400); `period: null` lässt den Rhythmus; Farbe, Erinnerung, Foto-Pflicht, Frist, Health bleiben. Fokus: `focusCategoryId` weglassen = unverändert, `""` = alle Bäume, sonst die Kategorie; `focusPeriod` weglassen = unverändert |
 | DELETE | `/classic/habits/{id}` | → 204; allein: löschen, geteilt: verlassen (`DELETE …/members/me`) – für jede Art |
 | POST | `/classic/habits/{id}/marks` | `{"date","id"?}` → `ClassicHabit`; BUILD = Haken, QUIT = Rückfall, als Check-in mit allen Prüfungen (Foto-Pflicht 400, Frist 400, Tag schon erledigt 409, automatisch 403); dieselbe `id` noch einmal → nichts Neues |
 | DELETE | `/classic/habits/{id}/marks/{date}` | → `ClassicHabit`; nimmt den eigenen Eintrag des Tages zurück, ohne Eintrag unverändert |
@@ -607,8 +615,11 @@ ClassicHabit {"id","name","kind":"BUILD|QUIT|FOOD|STEPS|FOCUS","unit":"DAYS|WEEK
   "recent":[false,true,…],              // 7 Zeiträume, älteste zuerst; [] wenn die Quelle nicht antwortet
   "unavailable":null,"markedDays":["2026-09-28"],"createdAt":"2026-08-01",
   "photoRequired":false,"shared":false,"admin":true,"backfillFrom":"2026-09-16",
-  "summary":CohabitSummary|null}       // nur GOAL/CHALLENGE: wie in GET /cohabits (Kennzahl, listLine,
+  "summary":CohabitSummary|null,       // nur GOAL/CHALLENGE: wie in GET /cohabits (Kennzahl, listLine,
                                         // progress, canCheckIn, valueUnit, checkInLabel …)
+  "focus":{"categoryId":string|null,"categoryName":string|null,"period":"DAY|WEEK"}|null}
+                                        // nur FOCUS; bei WEEK: unit WEEKS, progress = Minuten der Woche,
+                                        // atRisk nie gesetzt (wie die Schritte)
 ```
 `kind` kennt zusätzlich `GOAL` und `CHALLENGE`; bei ihnen stehen die alten Felder neutral (`unit` DAYS, `streak` 0,
 leere Listen, `doneToday` = heute schon eingetragen), damit eine ältere App nicht stolpert.

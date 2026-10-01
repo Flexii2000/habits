@@ -158,8 +158,16 @@ Die Fokus-Sessions der Fokus-App, nur für Felix (`fh_private`), Fehler als Klar
 | Methode | Pfad | Was |
 |---|---|---|
 | POST | `/habits/api/focus/sessions` | `{id, start, end}` → 201; **dieselbe Id noch einmal → 200**, nichts ändert sich |
-| GET | `/habits/api/focus/sessions?from=&to=` | Sessions, deren Tag im Zeitraum liegt, neueste zuerst |
+| GET | `/habits/api/focus/sessions?from=&to=` | Sessions, deren Tag im Zeitraum liegt, neueste zuerst (mit `categoryId`, `categoryName`) |
 | DELETE | `/habits/api/focus/sessions/{id}` | Baum fällen → 204; unbekannt → 404 |
+| GET | `/habits/api/focus/categories` | die Kategorien zur Auswahl `[{id, name}]`, in der Reihenfolge des Anlegens |
+| POST | `/habits/api/focus/categories` | `{id?, name}` → 201; dieselbe Id noch einmal → 200 (Postausgang); Name schon da → 409 |
+| PUT | `/habits/api/focus/categories/{id}` | `{name}` umbenennen; coHabit zieht den Namen in seinen Fokus-Habits nach |
+| DELETE | `/habits/api/focus/categories/{id}` | aus der Auswahl → 204; Bäume und Co-Habits behalten den Namen |
+
+**Kategorien** (seit 2026-10-01): vor dem Pflanzen gewählt (`categoryId` beim POST, optional – alte Bäume
+haben keine); eine unbekannte Kategorie → 400. Ein Fokus-Habit in coHabit kann nach einer Kategorie
+zählen, täglich oder pro Woche (Vertrag §2, `auto.focusCategoryId`/`focusPeriod`).
 
 Eine Session gehört zu dem Tag, an dem sie **begann** (Europe/Berlin). Abgelehnt (400):
 unter einer Minute, über 1440 Minuten, ein Ende mehr als fünf Minuten in der Zukunft.

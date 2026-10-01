@@ -9,9 +9,10 @@ import java.time.LocalDate;
  * Eine Session, wie der Wald sie zeigt - mit Dauer und dem Tag, dem sie
  * zugerechnet wird (der Tag des Beginns in Felix' Zeitzone).
  */
-public record FocusSessionView(String id, Instant start, Instant end, int minutes, LocalDate day) {
+public record FocusSessionView(String id, Instant start, Instant end, int minutes, LocalDate day,
+                               String categoryId, String categoryName) {
 
-    public static FocusSessionView of(FocusSession s, LocalDate day) {
-        return new FocusSessionView(s.id(), s.start(), s.end(), s.minutes(), day);
+    public static FocusSessionView of(FocusSession s, LocalDate day, String categoryName) {
+        return new FocusSessionView(s.id(), s.start(), s.end(), s.minutes(), day, s.categoryId(), categoryName);
     }
 }

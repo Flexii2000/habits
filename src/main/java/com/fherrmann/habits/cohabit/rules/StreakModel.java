@@ -32,14 +32,14 @@ public final class StreakModel {
 
     public static Rhythm rhythm(Cohabit c) {
         if (c.auto != null) {
-            return c.auto.source() == AutoSource.STEPS_WEEKLY ? Rhythm.timesPerWeek(1) : Rhythm.daily();
+            return weeklyAuto(c.auto) ? Rhythm.timesPerWeek(1) : Rhythm.daily();
         }
         return c.streak == null || c.streak.rhythm() == null ? Rhythm.daily() : c.streak.rhythm();
     }
 
     public static PeriodScheme scheme(Cohabit c) {
         if (c.auto != null) {
-            return c.auto.source() == AutoSource.STEPS_WEEKLY ? PeriodScheme.weeks() : PeriodScheme.days();
+            return weeklyAuto(c.auto) ? PeriodScheme.weeks() : PeriodScheme.days();
         }
         Rhythm r = rhythm(c);
         return switch (r.kind()) {
@@ -59,7 +59,12 @@ public final class StreakModel {
         if (c.auto == null) {
             return Integer.MAX_VALUE;
         }
-        return c.auto.source() == AutoSource.STEPS_WEEKLY ? AUTO_LOOKBACK_DAYS / 7 : AUTO_LOOKBACK_DAYS;
+        return weeklyAuto(c.auto) ? AUTO_LOOKBACK_DAYS / 7 : AUTO_LOOKBACK_DAYS;
+    }
+
+    /** Schritte je Woche und Fokus-Minuten je Woche: gezaehlt wird die Summe Mo-So. */
+    public static boolean weeklyAuto(AutoConfig auto) {
+        return auto.source() == AutoSource.STEPS_WEEKLY || auto.focusWeekly();
     }
 
     public static Predicate<LocalDate> paused(List<Pause> pauses) {
@@ -130,8 +135,8 @@ public final class StreakModel {
     }
 
     private static Judge autoJudge(AutoConfig cfg, AutoFacts facts, Predicate<LocalDate> paused) {
-        if (cfg.source() == AutoSource.STEPS_WEEKLY) {
-            int goal = cfg.stepGoal();
+        if (weeklyAuto(cfg)) {
+            int goal = cfg.source() == AutoSource.STEPS_WEEKLY ? cfg.stepGoal() : cfg.focusGoal();
             return new Judge() {
                 public int required(LocalDate start, LocalDate end) {
                     return proRated(goal, start, end, paused);

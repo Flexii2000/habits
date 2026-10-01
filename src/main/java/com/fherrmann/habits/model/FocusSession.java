@@ -11,8 +11,14 @@ import java.time.Instant;
  * @param start wann die Session begann
  * @param end   wann sie endete - Sessions lassen sich nicht abbrechen, jede
  *              gemeldete ist also voll durchgestanden
+ * @param categoryId die Kategorie, vor dem Pflanzen gewaehlt; {@code null} bei Baeumen
+ *              ohne (alle vor dem 01.10.2026)
  */
-public record FocusSession(String id, Instant start, Instant end) {
+public record FocusSession(String id, Instant start, Instant end, String categoryId) {
+
+    public FocusSession(String id, Instant start, Instant end) {
+        this(id, start, end, null);
+    }
 
     public int minutes() {
         return (int) Duration.between(start, end).toMinutes();

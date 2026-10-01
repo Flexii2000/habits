@@ -34,6 +34,36 @@ class FocusControllerTest extends ApiTestBase {
     }
 
     @Test
+    void kategorienUeberHttpUndEinBaumMitKategorie() {
+        get("/habits/api/focus/categories", TORBEN_APP).expect(403);
+        Response created = post("/habits/api/focus/categories", PRIVATE_COOKIE,
+                "{\"id\":\"kat-thesis-0001\",\"name\":\"Bachelorarbeit\"}").expect(201);
+        assertEquals("Bachelorarbeit", created.json().path("name").asString());
+        post("/habits/api/focus/categories", PRIVATE_COOKIE,
+                "{\"id\":\"kat-thesis-0001\",\"name\":\"Bachelorarbeit\"}").expect(200);
+        Response twice = post("/habits/api/focus/categories", PRIVATE_COOKIE, "{\"name\":\"bachelorarbeit\"}").expect(409);
+        assertEquals("Diese Kategorie gibt es schon.", twice.body());
+        assertEquals("Thesis", put("/habits/api/focus/categories/kat-thesis-0001", PRIVATE_COOKIE,
+                "{\"name\":\"Thesis\"}").expect(200).json().path("name").asString());
+
+        Response tree = post("/habits/api/focus/sessions", PRIVATE_COOKIE,
+                "{\"id\":\"s2\",\"start\":\"2026-09-30T06:00:00Z\",\"end\":\"2026-09-30T07:00:00Z\","
+                        + "\"categoryId\":\"kat-thesis-0001\"}").expect(201);
+        assertEquals("Thesis", tree.json().path("categoryName").asString());
+        post("/habits/api/focus/sessions", PRIVATE_COOKIE,
+                "{\"id\":\"s3\",\"start\":\"2026-09-30T07:00:00Z\",\"end\":\"2026-09-30T07:30:00Z\","
+                        + "\"categoryId\":\"gibt-es-nicht\"}").expect(400);
+
+        assertEquals(1, get("/habits/api/focus/categories", PRIVATE_COOKIE).expect(200).json().size());
+        assertEquals(1, get("/cohabit/api/focus/categories", FELIX).expect(200).json().size(),
+                "dieselbe Liste in coHabit");
+        delete("/habits/api/focus/categories/kat-thesis-0001", PRIVATE_COOKIE).expect(204);
+        assertTrue(get("/habits/api/focus/categories", PRIVATE_COOKIE).expect(200).json().isEmpty());
+        assertEquals("Thesis", get("/habits/api/focus/sessions?from=2026-09-30&to=2026-09-30", PRIVATE_COOKIE)
+                .json().get(0).path("categoryName").asString(), "der Baum behaelt den Namen");
+    }
+
+    @Test
     void fehlerKommenHierWeiterAlsKlartext() {
         Response bad = post("/habits/api/focus/sessions", PRIVATE_COOKIE,
                 "{\"id\":\"kurz\",\"start\":\"2026-09-30T06:00:00Z\",\"end\":\"2026-09-30T06:00:00Z\"}").expect(400);

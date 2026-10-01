@@ -17,12 +17,14 @@ import com.fherrmann.habits.cohabit.model.MessagesFile;
 import com.fherrmann.habits.cohabit.model.Pause;
 import com.fherrmann.habits.cohabit.model.Person;
 import com.fherrmann.habits.cohabit.model.Role;
+import com.fherrmann.habits.cohabit.model.AutoConfig;
 import com.fherrmann.habits.cohabit.push.Notifier;
 import com.fherrmann.habits.cohabit.push.PushMessage;
 import com.fherrmann.habits.cohabit.push.Setting;
 import com.fherrmann.habits.cohabit.rules.CohabitEval;
 import com.fherrmann.habits.cohabit.store.CohabitStore;
 import com.fherrmann.habits.security.Viewer;
+import com.fherrmann.habits.service.FocusService;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -51,9 +53,11 @@ public class CohabitService {
     private final PhotoFiles photos;
     private final InviteLinks links;
     private final KcalSync kcal;
+    private final FocusService focus;
 
     public CohabitService(CohabitStore store, ViewService views, EventService events, Notifier notifier,
-                          AutoSources sources, PhotoFiles photos, InviteLinks links, KcalSync kcal) {
+                          AutoSources sources, PhotoFiles photos, InviteLinks links, KcalSync kcal,
+                          FocusService focus) {
         this.store = store;
         this.views = views;
         this.events = events;
@@ -62,6 +66,7 @@ public class CohabitService {
         this.photos = photos;
         this.links = links;
         this.kcal = kcal;
+        this.focus = focus;
     }
 
     private Instant now() {
@@ -99,15 +104,16 @@ public class CohabitService {
     public CohabitDetail create(Viewer viewer, CohabitInput input) {
         String me = viewer.personId();
         Instant now = now();
+        CohabitInput checked = withFocusCategory(input, null);
         String id = store.write(tx -> {
             PeopleService.requirePerson(tx, me);
             Cohabit c = new Cohabit();
             c.id = "c-" + UUID.randomUUID();
             c.createdBy = me;
             c.createdAt = now;
-            ZoneId zone = zoneOrDefault(input == null ? null : input.timezone());
+            ZoneId zone = zoneOrDefault(checked == null ? null : checked.timezone());
             LocalDate today = LocalDate.ofInstant(now, zone);
-            CohabitConfigs.apply(c, input, false, today, sources.sourcesOf(me));
+            CohabitConfigs.apply(c, checked, false, today, sources.sourcesOf(me));
             c.startDate = today(c, now);
             if (c.type == CohabitType.CHALLENGE) {
                 c.challengeState = new ChallengeState();
@@ -119,11 +125,35 @@ public class CohabitService {
             tx.cohabitsW().cohabits.add(c);
             tx.checkinsW(c.id);
             tx.messagesW(c.id);
-            List<String> invite = input.invitePersonIds() == null ? List.of() : input.invitePersonIds();
+            List<String> invite = checked.invitePersonIds() == null ? List.of() : checked.invitePersonIds();
             invite(tx, c, me, invite, now);
             return c.id;
         });
         return views.detail(me, id);
+    }
+
+    /**
+     * Fokus-Habit mit Kategorie: die Kategorie muss im Wald zur Auswahl stehen (eine
+     * inzwischen geloeschte darf ein bestehendes Co-Habit behalten), und ihr Name kommt
+     * von dort - nie vom Client.
+     */
+    private CohabitInput withFocusCategory(CohabitInput in, String keptCategoryId) {
+        if (in == null || in.auto() == null || in.auto().focusCategoryId() == null
+                || in.auto().focusCategoryId().isBlank()) {
+            return in;
+        }
+        String categoryId = in.auto().focusCategoryId().trim();
+        boolean kept = categoryId.equals(keptCategoryId);
+        if (!kept && !focus.isActiveCategory(categoryId)) {
+            throw Errors.badRequest("Unbekannte Kategorie.");
+        }
+        String name = focus.categoryName(categoryId).orElseThrow(() -> Errors.badRequest("Unbekannte Kategorie."));
+        AutoConfig a = in.auto();
+        AutoConfig auto = new AutoConfig(a.source(), a.weeklyStepGoal(), a.focusMinutesGoal(), categoryId, name,
+                a.focusPeriod());
+        return new CohabitInput(in.type(), in.name(), in.color(), in.timezone(), in.tracking(), in.photoRequired(),
+                in.backfillHours(), in.reminderTime(), in.membersCanInvite(), in.streak(), in.abstinence(), in.goal(),
+                in.challenge(), in.health(), auto, in.invitePersonIds());
     }
 
     private static ZoneId zoneOrDefault(String zone) {
@@ -146,13 +176,16 @@ public class CohabitService {
     public CohabitDetail update(Viewer viewer, String id, CohabitInput input) {
         String me = viewer.personId();
         Instant now = now();
+        String keptCategory = store.read(data -> data.cohabit(id)
+                .map(c -> c.auto == null ? null : c.auto.focusCategoryId()).orElse(null));
+        CohabitInput checked = withFocusCategory(input, keptCategory);
         store.update(tx -> {
             Cohabit c = adminOnly(tx, id, me);
             if (c.archived) {
                 throw Errors.conflict("Das Co-Habit ist archiviert.");
             }
             tx.cohabitsW();
-            CohabitConfigs.apply(c, input, true, today(c, now), sources.sourcesOf(me));
+            CohabitConfigs.apply(c, checked, true, today(c, now), sources.sourcesOf(me));
             events.system(tx, c, Views.name(tx, me) + " hat die Einstellungen geändert", me, now);
         });
         return views.detail(me, id);

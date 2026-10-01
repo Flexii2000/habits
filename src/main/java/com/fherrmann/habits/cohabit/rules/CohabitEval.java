@@ -152,7 +152,7 @@ public final class CohabitEval {
             me.rate = StreakCalc.rate(scheme, me.judge, me.start, today, null, null);
             if (cohabit.auto == null) {
                 me.doneToday = me.doneDays.contains(today);
-            } else if (cohabit.auto.source() == AutoSource.STEPS_WEEKLY) {
+            } else if (StreakModel.weeklyAuto(cohabit.auto)) {
                 me.doneToday = me.streak.currentDone();
             } else {
                 me.doneToday = me.facts.done(today);

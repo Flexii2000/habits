@@ -228,9 +228,11 @@ public class SchedulerService implements DevController.Tickable {
             if (once(tx, "atrisk:" + c.id + ":" + m.member.personId + ":" + today, local.toInstant())) {
                 int n = m.streak.current();
                 String unit = StreakModel.scheme(c).unit().label(n);
+                String missing = Texts.number(m.streak.currentRequired() - m.streak.currentAchieved());
                 String body = c.auto != null && c.auto.source() == AutoSource.STEPS_WEEKLY
-                        ? c.name + ": " + n + " " + unit + " – heute noch "
-                        + Texts.number(m.streak.currentRequired() - m.streak.currentAchieved()) + " Schritte"
+                        ? c.name + ": " + n + " " + unit + " – heute noch " + missing + " Schritte"
+                        : c.auto != null && c.auto.focusWeekly()
+                        ? c.name + ": " + n + " " + unit + " – diese Woche noch " + missing + " Min."
                         : c.name + ": " + n + " " + unit + " – heute noch abhaken";
                 notifier.notify(tx, List.of(m.member.personId), new PushMessage("streak-at-risk",
                         "Deine Serie ist gefährdet", body, c.id, "cohabit://cohabit/" + c.id + "/checkin"),

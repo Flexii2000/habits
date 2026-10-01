@@ -1,5 +1,6 @@
 package com.fherrmann.habits.cohabit.api;
 
+import com.fherrmann.habits.cohabit.model.FocusPeriod;
 import com.fherrmann.habits.cohabit.rules.StreakUnit;
 import com.fherrmann.habits.legacy.Period;
 
@@ -32,6 +33,7 @@ import java.util.List;
  * @param admin          ob die Person die Einstellungen aendern darf
  * @param backfillFrom   der frueheste Tag, den der Dienst noch annimmt
  * @param summary        nur bei GOAL und CHALLENGE: die Zusammenfassung wie in {@code GET /cohabits}
+ * @param focus          nur bei FOCUS: Kategorie aus dem Wald ({@code null}: alle Baeume) und Zeitraum
  */
 public record ClassicHabit(
         String id,
@@ -54,7 +56,12 @@ public record ClassicHabit(
         boolean shared,
         boolean admin,
         LocalDate backfillFrom,
-        CohabitSummary summary) {
+        CohabitSummary summary,
+        Focus focus) {
+
+    /** Fokus-Habit: nur Baeume dieser Kategorie zaehlen ({@code categoryId} null: alle), je Tag oder Woche. */
+    public record Focus(String categoryId, String categoryName, FocusPeriod period) {
+    }
 
     /** Wie weit der laufende Zeitraum ist - wie {@code HabitProgress} der alten App. */
     public record Progress(int value, int goal) {
