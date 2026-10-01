@@ -503,7 +503,7 @@ Challenge-Ende (mit Gewinner), neue Runde, Ziel erreicht/verfehlt, Unterbrechung
 | Methode | Pfad | Antwort |
 |---|---|---|
 | GET | `/today` | `Today` |
-| GET | `/timeline?cohabitId=&before=<eventId>&limit=30` | `{"items":[TimelineItem],"hasMore":bool}` (neueste zuerst) |
+| GET | `/timeline?exclude=<id>,<id>&before=<eventId>&limit=30` | `{"items":[TimelineItem],"hasMore":bool}` (neueste zuerst). `exclude`: Co-Habits, die der Filter ausblendet (kommagetrennt oder mehrfach; unbekannte IDs stören nicht) - ausblenden statt auswählen, damit neue Co-Habits von selbst erscheinen. `cohabitId` (genau eines) gibt es weiter |
 | GET | `/stats?range=WEEK\|MONTH\|YEAR&anchor=2026-09-30` | `Stats` |
 | GET | `/widget` | `WidgetData` |
 | POST | `/nudges/{id}/seen` | 204 |

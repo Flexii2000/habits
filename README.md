@@ -114,7 +114,7 @@ coHabit-Vertrag; hier der Überblick:
 | Co-Habits | `GET/POST /cohabits`, `GET/PUT/DELETE /cohabits/{id}`, `POST …/archive\|unarchive`, `GET …/invite-candidates`, `POST …/invitations`, `POST …/invite-link`, `DELETE …/members/{id\|me}`, `PUT …/admin`, `PUT …/settings/me`, `POST/DELETE …/pauses`, `POST …/dialogs/{id}/seen`, `POST /invitations/{id}/accept\|decline` |
 | Einträge | `POST/PUT/DELETE /cohabits/{id}/checkins[/{checkinId}]`, `PUT /cohabits/{id}/health/{date}` |
 | Chat | `GET/POST /cohabits/{id}/messages`, `DELETE …/messages/{id}`, `POST …/messages/{id}/report`, `POST …/read`, `POST/DELETE /reactions` |
-| Übersicht | `GET /today`, `GET /timeline`, `POST /timeline/seen`, `GET /stats?range=WEEK\|MONTH\|YEAR`, `GET /widget`, `POST /cohabits/{id}/nudges`, `POST /nudges/{id}/seen` |
+| Übersicht | `GET /today`, `GET /timeline?exclude=`, `POST /timeline/seen`, `GET /stats?range=WEEK\|MONTH\|YEAR`, `GET /widget`, `POST /cohabits/{id}/nudges`, `POST /nudges/{id}/seen` |
 | Fotos | `POST /photos` (multipart `photo`, ≤ 10 MB, `Idempotency-Key`), `GET /photos/{id}?size=thumb\|full` |
 | Geräte, App | `POST /devices`, `DELETE /devices/{token}`, `GET /app/android`, `GET /app/android/apk` |
 | Klassische Liste | `GET/POST /classic/habits`, `PUT/DELETE /classic/habits/{id}`, `POST /classic/habits/{id}/marks`, `DELETE /classic/habits/{id}/marks/{date}` |

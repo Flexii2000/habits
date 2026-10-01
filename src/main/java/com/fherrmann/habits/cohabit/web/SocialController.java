@@ -21,7 +21,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /** Chat, Reaktionen, Timeline und Stupser. */
 @RestController
@@ -102,11 +104,17 @@ public class SocialController {
         return reactions.remove(viewer, target, reaction);
     }
 
+    /**
+     * {@code exclude}: Co-Habits, die der Filter der Clients ausblendet - kommagetrennt
+     * oder mehrfach. Ausblenden statt Auswaehlen, damit neue Co-Habits von selbst
+     * erscheinen; unbekannte IDs (inzwischen geloescht) stoeren nicht.
+     */
     @GetMapping("/timeline")
     public TimelinePage timeline(Viewer viewer, @RequestParam(name = "cohabitId", required = false) String cohabitId,
+                                 @RequestParam(name = "exclude", required = false) List<String> exclude,
                                  @RequestParam(name = "before", required = false) String before,
                                  @RequestParam(name = "limit", required = false) Integer limit) {
-        return timeline.page(viewer, cohabitId, before, limit);
+        return timeline.page(viewer, cohabitId, exclude == null ? Set.of() : Set.copyOf(exclude), before, limit);
     }
 
     @PostMapping("/timeline/seen")

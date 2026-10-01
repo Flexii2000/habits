@@ -37,6 +37,11 @@ public class TimelineService {
     }
 
     public TimelinePage page(Viewer viewer, String cohabitId, String before, Integer limit) {
+        return page(viewer, cohabitId, Set.of(), before, limit);
+    }
+
+    /** @param exclude Co-Habits, die nicht erscheinen sollen (Filter der Clients) */
+    public TimelinePage page(Viewer viewer, String cohabitId, Set<String> exclude, String before, Integer limit) {
         String me = viewer.personId();
         int max = limit == null ? DEFAULT_LIMIT : Math.max(1, Math.min(MAX_LIMIT, limit));
         return store.read(data -> {
@@ -49,6 +54,9 @@ public class TimelineService {
             for (int i = 0; i < events.size(); i++) {
                 Event e = events.get(i);
                 if (cohabitId != null && !cohabitId.isBlank() && !e.cohabitId.equals(cohabitId)) {
+                    continue;
+                }
+                if (exclude.contains(e.cohabitId)) {
                     continue;
                 }
                 if (e.personId != null && blocked.contains(e.personId)) {

@@ -194,6 +194,20 @@ class SocialApiTest extends ApiTestBase {
 
         JsonNode filtered = get("/cohabit/api/timeline?cohabitId=" + laufen, FELIX).json().path("items");
         assertEquals(2, filtered.size());
+        // Der Filter der Clients blendet aus statt auszuwaehlen.
+        assertEquals(2, get("/cohabit/api/timeline?exclude=" + zucker, FELIX).json().path("items").size());
+        assertEquals(0, get("/cohabit/api/timeline?exclude=" + laufen + "," + zucker, FELIX).json()
+                .path("items").size());
+        assertEquals(0, get("/cohabit/api/timeline?exclude=" + laufen + "&exclude=" + zucker, FELIX).json()
+                .path("items").size(), "auch mehrfach");
+        assertEquals(3, get("/cohabit/api/timeline?exclude=c-gibt-es-nicht", FELIX).json().path("items").size(),
+                "eine geloeschte ID im gespeicherten Filter stoert nicht");
+        JsonNode page1 = get("/cohabit/api/timeline?limit=1&exclude=" + zucker, FELIX).json();
+        assertTrue(page1.path("hasMore").asBoolean());
+        JsonNode page2 = get("/cohabit/api/timeline?limit=5&exclude=" + zucker + "&before="
+                + page1.path("items").get(0).path("id").asString(), FELIX).json();
+        assertEquals(1, page2.path("items").size());
+        assertFalse(page2.path("hasMore").asBoolean());
         JsonNode first = get("/cohabit/api/timeline?limit=1", FELIX).json();
         assertTrue(first.path("hasMore").asBoolean());
         JsonNode next = get("/cohabit/api/timeline?limit=5&before=" + first.path("items").get(0).path("id").asString(),
