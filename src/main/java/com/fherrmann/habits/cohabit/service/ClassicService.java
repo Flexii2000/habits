@@ -1,7 +1,9 @@
 package com.fherrmann.habits.cohabit.service;
 
 import com.fherrmann.habits.cohabit.api.ClassicHabit;
+import com.fherrmann.habits.cohabit.api.ClassicKind;
 import com.fherrmann.habits.cohabit.api.CohabitDetail;
+import com.fherrmann.habits.cohabit.api.CohabitSummary;
 import com.fherrmann.habits.cohabit.model.AbstinenceConfig;
 import com.fherrmann.habits.cohabit.model.AutoConfig;
 import com.fherrmann.habits.cohabit.model.AutoSource;
@@ -35,8 +37,9 @@ import java.util.List;
 
 /**
  * Die klassische Liste: Felix' alte Habit-Ansicht aus der Fokus-App, in coHabit
- * per Schalter zurueck (iOS). Liefert Streaks und Abstinenz der Person - auch
- * geteilte - in der Form der alten API, gerechnet mit den Regeln von coHabit.
+ * per Schalter zurueck (iOS). Liefert alle aktiven Co-Habits der Person - auch
+ * geteilte, seit 01.10. auch Ziele und Challenges (Felix: "alles, was die neue Liste
+ * zeigt") - in der Form der alten API, gerechnet mit den Regeln von coHabit.
  * Die Eigenheiten der alten Antwort bleiben: sieben Punkte, die markierten Tage
  * der letzten 31 Tage, und die Schritte-Woche gilt nie als gefaehrdet.
  *
@@ -78,7 +81,7 @@ public class ClassicService {
 
     // MARK: - Lesen
 
-    /** Streaks und Abstinenz der Person in Anlegereihenfolge - sortiert wird in der App. */
+    /** Alle aktiven Co-Habits der Person in Anlegereihenfolge - sortiert wird in der App. */
     public List<ClassicHabit> list(Viewer viewer) {
         String me = viewer.personId();
         ViewService.Facts facts = views.factsForViewer(me);
@@ -86,9 +89,8 @@ public class ClassicService {
         return store.read(data -> {
             List<ClassicHabit> list = new ArrayList<>();
             for (Cohabit c : ViewService.mine(data, me, false)) {
-                if (isClassic(c)) {
-                    list.add(habit(views.evaluate(data, c, facts, now), me));
-                }
+                CohabitEval e = views.evaluate(data, c, facts, now);
+                list.add(isClassic(c) ? habit(e, me) : goalOrChallenge(data, e, me));
             }
             return list;
         });
@@ -110,7 +112,7 @@ public class ClassicService {
     private static Cohabit classic(CohabitStore.Data data, String cohabitId, String me) {
         Cohabit c = ViewService.visible(data, cohabitId, me);
         if (!isClassic(c)) {
-            throw Errors.badRequest("In der klassischen Liste gibt es nur Streaks und Abstinenz.");
+            throw Errors.badRequest("Ziele und Challenges trägst du im Co-Habit ein.");
         }
         return c;
     }
@@ -132,14 +134,14 @@ public class ClassicService {
                 recent.add(!day.isBefore(m.start) && !m.breakDays.contains(day));
             }
             boolean doneToday = !today.isBefore(m.start) && !m.breakDays.contains(today);
-            return new ClassicHabit(c.id, c.name, HabitKind.QUIT, StreakUnit.DAYS, null,
+            return new ClassicHabit(c.id, c.name, ClassicKind.QUIT, StreakUnit.DAYS, null,
                     m.abstinence.current(), doneToday, false, null, recent, null, null, null, null,
-                    marked(m.breakDays, today), m.start, false, shared, admin, backfillFrom);
+                    marked(m.breakDays, today), m.start, false, shared, admin, backfillFrom, null);
         }
 
         PeriodScheme scheme = StreakModel.scheme(c);
         StreakCalc.Outcome streak = m.streak;
-        HabitKind kind = kindOf(c);
+        ClassicKind kind = kindOf(c);
         Integer stepGoal = null;
         Integer focusGoal = null;
         Period period = null;
@@ -180,26 +182,51 @@ public class ClassicService {
         if (m.unavailable != null) {
             return new ClassicHabit(c.id, c.name, kind, scheme.unit(), stepGoal, 0, false, false, null, List.of(),
                     m.unavailable, focusGoal, period, times, List.of(), m.start, c.photoRequired, shared, admin,
-                    backfillFrom);
+                    backfillFrom, null);
         }
         List<LocalDate> markedDays = c.auto == null ? marked(m.doneDays, today) : List.of();
         return new ClassicHabit(c.id, c.name, kind, scheme.unit(), stepGoal, streak.current(), m.doneToday, atRisk,
                 progress, recent(scheme, m.judge, today), null, focusGoal, period, times, markedDays, m.start,
-                c.photoRequired, shared, admin, backfillFrom);
+                c.photoRequired, shared, admin, backfillFrom, null);
     }
 
-    static HabitKind kindOf(Cohabit c) {
-        if (c.type == CohabitType.ABSTINENCE) {
-            return HabitKind.QUIT;
+    /**
+     * Ziele und Challenges: die alten Felder neutral, dazu die Zusammenfassung der
+     * neuen Liste - die Zeile zeigt Kennzahl, Text und Fortschritt daraus, und
+     * eingetragen wird wie in der neuen Ansicht (Wert, +1, Beweisfoto).
+     */
+    static ClassicHabit goalOrChallenge(CohabitStore.Data data, CohabitEval e, String me) {
+        Cohabit c = e.cohabit;
+        MemberEval m = e.member(me);
+        CohabitSummary summary = Views.summary(data, e, me);
+        return new ClassicHabit(c.id, c.name, c.type == CohabitType.GOAL ? ClassicKind.GOAL : ClassicKind.CHALLENGE,
+                StreakUnit.DAYS, null, 0, m.entryToday, false, null, List.of(), summary.unavailableText(), null,
+                null, null, List.of(), m.start, c.photoRequired, c.members.size() > 1,
+                m.member.role == Role.ADMIN, Views.backfillFrom(e, m), summary);
+    }
+
+    static ClassicKind kindOf(Cohabit c) {
+        switch (c.type) {
+            case ABSTINENCE -> {
+                return ClassicKind.QUIT;
+            }
+            case GOAL -> {
+                return ClassicKind.GOAL;
+            }
+            case CHALLENGE -> {
+                return ClassicKind.CHALLENGE;
+            }
+            default -> {
+                if (c.auto == null) {
+                    return ClassicKind.BUILD;
+                }
+                return switch (c.auto.source()) {
+                    case FOOD -> ClassicKind.FOOD;
+                    case STEPS_WEEKLY -> ClassicKind.STEPS;
+                    case FOCUS -> ClassicKind.FOCUS;
+                };
+            }
         }
-        if (c.auto == null) {
-            return HabitKind.BUILD;
-        }
-        return switch (c.auto.source()) {
-            case FOOD -> HabitKind.FOOD;
-            case STEPS_WEEKLY -> HabitKind.STEPS;
-            case FOCUS -> HabitKind.FOCUS;
-        };
     }
 
     /** Was der laufende Zeitraum verlangt - mit Pausen anteilig weniger, ganz pausiert der volle Wert. */
@@ -298,7 +325,7 @@ public class ClassicService {
         String me = viewer.personId();
         CohabitInput input = store.read(data -> {
             Cohabit c = classic(data, cohabitId, me);
-            if (draft.kind() != null && draft.kind() != kindOf(c)) {
+            if (draft.kind() != null && !draft.kind().name().equals(kindOf(c).name())) {
                 throw Errors.badRequest("Die Art lässt sich nicht ändern.");
             }
             StreakConfig streak = c.streak;
@@ -317,10 +344,13 @@ public class ClassicService {
         return one(me, cohabitId);
     }
 
-    /** Allein: weg samt Eintraegen. Geteilt: nur die Person geht, die anderen behalten es. */
+    /**
+     * Allein: weg samt Eintraegen. Geteilt: nur die Person geht, die anderen behalten
+     * es. Gilt fuer jede Art - auch eine Challenge laesst sich aus der Liste verlassen.
+     */
     public void delete(Viewer viewer, String cohabitId) {
         String me = viewer.personId();
-        store.read(data -> classic(data, cohabitId, me));
+        store.read(data -> ViewService.visible(data, cohabitId, me));
         cohabits.removeMember(viewer, cohabitId, "me");
     }
 

@@ -121,7 +121,8 @@ coHabit-Vertrag; hier der Überblick:
 
 **Klassische Liste** (seit 2026-09-30): Felix' alte Habit-Ansicht aus der Fokus-App lässt sich in
 der iOS-App von coHabit per Schalter zurückholen. Dafür liefert `/classic/habits` Streaks und
-Abstinenz der Person – auch geteilte – genau in der Form der alten Habits-API (`HabitStatus`:
+Abstinenz der Person – auch geteilte, seit 01.10. auch Ziele und Challenges (mit der Zusammenfassung
+der neuen Liste) – genau in der Form der alten Habits-API (`HabitStatus`:
 Flamme, sieben Punkte, markierte Tage, Stand des Zeitraums), dazu `photoRequired`, `shared`,
 `admin` und `backfillFrom`. Gerechnet wird mit den Regeln von coHabit; `MigrationParityTest`
 prüft Feld für Feld gegen die alte Rechnung. Abhaken, Anlegen, Ändern und Löschen laufen über

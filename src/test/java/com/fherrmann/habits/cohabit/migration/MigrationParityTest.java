@@ -259,7 +259,8 @@ class MigrationParityTest {
                 ClassicHabit actual = ClassicService.habit(
                         CohabitEval.evaluate(c, checkins, facts, clock.instant()), "felix");
                 String label = habit.name() + " am " + day;
-                assertEquals(expected.kind(), actual.kind(), label);
+                assertEquals(expected.kind().name(), actual.kind().name(), label);
+                assertNull(actual.summary(), label + " (summary nur bei Zielen und Challenges)");
                 assertEquals(expected.unit().name(), actual.unit().name(), label + " (unit)");
                 assertEquals(expected.streak(), actual.streak(), label + " (streak)");
                 assertEquals(expected.doneToday(), actual.doneToday(), label + " (doneToday)");

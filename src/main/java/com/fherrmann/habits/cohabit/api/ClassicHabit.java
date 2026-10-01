@@ -1,7 +1,6 @@
 package com.fherrmann.habits.cohabit.api;
 
 import com.fherrmann.habits.cohabit.rules.StreakUnit;
-import com.fherrmann.habits.legacy.HabitKind;
 import com.fherrmann.habits.legacy.Period;
 
 import java.time.LocalDate;
@@ -10,8 +9,12 @@ import java.util.List;
 /**
  * Ein Co-Habit in der Form der alten Habits-API ({@code HabitStatus} bis 2026-09-30) -
  * fuer die klassische Liste der iOS-App. Die ersten sechzehn Felder heissen und
- * bedeuten genau das, was die alte App gelesen hat; dazu kommen vier, die es erst
+ * bedeuten genau das, was die alte App gelesen hat; dazu kommen fuenf, die es erst
  * mit coHabit gibt.
+ *
+ * <p>Ziele und Challenges kannte die alte App nicht: dort stehen die alten Felder auf
+ * neutralen Werten (unit DAYS, streak 0, leere Listen), und {@code summary} traegt,
+ * was die neue Liste von ihnen zeigt - Kennzahl, Zeilentext, Fortschritt, Eintragen.
  *
  * @param unit           DAYS, WEEKS, MONTHS - und WINDOWS fuer den Rhythmus "alle n Tage"
  * @param period         bei BUILD der Rhythmus DAY, WEEK oder MONTH; {@code null} bei
@@ -28,11 +31,12 @@ import java.util.List;
  * @param shared         mehr als ein Mitglied; Loeschen heisst dann Verlassen
  * @param admin          ob die Person die Einstellungen aendern darf
  * @param backfillFrom   der frueheste Tag, den der Dienst noch annimmt
+ * @param summary        nur bei GOAL und CHALLENGE: die Zusammenfassung wie in {@code GET /cohabits}
  */
 public record ClassicHabit(
         String id,
         String name,
-        HabitKind kind,
+        ClassicKind kind,
         StreakUnit unit,
         Integer weeklyStepGoal,
         int streak,
@@ -49,7 +53,8 @@ public record ClassicHabit(
         boolean photoRequired,
         boolean shared,
         boolean admin,
-        LocalDate backfillFrom) {
+        LocalDate backfillFrom,
+        CohabitSummary summary) {
 
     /** Wie weit der laufende Zeitraum ist - wie {@code HabitProgress} der alten App. */
     public record Progress(int value, int goal) {

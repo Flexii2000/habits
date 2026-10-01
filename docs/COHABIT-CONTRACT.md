@@ -573,14 +573,15 @@ dafür die Antwortform der alten Habits-API, je Person:
 
 | Methode | Pfad | Rumpf → Antwort |
 |---|---|---|
-| GET | `/classic/habits` | → `[ClassicHabit]`: aktive STREAK und ABSTINENCE der Person, auch geteilte, in Anlegereihenfolge (die App sortiert wie früher: erst selbst abgehakte, dann automatische) |
+| GET | `/classic/habits` | → `[ClassicHabit]`: **alle** aktiven Co-Habits der Person, auch geteilte, seit 01.10. auch GOAL und CHALLENGE (Felix: „alles, was die neue Liste zeigt“), in Anlegereihenfolge (die App sortiert: erst selbst abgehakte, dann automatische) |
 | POST | `/classic/habits` | `{"name","kind":"BUILD\|QUIT\|FOOD\|STEPS\|FOCUS","weeklyStepGoal"?,"focusMinutesGoal"?,"period":"DAY\|WEEK\|MONTH"?,"timesPerPeriod"?}` → 201 `ClassicHabit`; allein, Europe/Berlin, Farbe reihum, Nachtragsfrist 336 h wie früher |
 | PUT | `/classic/habits/{id}` | gleicher Rumpf → `ClassicHabit`; nur Admin; Art bleibt (sonst 400); `period: null` lässt den Rhythmus; Farbe, Erinnerung, Foto-Pflicht, Frist, Health bleiben |
-| DELETE | `/classic/habits/{id}` | → 204; allein: löschen, geteilt: verlassen (`DELETE …/members/me`) |
+| DELETE | `/classic/habits/{id}` | → 204; allein: löschen, geteilt: verlassen (`DELETE …/members/me`) – für jede Art |
 | POST | `/classic/habits/{id}/marks` | `{"date","id"?}` → `ClassicHabit`; BUILD = Haken, QUIT = Rückfall, als Check-in mit allen Prüfungen (Foto-Pflicht 400, Frist 400, Tag schon erledigt 409, automatisch 403); dieselbe `id` noch einmal → nichts Neues |
 | DELETE | `/classic/habits/{id}/marks/{date}` | → `ClassicHabit`; nimmt den eigenen Eintrag des Tages zurück, ohne Eintrag unverändert |
 
-Ziele und Challenges: 400 „In der klassischen Liste gibt es nur Streaks und Abstinenz.“
+Abhaken (`…/marks`) und Bearbeiten (`PUT`) gibt es nur für STREAK und ABSTINENCE; bei Zielen und Challenges: 400 „Ziele und
+Challenges trägst du im Co-Habit ein.“ – die App trägt dort über `POST /cohabits/{id}/checkins` ein (Wert, +1, Beweisfoto).
 
 ```
 ClassicHabit {"id","name","kind":"BUILD|QUIT|FOOD|STEPS|FOCUS","unit":"DAYS|WEEKS|MONTHS|WINDOWS",
@@ -592,8 +593,12 @@ ClassicHabit {"id","name","kind":"BUILD|QUIT|FOOD|STEPS|FOCUS","unit":"DAYS|WEEK
   "progress":{"value":1,"goal":2}|null, // BUILD Woche/Monat: Einträge; FOOD kcal/80 %; STEPS Woche; FOCUS Minuten
   "recent":[false,true,…],              // 7 Zeiträume, älteste zuerst; [] wenn die Quelle nicht antwortet
   "unavailable":null,"markedDays":["2026-09-28"],"createdAt":"2026-08-01",
-  "photoRequired":false,"shared":false,"admin":true,"backfillFrom":"2026-09-16"}
+  "photoRequired":false,"shared":false,"admin":true,"backfillFrom":"2026-09-16",
+  "summary":CohabitSummary|null}       // nur GOAL/CHALLENGE: wie in GET /cohabits (Kennzahl, listLine,
+                                        // progress, canCheckIn, valueUnit, checkInLabel …)
 ```
+`kind` kennt zusätzlich `GOAL` und `CHALLENGE`; bei ihnen stehen die alten Felder neutral (`unit` DAYS, `streak` 0,
+leere Listen, `doneToday` = heute schon eingetragen), damit eine ältere App nicht stolpert.
 Eigenheiten der alten Antwort, bewusst übernommen: `recent` bei QUIT zählt Tage ohne Rückfall ab dem
 Start, `atRisk` ist bei QUIT und bei den Schritten nie gesetzt, `markedDays` umfasst 31 Tage und ist bei
 automatischen leer. `MigrationParityTest` vergleicht die Antwort Feld für Feld mit der alten Rechnung.

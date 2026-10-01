@@ -16,6 +16,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -71,20 +72,48 @@ class ClassicApiTest extends ApiTestBase {
     }
 
     @Test
-    void nurStreaksUndAbstinenzInAnlegereihenfolge() {
+    void alleAktivenInAnlegereihenfolgeAuchZieleUndChallenges() {
         String reading = createClassic(FELIX, map("name", "Lesen", "kind", "BUILD"), 0).path("id").asString();
         String sugar = createClassic(FELIX, map("name", "Ohne Zucker", "kind", "QUIT"), 0).path("id").asString();
-        create(FELIX, map("type", "GOAL", "name", "100k Schritte", "color", "periwinkle",
+        String goal = id(create(FELIX, map("type", "GOAL", "name", "100k Schritte", "color", "periwinkle",
                 "tracking", map("mode", "VALUE", "unit", "STEPS"),
-                "goal", map("target", 100000, "deadline", "2026-10-31", "counting", "AMOUNT", "mode", "TEAM")));
+                "goal", map("target", 100000, "deadline", "2026-10-31", "counting", "AMOUNT", "mode", "TEAM"))));
+        String cooking = withMembers(map("type", "CHALLENGE", "name", "Wer kocht öfter?", "color", "butter",
+                "challenge", map("start", "2026-09-28", "end", "2026-10-04", "scoring", "MOST_ENTRIES")), TORBEN_APP);
         String archived = id(create(FELIX, streak("Alt", daily())));
         post("/cohabit/api/cohabits/" + archived + "/archive", FELIX, null).expect(200);
 
         List<JsonNode> list = list(FELIX);
-        assertEquals(List.of(reading, sugar), list.stream().map(h -> h.path("id").asString()).toList());
+        assertEquals(List.of(reading, sugar, goal, cooking), list.stream().map(h -> h.path("id").asString()).toList(),
+                "alles, was auch die neue Liste zeigt - ohne Archiviertes");
         assertEquals("BUILD", list.get(0).path("kind").asString());
         assertEquals("QUIT", list.get(1).path("kind").asString());
-        assertTrue(list(TORBEN_APP).isEmpty(), "jede Person sieht nur ihre eigenen");
+        assertTrue(list.get(0).path("summary").isNull(), "die alten Arten brauchen keine Zusammenfassung");
+
+        JsonNode g = list.get(2);
+        assertEquals("GOAL", g.path("kind").asString());
+        assertEquals("DAYS", g.path("unit").asString(), "neutral, damit aeltere Apps nicht stolpern");
+        assertEquals(0, g.path("streak").asInt());
+        assertTrue(g.path("recent").isEmpty());
+        assertEquals("0%", g.path("summary").path("headline").path("value").asString());
+        assertTrue(g.path("summary").path("canCheckIn").asBoolean());
+        assertEquals("100k Schritte", g.path("summary").path("ref").path("name").asString());
+
+        JsonNode ch = list.get(3);
+        assertEquals("CHALLENGE", ch.path("kind").asString());
+        assertTrue(ch.path("shared").asBoolean());
+        assertTrue(ch.path("admin").asBoolean());
+        assertFalse(ch.path("doneToday").asBoolean());
+        checkin(cooking, FELIX, map("id", java.util.UUID.randomUUID().toString()));
+        JsonNode after = find(FELIX, cooking);
+        assertTrue(after.path("doneToday").asBoolean(), "heute eingetragen");
+        assertEquals("#1", after.path("summary").path("headline").path("value").asString());
+
+        assertEquals(List.of(cooking), list(TORBEN_APP).stream().map(h -> h.path("id").asString()).toList(),
+                "jede Person sieht nur ihre eigenen");
+        delete(BASE + "/" + cooking, TORBEN_APP).expect(204);
+        assertTrue(list(TORBEN_APP).isEmpty(), "auch eine Challenge laesst sich aus der Liste verlassen");
+        assertNotNull(find(FELIX, cooking), "Felix bleibt drin");
     }
 
     @Test
@@ -321,13 +350,14 @@ class ClassicApiTest extends ApiTestBase {
     }
 
     @Test
-    void zieleUndFremdeGibtEsHierNicht() {
+    void zieleTraegtManImCoHabitEinUndFremdeGibtEsNicht() {
         String goal = id(create(FELIX, map("type", "GOAL", "name", "100k", "color", "periwinkle",
                 "tracking", map("mode", "VALUE", "unit", "STEPS"),
                 "goal", map("target", 100000, "deadline", "2026-10-31", "counting", "AMOUNT", "mode", "TEAM"))));
         Response r = post(BASE + "/" + goal + "/marks", FELIX, map("date", TODAY.toString()));
         assertEquals(400, r.status());
-        assertEquals("In der klassischen Liste gibt es nur Streaks und Abstinenz.", r.message());
+        assertEquals("Ziele und Challenges trägst du im Co-Habit ein.", r.message());
+        assertEquals(400, put(BASE + "/" + goal, FELIX, map("name", "x", "kind", "BUILD")).status());
         String felixOnly = createClassic(FELIX, map("name", "Privat", "kind", "BUILD"), 0).path("id").asString();
         assertEquals(404, post(BASE + "/" + felixOnly + "/marks", TORBEN_APP, map("date", TODAY.toString())).status());
         assertEquals(404, delete(BASE + "/" + felixOnly, TORBEN_APP).status());
