@@ -4,8 +4,8 @@
 // Einladen, Benachrichtigungen, Archivieren, Verlassen/Loeschen.
 import { get, post, put, del, enc } from '../api.js';
 import { h, icon, actionSheet, confirmDialog, openDialog, sheetHead, poll, shareLink, showError, toast, fill } from '../dom.js';
-import { avatar, chip, colorClass, errorState, loadingState, progressBar, selectRow, toggleRow } from '../ui.js';
-import { cached, remember, forget } from '../state.js';
+import { avatar, chip, colorClass, errorState, loadingState, progressBar, selectRow, toggle, toggleRow } from '../ui.js';
+import { cached, remember, forget, state } from '../state.js';
 import { TYPE_NAMES, dateLong, dayIn, dayShort, fmtTime, isMe, personName, plural } from '../format.js';
 import { backfillDays, checkIn, editCheckin } from '../checkin.js';
 import { finishedDialog } from '../finished.js';
@@ -297,11 +297,30 @@ export function mount(root, params, ctx) {
     function healthCard() {
         const hl = detail.health;
         const sub = [hl.consent && hl.lastSyncAt ? `zuletzt ${fmtTime(hl.lastSyncAt)}` : null, hl.shareText].filter(Boolean).join(' · ');
+        // kcal aus Healthy holt der Dienst selbst - die Einwilligung geht darum auch hier,
+        // fuer Apple Health/Health Connect nur in den Apps. Zustimmen kann, wer Healthy hat.
+        const healthy = hl.source === 'HEALTHY';
+        const canConsent = healthy && ((state.me && state.me.sources) || []).includes('FOOD');
+        const control = healthy ? toggle({
+            checked: hl.consent,
+            disabled: !canConsent && !hl.consent,
+            label: 'kcal aus Healthy übernehmen',
+            onchange: async on => {
+                try {
+                    apply(await put(`${base}/settings/me`, { healthConsent: on }));
+                } catch (err) {
+                    showError(err);
+                    render();
+                }
+            },
+        }) : null;
         return h('section', { class: 'panel health-card' },
             h('span', { class: 'health-avatar', 'aria-hidden': 'true' }, icon('pulse')),
-            h('div', null,
-                h('div', { class: 'health-title' }, hl.consent ? 'Health-Sync aktiv' : `Health · ${hl.label}`),
-                sub ? h('div', { class: 'health-sub' }, sub) : null));
+            h('div', { class: 'health-texts' },
+                h('div', { class: 'health-title' }, healthy ? hl.label : hl.consent ? 'Health-Sync aktiv' : `Health · ${hl.label}`),
+                sub ? h('div', { class: 'health-sub' }, sub) : null,
+                healthy && !canConsent && !hl.consent ? h('div', { class: 'health-sub' }, 'Kein Healthy-Zugang') : null),
+            control);
     }
 
     function myEntries() {

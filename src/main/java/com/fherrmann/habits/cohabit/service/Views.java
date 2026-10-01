@@ -28,6 +28,7 @@ import com.fherrmann.habits.cohabit.model.Cohabit;
 import com.fherrmann.habits.cohabit.model.CohabitType;
 import com.fherrmann.habits.cohabit.model.GoalConfig;
 import com.fherrmann.habits.cohabit.model.GoalCounting;
+import com.fherrmann.habits.cohabit.model.HealthMetric;
 import com.fherrmann.habits.cohabit.model.GoalMode;
 import com.fherrmann.habits.cohabit.model.Invitation;
 import com.fherrmann.habits.cohabit.model.Member;
@@ -693,7 +694,8 @@ public final class Views {
             return null;
         }
         return new HealthBlock(c.health.metric().name(), Texts.healthLabel(c.health.metric()),
-                m.settings.healthConsent, m.lastHealthSyncAt, Texts.healthShareText(c.health.metric()));
+                m.settings.healthConsent, m.lastHealthSyncAt, Texts.healthShareText(c.health.metric()),
+                c.health.metric() == HealthMetric.KCAL ? "HEALTHY" : "DEVICE");
     }
 
     // MARK: - STREAK-Block

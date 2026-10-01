@@ -108,6 +108,7 @@ public final class Texts {
             case MINUTES -> "Minuten";
             case KM -> "Kilometer";
             case STEPS -> "Schritte";
+            case KCAL -> "kcal";
         };
     }
 
@@ -121,6 +122,7 @@ public final class Texts {
             case MINUTES -> number(value) + " Min.";
             case KM -> number(value) + " km";
             case STEPS -> number(value) + " " + plural(Math.round(value), "Schritt", "Schritte");
+            case KCAL -> number(value) + " kcal";
         };
     }
 
@@ -130,6 +132,7 @@ public final class Texts {
             case RUNNING_DISTANCE -> ValueUnit.KM;
             case WORKOUTS -> ValueUnit.COUNT;
             case WORKOUT_MINUTES -> ValueUnit.MINUTES;
+            case KCAL -> ValueUnit.KCAL;
         };
     }
 
@@ -139,6 +142,7 @@ public final class Texts {
             case RUNNING_DISTANCE -> "Laufdistanz";
             case WORKOUTS -> "Trainings";
             case WORKOUT_MINUTES -> "Trainingsminuten";
+            case KCAL -> "kcal aus Healthy";
         };
     }
 
@@ -148,6 +152,7 @@ public final class Texts {
             case RUNNING_DISTANCE -> "nur die Laufdistanz wird geteilt";
             case WORKOUTS -> "nur die Zahl der Trainings wird geteilt";
             case WORKOUT_MINUTES -> "nur die Trainingsminuten werden geteilt";
+            case KCAL -> "nur die kcal des Tages werden geteilt";
         };
     }
 

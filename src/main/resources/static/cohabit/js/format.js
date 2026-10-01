@@ -80,7 +80,7 @@ export function joinNames(names) {
 
 export const TYPE_NAMES = { STREAK: 'Streak', ABSTINENCE: 'Abstinenz', GOAL: 'Ziel', CHALLENGE: 'Challenge' };
 
-export const UNIT_LABELS = { COUNT: 'Anzahl', MINUTES: 'Minuten', KM: 'km', STEPS: 'Schritte' };
+export const UNIT_LABELS = { COUNT: 'Anzahl', MINUTES: 'Minuten', KM: 'km', STEPS: 'Schritte', KCAL: 'kcal' };
 
 export function unitLabel(unit) {
     return UNIT_LABELS[unit] || unit || '';

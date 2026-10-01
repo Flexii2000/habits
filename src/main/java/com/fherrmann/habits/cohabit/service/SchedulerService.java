@@ -62,13 +62,14 @@ public class SchedulerService implements DevController.Tickable {
     private final EventService events;
     private final Notifier notifier;
     private final PhotoService photos;
+    private final KcalSync kcal;
     private final Clock clock;
     private final boolean enabled;
     private volatile Instant lastCleanup = Instant.EPOCH;
 
     public SchedulerService(CohabitStore store, ViewService views, ChallengeService challenges,
                             Achievements achievements, EventService events, Notifier notifier, PhotoService photos,
-                            Clock clock, @Value("${cohabit.scheduler.enabled:true}") boolean enabled) {
+                            KcalSync kcal, Clock clock, @Value("${cohabit.scheduler.enabled:true}") boolean enabled) {
         this.store = store;
         this.views = views;
         this.challenges = challenges;
@@ -76,6 +77,7 @@ public class SchedulerService implements DevController.Tickable {
         this.events = events;
         this.notifier = notifier;
         this.photos = photos;
+        this.kcal = kcal;
         this.clock = clock;
         this.enabled = enabled;
     }
@@ -95,6 +97,15 @@ public class SchedulerService implements DevController.Tickable {
     @Override
     public void tick(Instant now) {
         Instant at = now.truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
+        // kcal aus Healthy im selben Takt wie die automatischen Quellen - vor der Rechnung,
+        // damit Ziele und Challenges schon mit dem frischen Stand laufen.
+        if (at.atZone(java.time.ZoneId.of("Europe/Berlin")).getMinute() % SOURCE_EVERY_MINUTES == 0) {
+            try {
+                kcal.syncAll(at);
+            } catch (RuntimeException e) {
+                log.warn("kcal-Abgleich fehlgeschlagen", e);
+            }
+        }
         ViewService.Facts facts = views.fetchFacts(c -> !c.archived && needsSource(c, at));
         store.update(tx -> {
             for (Cohabit c : new ArrayList<>(tx.cohabits().cohabits)) {

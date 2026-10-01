@@ -18,8 +18,9 @@ const TYPES = [
 
 const BACKFILL = [[0, 'Keine'], [24, '24 Stunden'], [48, '48 Stunden'], [72, '72 Stunden'], [168, '7 Tage'], [336, '14 Tage']];
 const UNITS = Object.entries(UNIT_LABELS);
-const HEALTH = [[null, 'Keine'], ['STEPS', 'Schritte'], ['RUNNING_DISTANCE', 'Laufdistanz'], ['WORKOUTS', 'Trainings'], ['WORKOUT_MINUTES', 'Trainingsminuten']];
-const HEALTH_UNIT = { STEPS: 'STEPS', RUNNING_DISTANCE: 'KM', WORKOUTS: 'COUNT', WORKOUT_MINUTES: 'MINUTES' };
+// KCAL holt der Dienst selbst aus dem Kalorienzaehler (Healthy) - je Mitglied mit Einwilligung.
+const HEALTH = [[null, 'Keine'], ['STEPS', 'Schritte'], ['RUNNING_DISTANCE', 'Laufdistanz'], ['WORKOUTS', 'Trainings'], ['WORKOUT_MINUTES', 'Trainingsminuten'], ['KCAL', 'kcal aus Healthy']];
+const HEALTH_UNIT = { STEPS: 'STEPS', RUNNING_DISTANCE: 'KM', WORKOUTS: 'COUNT', WORKOUT_MINUTES: 'MINUTES', KCAL: 'KCAL' };
 const SOURCES = { FOOD: 'Track food', STEPS_WEEKLY: 'Schritte pro Woche', FOCUS: 'Fokus-Zeit' };
 const MAX_SEATS = 8;
 

@@ -119,6 +119,11 @@ coHabit-Vertrag; hier der Überblick:
 | Geräte, App | `POST /devices`, `DELETE /devices/{token}`, `GET /app/android`, `GET /app/android/apk` |
 | Klassische Liste | `GET/POST /classic/habits`, `PUT/DELETE /classic/habits/{id}`, `POST /classic/habits/{id}/marks`, `DELETE /classic/habits/{id}/marks/{date}` |
 
+**kcal aus Healthy** (seit 2026-10-01): Ein Co-Habit mit Wert kann als Health-Metrik `KCAL` nutzen. Die kcal
+holt der Dienst selbst aus dem Kalorienzähler (`KcalSync`) – je Mitglied mit Einwilligung und Healthy-Zugang,
+ein Wert je Tag in der Nachtragsfrist, sofort nach der Zustimmung und danach alle 15 Minuten. Details im
+Vertrag, §3.9.
+
 **Klassische Liste** (seit 2026-09-30): Felix' alte Habit-Ansicht aus der Fokus-App lässt sich in
 der iOS-App von coHabit per Schalter zurückholen. Dafür liefert `/classic/habits` Streaks und
 Abstinenz der Person – auch geteilte, seit 01.10. auch Ziele und Challenges (mit der Zusammenfassung

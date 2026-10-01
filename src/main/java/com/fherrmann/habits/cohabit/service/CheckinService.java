@@ -11,6 +11,7 @@ import com.fherrmann.habits.cohabit.model.CohabitType;
 import com.fherrmann.habits.cohabit.model.Event;
 import com.fherrmann.habits.cohabit.model.EventKind;
 import com.fherrmann.habits.cohabit.model.GoalCounting;
+import com.fherrmann.habits.cohabit.model.HealthMetric;
 import com.fherrmann.habits.cohabit.model.Member;
 import com.fherrmann.habits.cohabit.model.Message;
 import com.fherrmann.habits.cohabit.model.MessageKind;
@@ -382,6 +383,9 @@ public class CheckinService {
             if (c.health == null) {
                 throw Errors.badRequest("Dieses Co-Habit nutzt kein Health.");
             }
+            if (c.health.metric() == HealthMetric.KCAL) {
+                throw Errors.badRequest("Die kcal kommen aus Healthy.");
+            }
             if (c.archived) {
                 throw Errors.conflict("Das Co-Habit ist archiviert.");
             }
@@ -409,49 +413,87 @@ public class CheckinService {
             }
             tx.cohabitsW();
             member.lastHealthSyncAt = now;
-            double v = Texts.round2(value);
-            Checkin existing = tx.checkins(c.id).stream()
-                    .filter(x -> x.personId.equals(me) && x.date.equals(date) && x.source == CheckinSource.HEALTH)
-                    .findFirst().orElse(null);
-            if (v <= 0) {
-                if (existing != null) {
-                    removeCheckin(tx, c, existing);
-                }
-                return;
-            }
-            if (existing != null) {
-                tx.checkinsW(c.id);
-                existing.value = v;
-                existing.updatedAt = now;
-                tx.events().events.stream().filter(e -> e.id.equals(existing.eventId)).findFirst().ifPresent(e -> {
-                    tx.eventsW();
-                    e.value = v;
-                });
-            } else {
-                Checkin ch = new Checkin();
-                ch.id = UUID.randomUUID().toString();
-                ch.cohabitId = c.id;
-                ch.personId = me;
-                ch.kind = CheckinKind.DONE;
-                ch.date = date;
-                ch.createdAt = now;
-                ch.value = v;
-                ch.source = CheckinSource.HEALTH;
-                tx.checkinsW(c.id).add(ch);
-                Event e = events.event(tx, c, EventKind.HEALTH, me, now);
-                e.checkinId = ch.id;
-                e.checkinDate = date;
-                e.value = v;
-                ch.eventId = e.id;
-            }
-            CohabitEval after = CohabitEval.evaluate(c, tx.checkins(c.id), Map.of(), now);
-            if (c.type == CohabitType.STREAK) {
-                achievements.check(tx, after, me, now);
-            }
-            if (c.type == CohabitType.CHALLENGE) {
-                challenges.finishIfTargetReached(tx, after, now);
-            }
+            applyHealthValue(tx, c, me, date, value, now);
         });
         return views.detail(me, cohabitId);
+    }
+
+    /**
+     * Der Tageswert einer Person: ein Eintrag je Tag, der sich aktualisiert; 0 nimmt ihn
+     * weg. Fuer die Werte der Apps wie fuer die kcal, die der Dienst selbst holt
+     * ({@link KcalSync}) - Fristen und Einwilligung prueft, wer aufruft.
+     *
+     * @return ob sich etwas geaendert hat
+     */
+    boolean applyHealthValue(CohabitStore.Tx tx, Cohabit c, String personId, LocalDate date, double value,
+                             Instant now) {
+        double v = Texts.round2(value);
+        Checkin existing = tx.checkins(c.id).stream()
+                .filter(x -> x.personId.equals(personId) && x.date.equals(date) && x.source == CheckinSource.HEALTH)
+                .findFirst().orElse(null);
+        if (v <= 0) {
+            if (existing == null) {
+                return false;
+            }
+            removeCheckin(tx, c, existing);
+            return true;
+        }
+        if (existing != null) {
+            if (existing.value != null && existing.value == v) {
+                return false;
+            }
+            tx.checkinsW(c.id);
+            existing.value = v;
+            existing.updatedAt = now;
+            tx.events().events.stream().filter(e -> e.id.equals(existing.eventId)).findFirst().ifPresent(e -> {
+                tx.eventsW();
+                e.value = v;
+            });
+        } else {
+            Checkin ch = new Checkin();
+            ch.id = UUID.randomUUID().toString();
+            ch.cohabitId = c.id;
+            ch.personId = personId;
+            ch.kind = CheckinKind.DONE;
+            ch.date = date;
+            ch.createdAt = now;
+            ch.value = v;
+            ch.source = CheckinSource.HEALTH;
+            tx.checkinsW(c.id).add(ch);
+            Event e = events.event(tx, c, EventKind.HEALTH, personId, now);
+            e.checkinId = ch.id;
+            e.checkinDate = date;
+            e.value = v;
+            ch.eventId = e.id;
+        }
+        CohabitEval after = CohabitEval.evaluate(c, tx.checkins(c.id), Map.of(), now);
+        if (c.type == CohabitType.STREAK) {
+            achievements.check(tx, after, personId, now);
+        }
+        if (c.type == CohabitType.CHALLENGE) {
+            challenges.finishIfTargetReached(tx, after, now);
+        }
+        return true;
+    }
+
+    /**
+     * Welche Tage ein Tageswert betreffen darf: die Nachtragsfrist, mindestens heute
+     * und gestern, nie vor dem Beitritt; bei Zielen bis zum Zieldatum, bei Challenges
+     * nur in der laufenden Runde.
+     */
+    static boolean healthDayAllowed(Cohabit c, CohabitEval e, MemberEval mine, LocalDate date) {
+        LocalDate earliest = Views.backfillFrom(e, mine);
+        LocalDate yesterday = e.today.minusDays(1);
+        if (yesterday.isBefore(earliest) && !yesterday.isBefore(mine.start)) {
+            earliest = yesterday;
+        }
+        if (date == null || date.isAfter(e.today) || date.isBefore(earliest)) {
+            return false;
+        }
+        if (c.type == CohabitType.GOAL && date.isAfter(c.goal.deadline())) {
+            return false;
+        }
+        return c.type != CohabitType.CHALLENGE || (!date.isBefore(c.challenge.start()) && !date.isAfter(c.challenge.end())
+                && (c.challengeState == null || c.challengeState.roundEndedAt == null));
     }
 }

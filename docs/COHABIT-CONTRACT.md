@@ -171,8 +171,9 @@ Avatar-Kreis (aus der ID abgeleitet, stabil).
   "mode":"INDIVIDUAL|TEAM"}` (`start` = Anlagetag, nicht änderbar).
 - `challenge` (nur CHALLENGE): `{"start": date, "end": date, "scoring":"MOST_ENTRIES|HIGHEST_SUM|FIRST_TO_TARGET",
   "target": number|null (nur FIRST_TO_TARGET), "stake": string|null (≤ 80), "recurrence":"NONE|WEEKLY|MONTHLY"}`.
-- `health`: `{"metric":"STEPS|RUNNING_DISTANCE|WORKOUTS|WORKOUT_MINUTES"}` oder `null` — Werte kommen
-  aus Apple Health / Health Connect über die Apps (§3.9). Sinnvoll für GOAL/CHALLENGE/STREAK mit Wert.
+- `health`: `{"metric":"STEPS|RUNNING_DISTANCE|WORKOUTS|WORKOUT_MINUTES|KCAL"}` oder `null` — Werte kommen
+  aus Apple Health / Health Connect über die Apps (§3.9); `KCAL` (seit 01.10., Felix) holt der Dienst selbst
+  aus dem Kalorienzähler (Healthy). Sinnvoll für GOAL/CHALLENGE/STREAK mit Wert; Einheit dann `KCAL`.
 - `auto` **[Entscheidung, für Felix' bisherige automatische Habits]**: `{"source":"FOOD|STEPS_WEEKLY|FOCUS",
   "weeklyStepGoal": int|null, "focusMinutesGoal": int|null}` oder `null`. Nur bei STREAK. Ein
   automatisches Co-Habit hakt man nicht selbst ab; der Dienst rechnet je Mitglied aus der Quelle:
@@ -410,7 +411,8 @@ CohabitDetail {"summary":CohabitSummary,"config":CohabitConfig,
   "streak":StreakBlock|null,"abstinence":AbstinenceBlock|null,
   "goal":GoalBlock|null,"challenge":ChallengeBlock|null,
   "health":{"metric":"STEPS","label":"Schritte","consent":true,"lastSyncAt":"…"|null,
-            "shareText":"nur die Schrittzahl wird geteilt"}|null,
+            "shareText":"nur die Schrittzahl wird geteilt",
+            "source":"DEVICE|HEALTHY"}|null,   // HEALTHY: der Dienst holt selbst (KCAL)
   "myCheckins":[Checkin],          // eigene, innerhalb der Nachtragsfrist + heute, neueste zuerst
   "backfillFrom":"2026-09-28",
   "myPauses":[{"id","from","to"}],
@@ -565,6 +567,17 @@ Health: Die Apps lesen je Co-Habit mit `health` und `healthConsent` die Tageswer
 aus Lauf-Sessions), `WORKOUTS` Anzahl Trainings, `WORKOUT_MINUTES` Minuten. Einwilligung je Datentyp
 über die System-Dialoge, Widerruf jederzeit (`healthConsent:false` im Co-Habit, und in den
 System-Einstellungen). Der Dienst sieht nur den einen Tageswert.
+
+**kcal aus Healthy** (`metric: KCAL`, `source: HEALTHY`, seit 01.10.): Dieselbe Logik, nur holt der Dienst
+die Werte selbst (`KcalSync`) – die Daten liegen im Kalorienzähler nebenan, kein Handy muss etwas
+schicken; darum geht die Einwilligung auch im Web. Je Mitglied mit `healthConsent` **und** Healthy-Zugang
+(Quelle `FOOD` in `MeView.sources`): die kcal des Tages als HEALTH-Eintrag, ein Wert je Tag, in der
+Nachtragsfrist, mindestens heute und gestern, 0 = kein Eintrag. Wann: sofort nach der Zustimmung (die
+ganze Frist), danach alle 15 Minuten heute und gestern; ein unveränderter Wert schreibt nichts, ein nicht
+erreichbarer Kalorienzähler ändert nichts. Zustimmen ohne Healthy-Zugang: 400 „Dafür braucht es einen
+Healthy-Zugang.“; `PUT /cohabits/{id}/health/{date}` bei KCAL: 400 „Die kcal kommen aus Healthy.“ Die Apps
+lesen für `source: HEALTHY` nichts aus Apple Health/Health Connect und zeigen statt der System-Abfrage nur
+den Schalter (gesperrt ohne Quelle `FOOD`).
 
 ### 3.10 Klassische Liste (nur iOS, seit 2026-09-30)
 Felix mochte die alte Habit-Liste der Fokus-App lieber: coHabit (iOS) bekommt dafür im Profil den

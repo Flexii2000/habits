@@ -11,6 +11,7 @@ import com.fherrmann.habits.cohabit.model.Cohabit;
 import com.fherrmann.habits.cohabit.model.CohabitType;
 import com.fherrmann.habits.cohabit.model.Invitation;
 import com.fherrmann.habits.cohabit.model.InviteLinkKind;
+import com.fherrmann.habits.cohabit.model.HealthMetric;
 import com.fherrmann.habits.cohabit.model.Member;
 import com.fherrmann.habits.cohabit.model.MessagesFile;
 import com.fherrmann.habits.cohabit.model.Pause;
@@ -49,9 +50,10 @@ public class CohabitService {
     private final AutoSources sources;
     private final PhotoFiles photos;
     private final InviteLinks links;
+    private final KcalSync kcal;
 
     public CohabitService(CohabitStore store, ViewService views, EventService events, Notifier notifier,
-                          AutoSources sources, PhotoFiles photos, InviteLinks links) {
+                          AutoSources sources, PhotoFiles photos, InviteLinks links, KcalSync kcal) {
         this.store = store;
         this.views = views;
         this.events = events;
@@ -59,6 +61,7 @@ public class CohabitService {
         this.sources = sources;
         this.photos = photos;
         this.links = links;
+        this.kcal = kcal;
     }
 
     private Instant now() {
@@ -272,7 +275,7 @@ public class CohabitService {
     /** Nur die mitgeschickten Felder aendern sich; {@code checkins}/{@code chat} null heisst "wie global". */
     public CohabitDetail updateMySettings(Viewer viewer, String id, Map<String, Object> body) {
         String me = viewer.personId();
-        store.update(tx -> {
+        boolean kcalConsent = store.write(tx -> {
             Cohabit c = ViewService.visible(tx, id, me);
             Member m = c.member(me).orElseThrow();
             tx.cohabitsW();
@@ -289,9 +292,21 @@ public class CohabitService {
                 m.settings.shareBreaks = bool(body.get("shareBreaks"));
             }
             if (body.containsKey("healthConsent")) {
-                m.settings.healthConsent = bool(body.get("healthConsent"));
+                boolean consent = bool(body.get("healthConsent"));
+                boolean kcalMetric = c.health != null && c.health.metric() == HealthMetric.KCAL;
+                if (consent && kcalMetric && !kcal.canProvide(me)) {
+                    throw Errors.badRequest("Dafür braucht es einen Healthy-Zugang.");
+                }
+                boolean newlyGiven = consent && !m.settings.healthConsent;
+                m.settings.healthConsent = consent;
+                return newlyGiven && kcalMetric;
             }
+            return false;
         });
+        if (kcalConsent) {
+            // Gleich holen, was die Nachtragsfrist hergibt - nicht erst beim naechsten Scheduler-Lauf.
+            kcal.sync(id, me, now());
+        }
         return views.detail(me, id);
     }
 
