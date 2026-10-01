@@ -173,6 +173,7 @@ public final class Texts {
             case FOOD -> "täglich · Kalorienzähler";
             case STEPS_WEEKLY -> number(auto.stepGoal()) + " Schritte pro Woche";
             case FOCUS -> auto.focusGoal() + " Min. " + focusWhat(auto) + (auto.focusWeekly() ? " pro Woche" : " täglich");
+            case FOOD_TARGET_WEEKLY -> "Kalorienziel im Wochenmittel";
         };
     }
 
@@ -186,6 +187,7 @@ public final class Texts {
             case FOOD -> "Automatisch: Kalorienzähler";
             case STEPS_WEEKLY -> "Automatisch: " + number(auto.stepGoal()) + " Schritte/Woche";
             case FOCUS -> "Automatisch: " + auto.focusGoal() + " Min. " + focusWhat(auto) + (auto.focusWeekly() ? "/Woche" : "/Tag");
+            case FOOD_TARGET_WEEKLY -> "Automatisch: Kalorienziel im Wochenmittel";
         };
     }
 

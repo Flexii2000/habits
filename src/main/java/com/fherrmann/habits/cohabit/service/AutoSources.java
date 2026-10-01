@@ -46,6 +46,8 @@ public class AutoSources {
     private final FocusService focus;
     private final HealthUsers users;
     private final Map<String, Map<LocalDate, Boolean>> foodHistory = new ConcurrentHashMap<>();
+    /** Vergangene Tage des Kalorienzaehlers samt kcal und Ziel - fuer das Wochenmittel. */
+    private final Map<String, Map<LocalDate, FoodClient.Day>> foodDays = new ConcurrentHashMap<>();
 
     public AutoSources(FoodClient food, StepsClient steps, FocusService focus, HealthUsers users) {
         this.food = food;
@@ -57,15 +59,16 @@ public class AutoSources {
     /** Vergisst die gemerkten Tage des Kalorienzaehlers. */
     public void forgetHistory() {
         foodHistory.clear();
+        foodDays.clear();
     }
 
     /** Welche Quellen eine Person hat: FOOD und Schritte alle Healthy-Personen, FOCUS nur die Eigentuemerin. */
     public List<AutoSource> sourcesOf(String personId) {
         if (users.isOwner(personId)) {
-            return List.of(AutoSource.FOOD, AutoSource.STEPS_WEEKLY, AutoSource.FOCUS);
+            return List.of(AutoSource.FOOD, AutoSource.FOOD_TARGET_WEEKLY, AutoSource.STEPS_WEEKLY, AutoSource.FOCUS);
         }
         if (users.isHealthPerson(personId)) {
-            return List.of(AutoSource.FOOD, AutoSource.STEPS_WEEKLY);
+            return List.of(AutoSource.FOOD, AutoSource.FOOD_TARGET_WEEKLY, AutoSource.STEPS_WEEKLY);
         }
         return List.of();
     }
@@ -82,6 +85,7 @@ public class AutoSources {
                 case FOOD -> fetchFood(personId, memberStart, today, paused);
                 case FOCUS -> fetchFocus(cfg, personId, today);
                 case STEPS_WEEKLY -> fetchSteps(personId, today);
+                case FOOD_TARGET_WEEKLY -> fetchFoodTarget(personId, memberStart, today, paused);
             };
         } catch (SourceUnavailableException e) {
             return AutoFacts.unavailable(cfg.source(), e.getMessage());
@@ -135,6 +139,86 @@ public class AutoSources {
         boolean enoughKcal = day.targetKcal() > 0 && day.kcal() >= FOOD_KCAL_SHARE * day.targetKcal();
         boolean allMainMeals = day.meals().containsAll(FOOD_MAIN_MEALS);
         return enoughKcal || allMainMeals;
+    }
+
+    /**
+     * Im Kalorienziel, im Wochenmittel: je abgeschlossener Woche (Montag als Schluessel),
+     * ob der Schnitt der getrackten Tage hoechstens beim Ziel lag - rueckwaerts bis zur
+     * ersten verfehlten Woche und ab dem Beitritt (Rekord, Quote). Fuer die laufende Woche
+     * der Schnitt bisher ({@code todayValue}) gegen das Ziel ({@code todayGoal}); ohne
+     * getrackten Tag ist er 0.
+     */
+    private AutoFacts fetchFoodTarget(String personId, LocalDate memberStart, LocalDate today,
+                                      Predicate<LocalDate> paused) {
+        LocalDate monday = PeriodScheme.mondayOf(today);
+        long[] current = weekSums(personId, monday, today, today);
+        int avgKcal = current[2] == 0 ? 0 : (int) Math.round((double) current[0] / current[2]);
+        int avgTarget = current[2] == 0 ? (int) Math.round(foodDay(personId, today, today).targetKcal())
+                : (int) Math.round((double) current[1] / current[2]);
+
+        Map<LocalDate, Boolean> weeks = new HashMap<>();
+        LocalDate limit = today.minusDays(StreakModel.AUTO_LOOKBACK_DAYS);
+        for (LocalDate week = monday.minusWeeks(1); !week.isBefore(limit); week = week.minusWeeks(1)) {
+            boolean ok = weekInTarget(personId, week, today);
+            weeks.put(week, ok);
+            if (!ok && !fullyPaused(week, paused)) {
+                break;
+            }
+        }
+        LocalDate from = PeriodScheme.mondayOf(memberStart.isBefore(limit) ? limit : memberStart);
+        for (LocalDate week = from; week.isBefore(monday); week = week.plusWeeks(1)) {
+            if (!weeks.containsKey(week)) {
+                weeks.put(week, weekInTarget(personId, week, today));
+            }
+        }
+        return new AutoFacts(AutoSource.FOOD_TARGET_WEEKLY, weeks, Map.of(), avgKcal, avgTarget, null);
+    }
+
+    private boolean weekInTarget(String personId, LocalDate monday, LocalDate today) {
+        long[] sums = weekSums(personId, monday, monday.plusDays(6), today);
+        return sums[2] > 0 && sums[0] <= sums[1];
+    }
+
+    /** kcal, Ziel und Zahl der getrackten Tage (Regel wie "Track food") von {@code from} bis {@code to}. */
+    private long[] weekSums(String personId, LocalDate from, LocalDate to, LocalDate today) {
+        long kcal = 0;
+        long target = 0;
+        long tracked = 0;
+        for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
+            FoodClient.Day day = foodDay(personId, d, today);
+            if (day.targetKcal() > 0 && isFoodDone(day)) {
+                kcal += Math.round(day.kcal());
+                target += Math.round(day.targetKcal());
+                tracked++;
+            }
+        }
+        return new long[] {kcal, target, tracked};
+    }
+
+    private static boolean fullyPaused(LocalDate monday, Predicate<LocalDate> paused) {
+        for (int i = 0; i < 7; i++) {
+            if (!paused.test(monday.plusDays(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Ein Tag des Kalorienzaehlers; heute und gestern immer frisch, davor aus dem Speicher. */
+    private FoodClient.Day foodDay(String personId, LocalDate day, LocalDate today) {
+        boolean history = day.isBefore(today.minusDays(1));
+        Map<LocalDate, FoodClient.Day> cache = foodDays.computeIfAbsent(personId, k -> new ConcurrentHashMap<>());
+        if (history) {
+            FoodClient.Day cached = cache.get(day);
+            if (cached != null) {
+                return cached;
+            }
+        }
+        FoodClient.Day fetched = food.day(personId, day);
+        if (history) {
+            cache.put(day, fetched);
+        }
+        return fetched;
     }
 
     /** Die Sessions gehoeren der Eigentuemerin - nur sie hat diese Quelle. */

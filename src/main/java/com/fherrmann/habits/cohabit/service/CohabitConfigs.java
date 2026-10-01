@@ -19,6 +19,7 @@ import com.fherrmann.habits.cohabit.model.Scoring;
 import com.fherrmann.habits.cohabit.model.StreakConfig;
 import com.fherrmann.habits.cohabit.model.Tracking;
 import com.fherrmann.habits.cohabit.model.TrackingMode;
+import com.fherrmann.habits.cohabit.rules.StreakModel;
 import com.fherrmann.habits.cohabit.rules.Texts;
 
 import java.time.DateTimeException;
@@ -187,8 +188,7 @@ public final class CohabitConfigs {
             }
             c.auto = new AutoConfig(auto.source(), steps, minutes, categoryId, categoryName,
                     auto.source() == AutoSource.FOCUS ? period : null);
-            Rhythm rhythm = auto.source() == AutoSource.STEPS_WEEKLY || c.auto.focusWeekly()
-                    ? Rhythm.timesPerWeek(1) : Rhythm.daily();
+            Rhythm rhythm = StreakModel.weeklyAuto(c.auto) ? Rhythm.timesPerWeek(1) : Rhythm.daily();
             c.streak = new StreakConfig(rhythm, in.streak() != null && in.streak().groupStreak());
             c.tracking = Tracking.CHECK;
             c.photoRequired = false;

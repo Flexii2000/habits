@@ -119,6 +119,10 @@ coHabit-Vertrag; hier der Überblick:
 | Geräte, App | `POST /devices`, `DELETE /devices/{token}`, `GET /app/android`, `GET /app/android/apk` |
 | Klassische Liste | `GET/POST /classic/habits`, `PUT/DELETE /classic/habits/{id}`, `POST /classic/habits/{id}/marks`, `DELETE /classic/habits/{id}/marks/{date}` |
 
+**Im Kalorienziel** (seit 2026-10-01): automatische Quelle `FOOD_TARGET_WEEKLY` für alle mit Healthy-Zugang.
+Eine Woche zählt, wenn der Schnitt der getrackten Tage (Regel wie „Track food“) höchstens beim kcal-Ziel liegt;
+die laufende Woche wird erst nach Sonntag entschieden. Details im Vertrag, §2.
+
 **kcal aus Healthy** (seit 2026-10-01): Ein Co-Habit mit Wert kann als Health-Metrik `KCAL` nutzen. Die kcal
 holt der Dienst selbst aus dem Kalorienzähler (`KcalSync`) – je Mitglied mit Einwilligung und Healthy-Zugang,
 ein Wert je Tag in der Nachtragsfrist, sofort nach der Zustimmung und danach alle 15 Minuten. Details im

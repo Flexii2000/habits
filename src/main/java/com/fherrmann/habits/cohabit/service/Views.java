@@ -287,6 +287,10 @@ public final class Views {
         if (me.unavailable != null) {
             return "UNAVAILABLE";
         }
+        if (c.auto != null && c.auto.source() == AutoSource.FOOD_TARGET_WEEKLY) {
+            // Nichts zu tun - entschieden wird nach Sonntag. Laeuft, wie eine Abstinenz.
+            return "RUNNING";
+        }
         if (isDayBased(c)) {
             if (me.doneToday) {
                 return "DONE";
@@ -316,6 +320,15 @@ public final class Views {
         Cohabit c = e.cohabit;
         if (me.unavailable != null) {
             return me.unavailable;
+        }
+        if (c.auto != null && c.auto.source() == AutoSource.FOOD_TARGET_WEEKLY) {
+            if (me.streak.currentRequired() == 0) {
+                return "pausiert";
+            }
+            if (me.facts.todayValue() == 0) {
+                return "diese Woche noch nichts getrackt";
+            }
+            return me.facts.todayValue() <= me.facts.todayGoal() ? "bisher im Ziel" : "bisher über dem Ziel";
         }
         if (c.auto != null && StreakModel.weeklyAuto(c.auto)) {
             if (me.streak.currentRequired() == 0) {
@@ -363,6 +376,8 @@ public final class Views {
                 case FOOD -> Texts.number(p.done().doubleValue()) + " von " + Texts.number(p.goal().doubleValue()) + " kcal";
                 case STEPS_WEEKLY -> Texts.number(p.done().doubleValue()) + " von " + Texts.number(p.goal().doubleValue());
                 case FOCUS -> Texts.number(p.done().doubleValue()) + " von " + Texts.number(p.goal().doubleValue()) + " Min.";
+                case FOOD_TARGET_WEEKLY -> p.done().intValue() == 0 ? remaining
+                        : "Ø " + Texts.number(p.done().doubleValue()) + " von " + Texts.number(p.goal().doubleValue()) + " kcal";
             };
         }
         Rhythm r = StreakModel.rhythm(c);
@@ -380,7 +395,7 @@ public final class Views {
             return null;
         }
         if (c.auto != null) {
-            if (StreakModel.weeklyAuto(c.auto)) {
+            if (StreakModel.weeklyAuto(c.auto) && c.auto.source() != AutoSource.FOOD_TARGET_WEEKLY) {
                 return new ProgressView(me.streak.currentAchieved(), me.streak.currentRequired(),
                         fraction(me.streak.currentAchieved(), me.streak.currentRequired()));
             }

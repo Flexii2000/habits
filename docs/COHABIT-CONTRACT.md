@@ -174,13 +174,19 @@ Avatar-Kreis (aus der ID abgeleitet, stabil).
 - `health`: `{"metric":"STEPS|RUNNING_DISTANCE|WORKOUTS|WORKOUT_MINUTES|KCAL"}` oder `null` — Werte kommen
   aus Apple Health / Health Connect über die Apps (§3.9); `KCAL` (seit 01.10., Felix) holt der Dienst selbst
   aus dem Kalorienzähler (Healthy). Sinnvoll für GOAL/CHALLENGE/STREAK mit Wert; Einheit dann `KCAL`.
-- `auto` **[Entscheidung, für Felix' bisherige automatische Habits]**: `{"source":"FOOD|STEPS_WEEKLY|FOCUS",
+- `auto` **[Entscheidung, für Felix' bisherige automatische Habits]**: `{"source":"FOOD|FOOD_TARGET_WEEKLY|STEPS_WEEKLY|FOCUS",
   "weeklyStepGoal": int|null, "focusMinutesGoal": int|null, "focusCategoryId": string|null,
   "focusCategoryName": string|null, "focusPeriod": "DAY|WEEK"|null}` oder `null`. Nur bei STREAK. Ein
   automatisches Co-Habit hakt man nicht selbst ab; der Dienst rechnet je Mitglied aus der Quelle:
   - `FOOD`: Tag erfüllt, wenn ≥ 80 % des kcal-Ziels **oder** Frühstück, Mittag- und Abendessen je ein
     Eintrag (wie heute). Quelle `food` über localhost, für Felix mit `fh_private`, für andere
     Healthy-Personen per Bearer mit ihrem Healthy-Token.
+  - `FOOD_TARGET_WEEKLY` (seit 01.10., Torben/Felix): **Im Kalorienziel, im Wochenmittel.** Eine Woche
+    (Mo–So) ist erfüllt, wenn der Schnitt der *getrackten* Tage (Regel wie `FOOD`) höchstens beim kcal-Ziel
+    liegt (Summe kcal ≤ Summe Ziel); ohne getrackten Tag nicht. Die laufende Woche wird erst nach Sonntag
+    entschieden: Status `RUNNING`, `listLine` „Ø 2.250 von 2.300 kcal“, Zeile darunter „bisher im Ziel“ /
+    „bisher über dem Ziel“ / „diese Woche noch nichts getrackt“; keine Erinnerung, kein „gefährdet“-Push.
+    Quelle wie `FOOD` – jede Healthy-Person hat sie. Klassische Liste: Art `FOOD`, Einheit WEEKS.
   - `STEPS_WEEKLY`: Woche (Mo–So) erfüllt, wenn Schritte ≥ `weeklyStepGoal` (Weight Tracker
     `/api/steps`, Felix mit `WEIGHT_APP_TOKEN`, andere per Bearer). Streak in Wochen.
   - `FOCUS`: Tag erfüllt, wenn die Minuten der Wald-Sessions ≥ `focusMinutesGoal` (Vorgabe 240).
@@ -344,7 +350,7 @@ InviteLinkPreview {"kind":"COHABIT","from":PersonView,
 | GET | `/me/archived` | → `[CohabitSummary]` |
 
 ```json
-MeView {"person":PersonView,"isOwner":true,"sources":["FOOD","STEPS_WEEKLY","FOCUS"],
+MeView {"person":PersonView,"isOwner":true,"sources":["FOOD","FOOD_TARGET_WEEKLY","STEPS_WEEKLY","FOCUS"],
         "counts":{"cohabits":4,"friends":5,"wins":3},
         "pendingInvitations":1,"incomingFriendRequests":0,"canLogout":false,
         "createdAt":"2026-09-30T12:00:00Z"}

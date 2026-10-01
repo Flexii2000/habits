@@ -79,10 +79,10 @@ class AuthTest extends ApiTestBase {
         assertEquals("torben", me.path("person").path("username").asString());
         assertEquals("TO", me.path("person").path("initials").asString());
         assertFalse(me.path("isOwner").asBoolean());
-        assertEquals("[\"FOOD\",\"STEPS_WEEKLY\"]", me.path("sources").toString());
+        assertEquals("[\"FOOD\",\"FOOD_TARGET_WEEKLY\",\"STEPS_WEEKLY\"]", me.path("sources").toString());
         var felix = get("/cohabit/api/me", FELIX).expect(200).json();
         assertTrue(felix.path("isOwner").asBoolean());
-        assertEquals(3, felix.path("sources").size());
+        assertEquals(4, felix.path("sources").size(), "Track food, Kalorienziel, Schritte, Fokus");
         assertFalse(felix.path("canLogout").asBoolean(), "Healthy-/Privat-Zugang meldet sich nicht ab");
     }
 

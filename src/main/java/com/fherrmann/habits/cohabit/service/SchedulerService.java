@@ -250,7 +250,8 @@ public class SchedulerService implements DevController.Tickable {
         }
         Cohabit c = e.cohabit;
         if (c.auto != null) {
-            return true;
+            // Im Kalorienziel laesst sich am Sonntagabend nichts mehr "nachholen".
+            return c.auto.source() != AutoSource.FOOD_TARGET_WEEKLY;
         }
         // Einer je Tag: wer heute schon hat oder mehr als einen braucht, ist nicht mehr zu retten.
         return !m.doneToday && m.streak.currentRequired() - m.streak.currentAchieved() == 1;

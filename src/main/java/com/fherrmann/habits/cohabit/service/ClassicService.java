@@ -171,6 +171,13 @@ public class ClassicService {
             switch (c.auto.source()) {
                 case FOOD -> progress = m.unavailable != null ? null
                         : new ClassicHabit.Progress(m.facts.todayValue(), m.facts.todayGoal());
+                case FOOD_TARGET_WEEKLY -> {
+                    // Der Schnitt der getrackten Tage dieser Woche gegen das Ziel; entschieden
+                    // wird nach Sonntag, gefaehrdet ist hier nichts.
+                    progress = m.unavailable != null ? null
+                            : new ClassicHabit.Progress(m.facts.todayValue(), m.facts.todayGoal());
+                    atRisk = false;
+                }
                 case STEPS_WEEKLY -> {
                     stepGoal = c.auto.stepGoal();
                     progress = m.unavailable != null ? null
@@ -237,7 +244,8 @@ public class ClassicService {
                     return ClassicKind.BUILD;
                 }
                 return switch (c.auto.source()) {
-                    case FOOD -> ClassicKind.FOOD;
+                    // Im Kalorienziel zeigt die Zeile wie "Track food" - kcal gegen Ziel, in Wochen.
+                    case FOOD, FOOD_TARGET_WEEKLY -> ClassicKind.FOOD;
                     case STEPS_WEEKLY -> ClassicKind.STEPS;
                     case FOCUS -> ClassicKind.FOCUS;
                 };

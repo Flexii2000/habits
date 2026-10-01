@@ -21,7 +21,7 @@ const UNITS = Object.entries(UNIT_LABELS);
 // KCAL holt der Dienst selbst aus dem Kalorienzaehler (Healthy) - je Mitglied mit Einwilligung.
 const HEALTH = [[null, 'Keine'], ['STEPS', 'Schritte'], ['RUNNING_DISTANCE', 'Laufdistanz'], ['WORKOUTS', 'Trainings'], ['WORKOUT_MINUTES', 'Trainingsminuten'], ['KCAL', 'kcal aus Healthy']];
 const HEALTH_UNIT = { STEPS: 'STEPS', RUNNING_DISTANCE: 'KM', WORKOUTS: 'COUNT', WORKOUT_MINUTES: 'MINUTES', KCAL: 'KCAL' };
-const SOURCES = { FOOD: 'Track food', STEPS_WEEKLY: 'Schritte pro Woche', FOCUS: 'Fokus-Zeit' };
+const SOURCES = { FOOD: 'Track food', FOOD_TARGET_WEEKLY: 'Kalorienziel im Wochenmittel', STEPS_WEEKLY: 'Schritte pro Woche', FOCUS: 'Fokus-Zeit' };
 const FOCUS_PERIODS = [['DAY', 'Täglich'], ['WEEK', 'Pro Woche']];
 /** Kategorien aus dem Wald der Fokus-App (nur Felix hat die Quelle) - einmal je Seitenaufruf geholt. */
 let focusCategories = null;

@@ -64,7 +64,8 @@ public final class StreakModel {
 
     /** Schritte je Woche und Fokus-Minuten je Woche: gezaehlt wird die Summe Mo-So. */
     public static boolean weeklyAuto(AutoConfig auto) {
-        return auto.source() == AutoSource.STEPS_WEEKLY || auto.focusWeekly();
+        return auto.source() == AutoSource.STEPS_WEEKLY || auto.source() == AutoSource.FOOD_TARGET_WEEKLY
+                || auto.focusWeekly();
     }
 
     public static Predicate<LocalDate> paused(List<Pause> pauses) {
@@ -135,6 +136,19 @@ public final class StreakModel {
     }
 
     private static Judge autoJudge(AutoConfig cfg, AutoFacts facts, Predicate<LocalDate> paused) {
+        if (cfg.source() == AutoSource.FOOD_TARGET_WEEKLY) {
+            // Das Urteil je Woche bringt die Quelle mit (Schnitt der getrackten Tage gegen das Ziel);
+            // die laufende Woche hat noch keins.
+            return new Judge() {
+                public int required(LocalDate start, LocalDate end) {
+                    return proRated(1, start, end, paused);
+                }
+
+                public int achieved(LocalDate start, LocalDate end) {
+                    return facts != null && facts.done(start) ? 1 : 0;
+                }
+            };
+        }
         if (weeklyAuto(cfg)) {
             int goal = cfg.source() == AutoSource.STEPS_WEEKLY ? cfg.stepGoal() : cfg.focusGoal();
             return new Judge() {
