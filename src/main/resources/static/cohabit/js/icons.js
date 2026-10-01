@@ -9,6 +9,7 @@ export const ICONS = {
     camera: svg('<path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2.3l1.4-2h5.6l1.4 2h2.3A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z"/><circle cx="12" cy="12.8" r="3.3"/>'),
     chevronRight: svg('<path d="m9.5 5.5 6.5 6.5-6.5 6.5"/>'),
     chevronLeft: svg('<path d="M14.5 5.5 8 12l6.5 6.5"/>'),
+    chevronDown: svg('<path d="m5.5 9.5 6.5 6.5 6.5-6.5"/>'),
     back: svg('<path d="M14.5 5.5 8 12l6.5 6.5"/>'),
     more: svg('<circle cx="5.5" cy="12" r="1.4" class="dot"/><circle cx="12" cy="12" r="1.4" class="dot"/><circle cx="18.5" cy="12" r="1.4" class="dot"/>'),
     close: svg('<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>'),

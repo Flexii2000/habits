@@ -669,7 +669,12 @@ Untere Leiste mit fünf Einträgen: **Heute** (Haus), **Timeline**, **+** (viole
 2. **Heute – Liste** (S. 2): Abschnitte „Offen heute" und „Läuft"; Zeile = `headline.short` links,
    Name, `listLine`, Wochenpunkte (`progress`) bzw. Balken (GOAL), rechts Abhak-Knopf oder Pfeil.
    Darunter „{n} neue Beweisfotos in der Timeline" mit Vorschaubildern.
-3. **Timeline** (S. 3): Filter-Chips „Alle" + je Co-Habit in seiner Farbe; Abschnitte je Tag („Heute",
+3. **Timeline** (S. 3): **[Entscheidung Felix, 01.10.]** statt der Filter-Chips aus dem Entwurf ein Knopf
+   mit dem Filter („Alle Habits“, der Name des einzigen sichtbaren oder „{n} von {m} Habits“, dazu ▾), der
+   ein Blatt mit allen aktiven Co-Habits zum Anhaken öffnet: oben „Alle“ als Umschalter (alle an → alle aus,
+   sonst alle an), darunter Farbpunkt, Name, Haken; Mehrfachauswahl, wirkt sofort. Gemerkt werden je Gerät
+   die **ausgeblendeten** IDs (neue Co-Habits erscheinen so von selbst), geladen mit `GET /timeline?exclude=`.
+   Alles ausgeblendet: „0 von {m} Habits“ und „Keine Habits ausgewählt“. Abschnitte je Tag („Heute",
    „Gestern", Datum). Foto-Karten mit Bild, Caption, Reaktionen, „Antworten" (öffnet den Chat des
    Co-Habits). Übrige Ereignisse kompakt.
 4. **Statistik** (S. 4): Umschalter Woche/Monat/Jahr, Karte „Erfüllungsquote" (violett), Karte

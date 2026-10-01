@@ -1,8 +1,10 @@
 // Timeline (S. 3): Ereignisse aller eigenen Co-Habits, neueste zuerst, nach
-// Tagen gruppiert; Filter-Chips je Co-Habit in seiner Farbe. Foto-Karten mit
+// Tagen gruppiert. Gefiltert wird ueber einen Knopf mit Abhak-Liste (Felix,
+// 01.10.: die seitlich scrollenden Chips gingen unter); gemerkt werden je Geraet
+// die AUSGEBLENDETEN Co-Habits - neue erscheinen so von selbst. Foto-Karten mit
 // Reaktionen und „Antworten" (oeffnet den Chat), uebrige Ereignisse kompakt.
 import { get, post, enc } from '../api.js';
-import { h, icon, showError, fill } from '../dom.js';
+import { h, icon, showError, fill, openDialog, sheetHead, prefs } from '../dom.js';
 import { avatar, chip, colorClass, emptyState, errorState, loadingState, photo, sectionLabel } from '../ui.js';
 import { cached, remember } from '../state.js';
 import { dayHeading, dayIn } from '../format.js';
@@ -10,6 +12,29 @@ import { reactionBar } from '../reactions.js';
 import { navigate } from '../app.js';
 
 const PAGE = 30;
+const EXCLUDED_KEY = 'timeline.excluded';
+
+function loadExcluded() {
+    try {
+        const list = JSON.parse(prefs.get(EXCLUDED_KEY, '[]'));
+        return new Set(Array.isArray(list) ? list.filter(id => typeof id === 'string') : []);
+    } catch (e) {
+        return new Set();
+    }
+}
+
+function saveExcluded(excluded) {
+    prefs.set(EXCLUDED_KEY, JSON.stringify([...excluded]));
+}
+
+/** „Alle Habits", der Name des einzigen sichtbaren oder „2 von 6 Habits". */
+export function filterLabel(refs, excluded) {
+    if (!refs) return excluded.size ? 'Habits' : 'Alle Habits';
+    const visible = refs.filter(ref => !excluded.has(ref.id));
+    if (visible.length === refs.length) return 'Alle Habits';
+    if (visible.length === 1) return visible[0].name;
+    return `${visible.length} von ${refs.length} Habits`;
+}
 
 /** Fettet den Namen am Anfang des Titels („Lena hat Laufen abgehakt"). */
 function titleWithName(item) {
@@ -67,7 +92,7 @@ export function timelineItem(item, { onReply } = {}) {
 export function mount(root, params, ctx) {
     const page = h('div', { class: 'page' });
     root.append(page);
-    let filter = cached('timelineFilter') || null;
+    let excluded = loadExcluded();
     let cohabits = cached('cohabitsList') || null;
     let items = [];
     let hasMore = false;
@@ -77,27 +102,66 @@ export function mount(root, params, ctx) {
     let observer = null;
 
     const listEl = h('div', { class: 'tl-sections' });
-    const chipsEl = h('div', { class: 'chips-scroll', role: 'group', 'aria-label': 'Filter' });
+    const filterLabelEl = h('span');
+    const filterBtn = h('button', {
+        type: 'button', class: 'filter-btn', 'aria-haspopup': 'dialog', onclick: openFilter,
+    }, filterLabelEl, icon('chevronDown'));
     const moreEl = h('div', { class: 'more-loader' });
 
     page.append(
         h('div', { class: 'page-head' }, h('h1', { class: 'page-title' }, 'Timeline')),
-        chipsEl, listEl, moreEl);
+        filterBtn, listEl, moreEl);
 
-    function renderChips() {
-        const all = [{ id: null, name: 'Alle', color: null }, ...(cohabits || []).map(s => s.ref)];
-        fill(chipsEl, ...all.map(ref => h('button', {
-            type: 'button',
-            class: `filter-chip ${ref.id ? colorClass(ref.color) : ''}`,
-            'aria-pressed': String(filter === ref.id),
-            onclick: () => {
-                if (filter === ref.id) return;
-                filter = ref.id;
-                remember('timelineFilter', filter);
-                renderChips();
-                reload();
-            },
-        }, ref.name)));
+    const refs = () => (cohabits ? cohabits.map(s => s.ref) : null);
+    /** Ausgeblendet, was es auch gibt - fuer Beschriftung, Abfrage und Zwischenspeicher. */
+    const active = () => {
+        const list = refs();
+        return list ? new Set([...excluded].filter(id => list.some(ref => ref.id === id))) : excluded;
+    };
+    const filterKey = () => [...active()].sort().join(',') || 'all';
+    const nothingSelected = () => {
+        const list = refs();
+        return !!list && list.length > 0 && list.every(ref => excluded.has(ref.id));
+    };
+
+    function renderFilter() {
+        filterLabelEl.textContent = filterLabel(refs(), active());
+    }
+
+    function setExcluded(next) {
+        excluded = next;
+        saveExcluded(excluded);
+        renderFilter();
+        reload();
+    }
+
+    function openFilter() {
+        const ref = {};
+        const listBox = h('div', { class: 'check-list', role: 'group', 'aria-label': 'Habits' });
+        const row = (label, checked, onclick, dot) => h('button', {
+            type: 'button', class: 'check-item', role: 'checkbox', 'aria-checked': String(checked), onclick,
+        }, dot, h('span', { class: 'check-name' }, label), h('span', { class: 'check-tick', 'aria-hidden': 'true' }, icon('check')));
+        const render = () => {
+            const list = refs() || [];
+            const allOn = list.every(r => !excluded.has(r.id));
+            fill(listBox,
+                row('Alle', allOn, () => {
+                    setExcluded(allOn ? new Set(list.map(r => r.id)) : new Set());
+                    render();
+                }, h('span', { class: 'check-all-dot', 'aria-hidden': 'true' })),
+                ...list.map(r => row(r.name, !excluded.has(r.id), () => {
+                    const next = new Set(excluded);
+                    if (next.has(r.id)) next.delete(r.id);
+                    else next.add(r.id);
+                    setExcluded(next);
+                    render();
+                }, h('span', { class: `color-dot ${colorClass(r.color)}`, 'aria-hidden': 'true' }))));
+        };
+        render();
+        ref.current = openDialog([
+            ...sheetHead('Habits', null, ref),
+            h('div', { class: 'sheet-body' }, listBox),
+        ], { kind: 'sheet', className: 'filter-sheet', label: 'Habits' });
     }
 
     function onReply(item) {
@@ -111,8 +175,13 @@ export function mount(root, params, ctx) {
             moreEl.replaceChildren();
             return;
         }
+        if (nothingSelected()) {
+            fill(listEl, emptyState('Keine Habits ausgewählt'));
+            moreEl.replaceChildren();
+            return;
+        }
         if (!items.length) {
-            fill(listEl, emptyState(filter ? 'Hier ist noch nichts passiert.' : 'Noch nichts passiert.'));
+            fill(listEl, emptyState(active().size ? 'Hier ist noch nichts passiert.' : 'Noch nichts passiert.'));
             moreEl.replaceChildren();
             return;
         }
@@ -146,14 +215,22 @@ export function mount(root, params, ctx) {
 
     function query(before) {
         const q = new URLSearchParams({ limit: String(PAGE) });
-        if (filter) q.set('cohabitId', filter);
+        if (active().size) q.set('exclude', [...active()].join(','));
         if (before) q.set('before', before);
         return `/timeline?${q}`;
     }
 
     async function reload() {
-        const wanted = filter;
-        const previous = cached(`timeline:${filter || 'all'}`);
+        const wanted = filterKey();
+        if (nothingSelected()) {
+            items = [];
+            hasMore = false;
+            loadedOnce = true;
+            failed = null;
+            renderItems();
+            return;
+        }
+        const previous = cached(`timeline:${wanted}`);
         if (previous) {
             items = previous.items;
             hasMore = previous.hasMore;
@@ -166,16 +243,16 @@ export function mount(root, params, ctx) {
         renderItems();
         try {
             const res = await get(query(null));
-            if (!ctx.alive() || wanted !== filter) return;
+            if (!ctx.alive() || wanted !== filterKey()) return;
             items = res.items || [];
             hasMore = !!res.hasMore;
             loadedOnce = true;
-            remember(`timeline:${filter || 'all'}`, { items, hasMore });
-            if (!filter && items.length) {
+            remember(`timeline:${wanted}`, { items, hasMore });
+            if (wanted === 'all' && items.length) {
                 post('/timeline/seen', { lastEventId: items[0].id }).catch(() => { /* nicht wichtig */ });
             }
         } catch (err) {
-            if (wanted !== filter) return;
+            if (wanted !== filterKey()) return;
             if (loadedOnce) showError(err);
             else failed = err.message;
         } finally {
@@ -187,10 +264,10 @@ export function mount(root, params, ctx) {
     async function loadMore() {
         if (loading || !hasMore || !items.length) return;
         loading = true;
-        const wanted = filter;
+        const wanted = filterKey();
         try {
             const res = await get(query(items[items.length - 1].id));
-            if (!ctx.alive() || wanted !== filter) return;
+            if (!ctx.alive() || wanted !== filterKey()) return;
             const known = new Set(items.map(i => i.id));
             items = items.concat((res.items || []).filter(i => !known.has(i.id)));
             hasMore = !!res.hasMore;
@@ -204,18 +281,23 @@ export function mount(root, params, ctx) {
 
     async function loadCohabits() {
         try {
+            const before = filterKey();
             cohabits = remember('cohabitsList', await get('/cohabits'));
-            if (filter && !cohabits.some(s => s.ref.id === filter)) {
-                filter = null;
-                remember('timelineFilter', null);
-                reload();
+            // Ausblendungen geloeschter Co-Habits nicht ewig mitschleppen.
+            const known = new Set(cohabits.map(s => s.ref.id));
+            const pruned = new Set([...excluded].filter(id => known.has(id)));
+            if (pruned.size !== excluded.size) {
+                excluded = pruned;
+                saveExcluded(excluded);
             }
-            if (ctx.alive()) renderChips();
-        } catch (err) { /* Filter ohne Chips geht auch */ }
+            if (!ctx.alive()) return;
+            renderFilter();
+            if (filterKey() !== before || nothingSelected()) reload();
+        } catch (err) { /* ohne Liste bleibt der Knopf bei seiner Beschriftung */ }
     }
 
-    const hadCache = !!cached(`timeline:${filter || 'all'}`);
-    renderChips();
+    const hadCache = !!cached(`timeline:${filterKey()}`);
+    renderFilter();
     reload();
     if (hadCache) ctx.restoreScroll();
     loadCohabits();

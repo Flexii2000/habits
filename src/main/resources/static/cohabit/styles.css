@@ -835,32 +835,62 @@ body.bare .nav { display: none; }
 
 /* --- Timeline ------------------------------------------------------------ */
 
-.chips-scroll {
-    display: flex;
+.filter-btn {
+    display: inline-flex;
+    align-items: center;
     gap: 8px;
-    margin: 0 calc(-1 * var(--gutter));
-    padding: 2px var(--gutter) 6px;
-    overflow-x: auto;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
-}
-
-.chips-scroll::-webkit-scrollbar { display: none; }
-
-.filter-chip {
-    flex: none;
+    max-width: 100%;
     min-height: 46px;
-    padding: 0 20px;
+    margin: 2px 0 8px;
+    padding: 0 16px 0 20px;
     border: 0;
     border-radius: 999px;
-    background: var(--c-surface, var(--surface));
+    background: var(--surface);
     color: var(--ink);
     font-size: 16px;
     font-weight: 700;
-    white-space: nowrap;
 }
 
-.filter-chip[aria-pressed="true"] { background: var(--ink); color: var(--on-ink); }
+.filter-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.filter-btn .icon { flex: none; width: 18px; height: 18px; }
+
+.check-list { display: flex; flex-direction: column; margin: 0 -8px; }
+
+.check-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    min-height: 54px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 14px;
+    background: none;
+    color: var(--ink);
+    font-size: 17px;
+    font-weight: 700;
+    text-align: left;
+}
+
+.check-item:hover { background: var(--chip); }
+.check-item:first-child { margin-bottom: 4px; box-shadow: 0 1px 0 var(--line); border-radius: 14px 14px 0 0; }
+.check-item .color-dot { flex: none; width: 14px; height: 14px; }
+.check-all-dot { flex: none; width: 14px; height: 14px; border-radius: 50%; background: var(--ink); }
+.check-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.check-tick {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 2px var(--track);
+    color: transparent;
+}
+
+.check-tick .icon { width: 16px; height: 16px; }
+.check-item[aria-checked="true"] .check-tick { background: var(--ink); box-shadow: none; color: var(--on-ink); }
 
 .tl-list { display: flex; flex-direction: column; gap: 12px; }
 
