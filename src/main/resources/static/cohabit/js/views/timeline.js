@@ -248,9 +248,7 @@ export function mount(root, params, ctx) {
             hasMore = !!res.hasMore;
             loadedOnce = true;
             remember(`timeline:${wanted}`, { items, hasMore });
-            if (wanted === 'all' && items.length) {
-                post('/timeline/seen', { lastEventId: items[0].id }).catch(() => { /* nicht wichtig */ });
-            }
+            markSeen(wanted === 'all' ? items[0] : null);
         } catch (err) {
             if (wanted !== filterKey()) return;
             if (loadedOnce) showError(err);
@@ -259,6 +257,18 @@ export function mount(root, params, ctx) {
             loading = false;
         }
         renderItems();
+    }
+
+    /**
+     * Gesehen ist das neueste Ereignis ueberhaupt, auch bei Filter - wie in den Apps.
+     * Der Dienst kennt den Filter nicht; mit dem neuesten sichtbaren blieben Fotos
+     * ausgeblendeter Co-Habits auf Heute fuer immer „neu".
+     */
+    async function markSeen(newest) {
+        try {
+            const top = newest || ((await get('/timeline?limit=1')).items || [])[0];
+            if (top) await post('/timeline/seen', { lastEventId: top.id });
+        } catch (err) { /* nicht wichtig */ }
     }
 
     async function loadMore() {
