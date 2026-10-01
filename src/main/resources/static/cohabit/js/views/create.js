@@ -22,6 +22,9 @@ const UNITS = Object.entries(UNIT_LABELS);
 const HEALTH = [[null, 'Keine'], ['STEPS', 'Schritte'], ['RUNNING_DISTANCE', 'Laufdistanz'], ['WORKOUTS', 'Trainings'], ['WORKOUT_MINUTES', 'Trainingsminuten'], ['KCAL', 'kcal aus Healthy']];
 const HEALTH_UNIT = { STEPS: 'STEPS', RUNNING_DISTANCE: 'KM', WORKOUTS: 'COUNT', WORKOUT_MINUTES: 'MINUTES', KCAL: 'KCAL' };
 const SOURCES = { FOOD: 'Track food', STEPS_WEEKLY: 'Schritte pro Woche', FOCUS: 'Fokus-Zeit' };
+const FOCUS_PERIODS = [['DAY', 'Täglich'], ['WEEK', 'Pro Woche']];
+/** Kategorien aus dem Wald der Fokus-App (nur Felix hat die Quelle) - einmal je Seitenaufruf geholt. */
+let focusCategories = null;
 const MAX_SEATS = 8;
 
 function timezones(current) {
@@ -61,6 +64,9 @@ function newDraft() {
         auto: null,
         weeklyStepGoal: 70000,
         focusMinutesGoal: 240,
+        focusPeriod: 'DAY',
+        focusCategoryId: null,
+        focusCategoryName: null,
         invites: new Set(),
         createdId: null,
     };
@@ -102,6 +108,9 @@ function draftFrom(config) {
         d.auto = config.auto.source;
         d.weeklyStepGoal = config.auto.weeklyStepGoal || 70000;
         d.focusMinutesGoal = config.auto.focusMinutesGoal || 240;
+        d.focusPeriod = config.auto.focusPeriod || 'DAY';
+        d.focusCategoryId = config.auto.focusCategoryId || null;
+        d.focusCategoryName = config.auto.focusCategoryName || null;
     }
     return d;
 }
@@ -142,7 +151,7 @@ function toConfig(d, { forEdit = false } = {}) {
     };
     if (d.type === 'STREAK') {
         let rhythm;
-        if (d.auto === 'STEPS_WEEKLY') rhythm = { kind: 'TIMES_PER_WEEK', times: 1 };
+        if (d.auto === 'STEPS_WEEKLY' || (d.auto === 'FOCUS' && d.focusPeriod === 'WEEK')) rhythm = { kind: 'TIMES_PER_WEEK', times: 1 };
         else if (d.auto) rhythm = { kind: 'DAILY' };
         else if (d.rhythm.kind === 'WEEKDAYS') {
             if (!d.rhythm.weekdays.length) fail('Bitte mindestens einen Wochentag wählen.', 'weekdays');
@@ -161,6 +170,9 @@ function toConfig(d, { forEdit = false } = {}) {
                 source: d.auto,
                 weeklyStepGoal: d.auto === 'STEPS_WEEKLY' ? Math.round(steps) : null,
                 focusMinutesGoal: d.auto === 'FOCUS' ? Math.round(minutes) : null,
+                // Den Namen traegt der Dienst aus dem Wald ein; null heisst alle Baeume.
+                focusCategoryId: d.auto === 'FOCUS' ? d.focusCategoryId : null,
+                focusPeriod: d.auto === 'FOCUS' ? d.focusPeriod : null,
             };
         }
     } else if (d.type === 'ABSTINENCE') {
@@ -333,8 +345,22 @@ function settingsForm(d, { edit = false, errorEl, onChange } = {}) {
                 rows.push(h('label', { class: 'set-row' }, h('span', { class: 'set-label' }, 'Schritte pro Woche'),
                     inlineNumber(d.weeklyStepGoal, v => { d.weeklyStepGoal = v; }, 'autoGoal')));
             } else if (d.auto === 'FOCUS') {
-                rows.push(h('label', { class: 'set-row' }, h('span', { class: 'set-label' }, 'Minuten pro Tag'),
+                rows.push(selectRow('Zeitraum', FOCUS_PERIODS, d.focusPeriod, v => { d.focusPeriod = v; rerender(); }));
+                rows.push(h('label', { class: 'set-row' },
+                    h('span', { class: 'set-label' }, d.focusPeriod === 'WEEK' ? 'Minuten pro Woche' : 'Minuten pro Tag'),
                     inlineNumber(d.focusMinutesGoal, v => { d.focusMinutesGoal = v; }, 'autoGoal')));
+                const categories = (focusCategories || []).map(c => [c.id, c.name]);
+                // Eine inzwischen geloeschte Kategorie darf ein bestehendes Co-Habit behalten.
+                if (d.focusCategoryId && !categories.some(([id]) => id === d.focusCategoryId)) {
+                    categories.push([d.focusCategoryId, d.focusCategoryName || 'Kategorie']);
+                }
+                rows.push(selectRow('Kategorie', [[null, 'Alle Bäume'], ...categories], d.focusCategoryId,
+                    v => { d.focusCategoryId = v; }));
+                if (focusCategories === null) {
+                    focusCategories = [];
+                    get('/focus/categories').then(list => { focusCategories = list || []; rerender(); })
+                        .catch(() => { focusCategories = null; });
+                }
             }
             sections.push(h('section', { class: 'set-group' }, rows));
         }
