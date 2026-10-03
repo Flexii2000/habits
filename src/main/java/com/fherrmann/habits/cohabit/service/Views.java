@@ -717,7 +717,7 @@ public final class Views {
         RunView run = runView(data, c, ch);
         return new CheckinView(ch.id, ch.cohabitId, person(data, ch.personId), ch.kind.name(), ch.date, ch.createdAt,
                 ch.value == null ? null : num(ch.value), run != null ? runValueText(run) : valueText(c, ch.value),
-                ch.note, ch.photoId, ch.caption, ch.source.name(), editable, run);
+                ch.note, ch.photoId, ch.caption, ch.source.name(), editable, run, ch.photos());
     }
 
     /** Ein Lauf samt seinen Punkten - die haengen an den anderen Laeufen des Tages. */

@@ -111,6 +111,7 @@ public class AccountService {
                         entry.put("note", ch.note);
                         entry.put("caption", ch.caption);
                         entry.put("photo", ch.photoId == null ? null : "photos/" + ch.photoId + ".jpg");
+                        entry.put("photos", ch.photos().stream().map(id -> "photos/" + id + ".jpg").toList());
                         entry.put("source", ch.source);
                         checkins.add(entry);
                     }

@@ -153,7 +153,7 @@ public class TimelineService {
         }
         return new TimelineItem(e.id, e.day, e.at, CohabitRef.of(c), e.kind.name(), Views.person(data, e.personId),
                 title, subtitle, e.photoId, e.caption, "event:" + e.id, ReactionService.views(e.reactions, me),
-                !c.archived && c.isMember(me));
+                !c.archived && c.isMember(me), Checkin.photos(e.photoId, e.photoIds));
     }
 
     public void seen(Viewer viewer, String lastEventId) {

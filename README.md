@@ -70,6 +70,12 @@ Grenze, lehnt der Dienst den Eintrag ab. Vorgaben 10 P · 1 P/km · 1 P je 6 Min
 20 Min. · Pace unter 8:00 min/km, je Challenge einstellbar (`challenge.run`). Die Punkte
 werden bei jedem Abruf neu gerechnet (`rules/RunPoints`), nichts davon steht in den Dateien.
 
+**Mehrere Beweisfotos** (seit 2026-10-03): Ein Eintrag trägt bis zu vier Fotos (`photoIds`, Reihenfolge =
+Anzeige); das erste steht weiter in `photoId`, damit ältere Clients ein Bild zeigen. Beim Bearbeiten des
+eigenen Eintrags lassen sie sich ergänzen und entfernen (`photoIds: null` = unverändert); weggefallene löscht
+der Dienst sofort, bei Foto-Pflicht bleibt mindestens eins. Kommen die ersten Fotos nachträglich dazu,
+entsteht der Chat-Post dann (ohne Push); fallen alle weg, verschwindet er.
+
 **Bestserie** (Serie ≥ 2, über dem bisherigen Rekord) wird je Serie einmal gemeldet – in
 dem Moment, in dem sie den alten Rekord übertrifft. **Meilensteine**: STREAK 7/30/100/365
 Tage, 4/12/26/52 Wochen, 3/6/12 Monate; Abstinenz 7/14/30/50/100/200/365 Tage, dann jährlich.

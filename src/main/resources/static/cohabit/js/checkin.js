@@ -3,10 +3,10 @@
 // Beweisfoto-Pflicht das Beweisfoto-Blatt (S. 15); bei Abstinenz die Rueckfrage
 // zur Unterbrechung. Jeder Eintrag traegt eine eigene UUID - ein doppelter
 // Tipp oder ein wiederholter Versuch legt nichts doppelt an.
-import { get, post, put, del, enc } from './api.js';
+import { get, post, put, del, enc, photoUrl } from './api.js';
 import { h, icon, openDialog, sheetHead, toast, showError, uuid, confirmDialog, fill } from './dom.js';
-import { pickFile, resizeImage, uploadPhoto } from './photo.js';
-import { colorClass } from './ui.js';
+import { pickFiles, resizeImage, uploadPhoto } from './photo.js';
+import { colorClass, photoList } from './ui.js';
 import { addDays, dayIn, dayShort, isMe, joinNames, parseNumber, unitLabel } from './format.js';
 
 const cohabitPath = id => `/cohabits/${enc(id)}`;
@@ -160,44 +160,116 @@ async function quickCheckIn(summary, onDone) {
     }
 }
 
-/** Beweisfoto-Blatt (S. 15): Datei-Eingabe mit Kamera, Galerie, Frontkamera. */
+const MAX_PHOTOS = 4;
+
+/**
+ * Die Fotos eines Eintrags (Vertrag 2.3a): schon hochgeladene (`id`) und neu
+ * gewaehlte (`blob`), hoechstens vier. Neue gehen erst beim Absenden hoch, je
+ * mit eigenem Schluessel - ein zweiter Versuch laedt nichts doppelt.
+ */
+function photoShots(initialIds = [], { minimum = 0, preview = true, onChange } = {}) {
+    const shots = initialIds.map(id => ({ id }));
+    let selected = 0;
+    const row = h('div', { class: 'shot-row' });
+    const changed = () => { render(); if (onChange) onChange(); };
+    const thumbSrc = shot => (shot.id ? photoUrl(shot.id, 'thumb') : shot.url);
+
+    async function add(files) {
+        const room = MAX_PHOTOS - shots.length;
+        if (files.length > room) toast(`Höchstens ${MAX_PHOTOS} Fotos.`, 'err');
+        for (const file of files.slice(0, Math.max(0, room))) {
+            try {
+                const blob = await resizeImage(file);
+                shots.push({ blob, url: URL.createObjectURL(blob), key: uuid(), uploaded: null });
+                selected = shots.length - 1;
+            } catch (err) {
+                showError(err);
+            }
+        }
+        changed();
+    }
+
+    function remove(index) {
+        const [shot] = shots.splice(index, 1);
+        if (shot && shot.url) URL.revokeObjectURL(shot.url);
+        selected = Math.min(selected, shots.length - 1);
+        changed();
+    }
+
+    function render() {
+        if (!shots.length) {
+            fill(row);
+            return;
+        }
+        // Mit grosser Vorschau waehlt ein Tipp das Foto dafuer, sonst bleibt es ein Bild.
+        fill(row, ...shots.map((shot, i) => h('div', { class: `shot${preview && i === selected ? ' on' : ''}` },
+            preview ? h('button', {
+                type: 'button', class: 'shot-img', 'aria-label': `Foto ${i + 1}`,
+                onclick: () => { selected = i; changed(); },
+            }, h('img', { src: thumbSrc(shot), alt: '' }))
+                : h('span', { class: 'shot-img' }, h('img', { src: thumbSrc(shot), alt: `Foto ${i + 1}` })),
+            shots.length > minimum ? h('button', {
+                type: 'button', class: 'shot-remove', 'aria-label': `Foto ${i + 1} entfernen`,
+                onclick: () => remove(i),
+            }, icon('close')) : null)),
+        shots.length < MAX_PHOTOS ? h('button', {
+            type: 'button', class: 'shot shot-add', 'aria-label': 'Weiteres Foto',
+            onclick: async () => add(await pickFiles({ multiple: true })),
+        }, icon('plus')) : null);
+    }
+    render();
+
+    return {
+        row,
+        add,
+        get count() { return shots.length; },
+        get full() { return shots.length >= MAX_PHOTOS; },
+        /** Das gewaehlte Foto fuer die grosse Vorschau. */
+        get current() { const shot = shots[selected]; return shot ? thumbSrc(shot) : null; },
+        get fullCurrent() { const shot = shots[selected]; return shot ? (shot.id ? photoUrl(shot.id, 'full') : shot.url) : null; },
+        /** Laedt, was noch fehlt, und liefert die IDs in Anzeigereihenfolge. */
+        async ids() {
+            for (const shot of shots) {
+                if (!shot.id && !shot.uploaded) shot.uploaded = await uploadPhoto(shot.blob, shot.key);
+            }
+            return shots.map(shot => shot.id || shot.uploaded.id);
+        },
+        dispose() { shots.forEach(shot => { if (shot.url) URL.revokeObjectURL(shot.url); }); },
+    };
+}
+
+/** Beweisfoto-Blatt (S. 15): Kamera, Galerie, Frontkamera - bis zu vier Fotos. */
 function photoSheet(summary, knownDetail, presetDate, onDone) {
     const ref = {};
-    let blob = null;
-    let previewUrl = null;
-    let uploaded = null;
-    let photoKey = uuid();
     let checkinId = uuid();
     const name = summary.ref.name;
 
     const preview = h('img', { alt: 'Gewähltes Foto', hidden: true });
     const label = h('span', { class: 'camera-label', 'aria-hidden': 'true' }, icon('camera'));
-    const choose = async capture => {
-        const file = await pickFile({ capture });
-        if (!file) return;
-        try {
-            submit.disabled = true;
-            blob = await resizeImage(file);
-            uploaded = null;
-            photoKey = uuid();
+    const shots = photoShots([], {
+        onChange: () => {
+            // Andere Fotos sind ein anderer Eintrag - ein frueherer Versuch zaehlt nicht mehr.
             checkinId = uuid();
-            if (previewUrl) URL.revokeObjectURL(previewUrl);
-            previewUrl = URL.createObjectURL(blob);
-            preview.src = previewUrl;
-            preview.hidden = false;
-            label.hidden = true;
-        } catch (err) {
-            showError(err);
-        } finally {
-            submit.disabled = !blob;
-        }
+            preview.src = shots.fullCurrent || '';
+            preview.hidden = !shots.count;
+            label.hidden = !!shots.count;
+            submit.disabled = !shots.count;
+            controls.forEach(btn => { btn.disabled = shots.full; });
+        },
+    });
+    const choose = async (capture, multiple = false) => {
+        if (shots.full) return;
+        submit.disabled = true;
+        await shots.add(await pickFiles({ capture, multiple }));
+        submit.disabled = !shots.count;
     };
+    const controls = [
+        h('button', { type: 'button', class: 'cam-btn', 'aria-label': 'Aus der Galerie', title: 'Galerie', onclick: () => choose(null, true) }, icon('image')),
+        h('button', { type: 'button', class: 'shutter', 'aria-label': 'Foto aufnehmen', title: 'Foto aufnehmen', onclick: () => choose('environment') }),
+        h('button', { type: 'button', class: 'cam-btn', 'aria-label': 'Frontkamera', title: 'Kamera wechseln', onclick: () => choose('user') }, icon('switchCamera')),
+    ];
     const camera = h('div', { class: `camera ${colorClass(summary.ref.color)}` },
-        label, preview,
-        h('div', { class: 'camera-controls' },
-            h('button', { type: 'button', class: 'cam-btn', 'aria-label': 'Aus der Galerie', title: 'Galerie', onclick: () => choose(null) }, icon('image')),
-            h('button', { type: 'button', class: 'shutter', 'aria-label': 'Foto aufnehmen', title: 'Foto aufnehmen', onclick: () => choose('environment') }),
-            h('button', { type: 'button', class: 'cam-btn', 'aria-label': 'Frontkamera', title: 'Kamera wechseln', onclick: () => choose('user') }, icon('switchCamera'))));
+        label, preview, h('div', { class: 'camera-controls' }, controls));
 
     const value = summary.valueUnit ? valueField(summary.valueUnit) : null;
     const run = summary.runEntry ? runFields() : null;
@@ -216,7 +288,7 @@ function photoSheet(summary, knownDetail, presetDate, onDone) {
     const submitLabel = run ? summary.checkInLabel || 'Lauf eintragen' : 'Posten & abhaken';
     const submit = h('button', { type: 'button', class: 'btn accent block', disabled: true }, submitLabel);
     submit.addEventListener('click', async () => {
-        if (!blob) return;
+        if (!shots.count) return;
         const amount = value ? value.read() : null;
         if (value && amount == null) return;
         const runValues = run ? run.read() : null;
@@ -224,10 +296,10 @@ function photoSheet(summary, knownDetail, presetDate, onDone) {
         submit.classList.add('busy');
         submit.textContent = 'Wird gepostet …';
         try {
-            if (!uploaded) uploaded = await uploadPhoto(blob, photoKey);
+            const photoIds = await shots.ids();
             const res = await post(`${cohabitPath(summary.ref.id)}/checkins`, {
                 id: checkinId, kind: 'DONE', date: day.value(), value: amount, note: null,
-                photoId: uploaded.id, caption: caption.read(), ...runValues,
+                photoId: photoIds[0], photoIds, caption: caption.read(), ...runValues,
             });
             ref.current.close();
             toast(savedText(res, 'Gepostet.'));
@@ -242,11 +314,11 @@ function photoSheet(summary, knownDetail, presetDate, onDone) {
 
     ref.current = openDialog([
         ...sheetHead(`${name} abhaken`, 'Beweisfoto erforderlich', ref),
-        h('div', { class: 'sheet-body' }, camera, value ? value.el : null, run ? run.el : null, caption.el, dayArea, hint),
+        h('div', { class: 'sheet-body' }, camera, shots.row, value ? value.el : null, run ? run.el : null, caption.el, dayArea, hint),
         h('div', { class: 'sheet-actions' }, submit),
     ], {
         kind: 'sheet', className: 'photo-sheet', label: `${name} abhaken`,
-        onClose: () => { if (previewUrl) URL.revokeObjectURL(previewUrl); },
+        onClose: () => shots.dispose(),
     });
 
     loadDetail(summary, knownDetail).then(detail => {
@@ -347,7 +419,10 @@ export function editCheckin(detail, checkin, onDone) {
     const value = unit && checkin.kind === 'DONE' ? valueField(unit, checkin.value) : null;
     const run = detail.summary.runEntry && checkin.kind === 'DONE' ? runFields(checkin.run) : null;
     const note = textField('Notiz', '', checkin.note, 500);
-    const caption = checkin.photoId ? textField('Caption', 'Wie war\'s?', checkin.caption, 500) : null;
+    const editsPhotos = checkin.kind === 'DONE' && checkin.source !== 'HEALTH';
+    const before = photoList(checkin);
+    const shots = editsPhotos ? photoShots(before, { minimum: detail.summary.photoRequired ? 1 : 0, preview: false }) : null;
+    const caption = checkin.photoId || editsPhotos ? textField('Caption', 'Wie war\'s?', checkin.caption, 500) : null;
     const cohabitId = detail.summary.ref.id;
     const save = h('button', { type: 'button', class: 'btn primary' }, 'Speichern');
     save.addEventListener('click', async () => {
@@ -357,8 +432,12 @@ export function editCheckin(detail, checkin, onDone) {
         if (run && !runValues) return;
         save.classList.add('busy');
         try {
+            // Nur wer an den Fotos etwas geaendert hat, schickt sie mit - null heisst unveraendert.
+            const photoIds = shots ? await shots.ids() : null;
+            const same = photoIds && photoIds.length === before.length && photoIds.every((id, i) => id === before[i]);
             const res = await put(`${cohabitPath(cohabitId)}/checkins/${enc(checkin.id)}`, {
                 value: amount, note: note.read(), caption: caption ? caption.read() : null, ...runValues,
+                photoIds: same ? null : photoIds,
             });
             ref.current.close();
             toast(savedText(res, 'Gespeichert.'));
@@ -385,7 +464,8 @@ export function editCheckin(detail, checkin, onDone) {
     const title = checkin.kind === 'BREAK' ? 'Unterbrechung' : 'Eintrag';
     ref.current = openDialog([
         ...sheetHead(title, dayShort(checkin.date, dayIn(new Date(), detail.config.timezone)), ref),
-        h('div', { class: 'sheet-body' }, value ? value.el : null, run ? run.el : null, note.el, caption ? caption.el : null),
+        h('div', { class: 'sheet-body' }, shots ? h('div', { class: 'field-group' }, h('span', { class: 'field-label' }, 'Fotos'), shots.row) : null,
+            value ? value.el : null, run ? run.el : null, note.el, caption ? caption.el : null),
         h('div', { class: 'sheet-actions' }, h('div', { class: 'btn-row' }, remove, save)),
-    ], { kind: 'sheet', label: title });
+    ], { kind: 'sheet', label: title, onClose: () => { if (shots) shots.dispose(); } });
 }

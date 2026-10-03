@@ -151,11 +151,57 @@ export function photo(id, { alt = 'Beweisfoto', onOpen } = {}) {
 }
 
 export function openPhoto(id) {
+    openPhotos([id], 0);
+}
+
+/** Alle Fotos eines Eintrags: `photoIds`, sonst das eine `photoId`. */
+export function photoList(item) {
+    if (!item) return [];
+    if (item.photoIds && item.photoIds.length) return item.photoIds;
+    return item.photoId ? [item.photoId] : [];
+}
+
+/**
+ * Punkte unter einer wischbaren Reihe; folgen dem Wischen und springen auf
+ * Klick (am Rechner gibt es kein Wischen).
+ */
+function swipeDots(track, count, className = '') {
+    const dots = Array.from({ length: count }, (_, i) => h('button', {
+        type: 'button', class: 'dot', 'aria-label': `Foto ${i + 1} von ${count}`,
+        onclick: event => {
+            event.stopPropagation();
+            track.scrollTo({ left: i * track.clientWidth, behavior: 'smooth' });
+        },
+    }));
+    const mark = () => {
+        const index = Math.round(track.scrollLeft / Math.max(1, track.clientWidth));
+        dots.forEach((dot, i) => dot.classList.toggle('on', i === index));
+    };
+    track.addEventListener('scroll', mark, { passive: true });
+    mark();
+    return h('div', { class: `dots ${className}` }, dots);
+}
+
+/** Mehrere Beweisfotos: seitlich wischen, Punkte darunter (Vertrag 2.3a); eines wie bisher. */
+export function photoCarousel(ids, opts = {}) {
+    if (!ids || !ids.length) return null;
+    if (ids.length === 1) return photo(ids[0], opts);
+    const track = h('div', { class: 'carousel-track' }, ids.map((id, i) =>
+        photo(id, { ...opts, onOpen: () => openPhotos(ids, i) })));
+    return h('div', { class: 'carousel' }, track, swipeDots(track, ids.length));
+}
+
+/** Vollbild, bei mehreren Fotos ebenfalls wischbar. */
+export function openPhotos(ids, start = 0) {
     const ref = {};
+    const track = h('div', { class: 'lightbox-track' }, ids.map(id =>
+        h('div', { class: 'lightbox-slide' }, h('img', { src: photoUrl(id, 'full'), alt: 'Foto' }))));
     ref.current = openDialog(h('div', { class: 'lightbox-inner' },
-        h('img', { src: photoUrl(id, 'full'), alt: 'Foto' }),
+        track,
+        ids.length > 1 ? swipeDots(track, ids.length, 'on-dark') : null,
         h('button', { type: 'button', class: 'close-btn lightbox-close', 'aria-label': 'Schließen', onclick: () => ref.current.close() }, icon('close'))),
     { kind: 'lightbox', label: 'Foto' });
+    requestAnimationFrame(() => { track.scrollLeft = start * track.clientWidth; });
 }
 
 export function progressBar(fraction, className = '') {

@@ -222,6 +222,28 @@ Avatar-Kreis (aus der ID abgeleitet, stabil).
   `ceil(times × unpausierteTage / TageImZeitraum)`; vollständig pausierte Zeiträume werden übersprungen.
 - **Selbstauskunft**, keine Verifikation. Offline-Einträge tragen eine Client-UUID (idempotent).
 
+### 2.3a Mehrere Beweisfotos (seit 03.10., Felix)
+Ein Eintrag trägt **bis zu vier** Beweisfotos (optional mehr als eins; bei `photoRequired` mindestens eins).
+- `POST …/checkins`: `"photoIds":["p1","p2"]` (1–4, Reihenfolge = Anzeige). Das erste wird `photoId`; ältere
+  Clients schicken nur `photoId` und funktionieren weiter. 400 „Höchstens 4 Fotos.“ / „Ein Foto ist doppelt.“
+- `PUT …/checkins/{id}` (eigener Eintrag, in der Nachtragsfrist): `"photoIds"` fehlt oder `null` = unverändert;
+  eine Liste (0–4) = die neuen Fotos. Weggefallene löscht der Dienst, neue hängen sich an (vorher per
+  `POST /photos` hochladen). Bei `photoRequired` bleibt mindestens eins (400 „Ein Beweisfoto ist Pflicht.“).
+  Bekommt ein Eintrag ohne Foto seine ersten Fotos, entsteht jetzt der Chat-Post (ohne Push) und das
+  Ereignis wird `PHOTO_CHECKIN`; fallen alle weg, verschwindet der Post und es wird `CHECKIN`.
+- Antworten: `Checkin.photoIds`, `Message.photoIds` (Check-in-Post: alle Fotos des Eintrags; Foto-Nachricht:
+  `[photoId]`; sonst `[]`) und `TimelineItem.photoIds` — immer eine Liste, `photoId` bleibt das erste.
+  Push-Text ohne Caption: „Neues Beweisfoto“ bzw. „3 neue Beweisfotos“. `Today.newPhotos` zeigt weiter ein
+  Vorschaubild je Eintrag.
+- Oberfläche (Web, iOS, Android):
+  - **Beweisfoto-Blatt**: nach dem ersten Foto eine Reihe Vorschaubilder (bis 4, umbrechend, keine
+    Scroll-Leiste) mit „×“ zum Entfernen und einer „+“-Kachel für ein weiteres (Kamera oder Galerie; die
+    Galerie darf mehrere auf einmal wählen, bis die vier voll sind). Gesendet: `photoIds` in dieser Reihenfolge.
+  - **Chat-Post und Timeline**: mehrere Fotos als **wischbares Karussell** in voller Breite wie das eine
+    Foto heute, Punkte darunter (nur bei mehr als einem Foto); die Vollbildansicht (falls vorhanden) ebenso.
+  - **Eigenen Eintrag bearbeiten**: Fotos ergänzen und entfernen wie im Blatt.
+  - Offline/Postausgang: alle Fotos hochladen, bevor der Eintrag rausgeht.
+
 ### 2.4 Rechenregeln STREAK (übernimmt die heutigen Regeln exakt)
 - „Heute darf offen sein": Ein noch nicht erfüllter laufender Zeitraum bricht die Serie nicht;
   sie zählt vom letzten abgeschlossenen Zeitraum weiter und ist dann `atRisk: true`.

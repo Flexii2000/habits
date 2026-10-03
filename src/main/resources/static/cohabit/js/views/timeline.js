@@ -5,7 +5,7 @@
 // Reaktionen und „Antworten" (oeffnet den Chat), uebrige Ereignisse kompakt.
 import { get, post, enc } from '../api.js';
 import { h, icon, showError, fill, openDialog, sheetHead, prefs } from '../dom.js';
-import { avatar, chip, colorClass, emptyState, errorState, loadingState, photo, sectionLabel } from '../ui.js';
+import { avatar, chip, colorClass, emptyState, errorState, loadingState, photoCarousel, photoList, sectionLabel } from '../ui.js';
 import { cached, remember } from '../state.js';
 import { dayHeading, dayIn } from '../format.js';
 import { reactionBar } from '../reactions.js';
@@ -54,7 +54,8 @@ export function timelineItem(item, { onReply } = {}) {
     const reply = item.canReply
         ? h('button', { type: 'button', class: 'text-btn', onclick: () => onReply(item) }, 'Antworten')
         : null;
-    if (item.photoId) {
+    const photos = photoList(item);
+    if (photos.length) {
         return h('article', { class: `tl-item ${color}` },
             h('div', { class: 'tl-head' },
                 who,
@@ -62,7 +63,7 @@ export function timelineItem(item, { onReply } = {}) {
                     h('p', { class: 'tl-title' }, titleWithName(item)),
                     item.subtitle ? h('p', { class: 'tl-sub' }, item.subtitle) : null),
                 item.cohabit ? chip(item.cohabit.name, 'tint') : null),
-            photo(item.photoId),
+            photoCarousel(photos),
             item.caption ? h('p', { class: 'tl-caption' }, item.caption) : null,
             h('div', { class: 'tl-foot' }, reactionBar(item), reply));
     }

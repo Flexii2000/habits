@@ -20,6 +20,8 @@ public class Event {
     public String checkinId;
     public LocalDate checkinDate;
     public String photoId;
+    /** Alle Fotos eines Beweisfoto-Eintrags; fehlt bei Ereignissen von vorher. */
+    public List<String> photoIds;
     public String caption;
     public Double value;
     public String detail;

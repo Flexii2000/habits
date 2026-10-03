@@ -140,7 +140,8 @@ public class ChatService {
         }
         return new MessageView(m.id, m.cohabitId, m.kind.name(), Views.person(data, m.authorId),
                 me.equals(m.authorId), m.createdAt, m.deleted ? null : m.text, m.deleted ? null : m.photoId, checkin,
-                m.systemText, reactionTarget, m.deleted ? List.of() : ReactionService.views(reactions, me), m.deleted);
+                m.systemText, reactionTarget, m.deleted ? List.of() : ReactionService.views(reactions, me), m.deleted,
+                m.deleted ? List.of() : Checkin.photos(m.photoId, m.photoIds));
     }
 
     // MARK: - Schreiben

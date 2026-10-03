@@ -33,6 +33,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -51,10 +52,16 @@ public class CheckinService {
     static final double MAX_VALUE = 1e9;
     static final int MAX_RUN_MINUTES = 24 * 60;
     static final double MAX_RUN_KM = 500;
+    static final int MAX_PHOTOS = 4;
 
-    /** {@code durationMinutes}/{@code distanceKm} nur bei Laufpunkten. */
+    /**
+     * {@code photoIds}: alle Beweisfotos, das erste wird {@code photoId}; aeltere Clients
+     * schicken nur {@code photoId}. Beim Bearbeiten heisst {@code photoIds: null} "unveraendert".
+     * {@code durationMinutes}/{@code distanceKm} nur bei Laufpunkten.
+     */
     public record CheckinInput(String id, CheckinKind kind, LocalDate date, Double value, String note,
-                               String photoId, String caption, Integer durationMinutes, Double distanceKm) {
+                               String photoId, String caption, Integer durationMinutes, Double distanceKm,
+                               List<String> photoIds) {
     }
 
     public record Created(CheckinResult result, boolean created) {
@@ -124,13 +131,14 @@ public class CheckinService {
             }
             ch.note = text(in == null ? null : in.note(), MAX_NOTE, "Die Notiz");
             ch.caption = text(in == null ? null : in.caption(), MAX_CAPTION, "Die Caption");
-            ch.photoId = in == null ? null : blankToNull(in.photoId());
-            if (c.photoRequired && kind == CheckinKind.DONE && ch.photoId == null) {
+            List<String> photoList = photoList(in == null ? null : in.photoId(), in == null ? null : in.photoIds());
+            if (c.photoRequired && kind == CheckinKind.DONE && photoList.isEmpty()) {
                 throw Errors.badRequest("Ein Beweisfoto ist Pflicht.");
             }
-            if (ch.photoId != null) {
-                attachPhoto(tx, c, me, ch.photoId);
+            for (String photo : photoList) {
+                attachPhoto(tx, c, me, photo);
             }
+            ch.setPhotos(photoList);
             tx.checkinsW(c.id).add(ch);
             created[0] = true;
             afterCheckin(tx, c, ch, now);
@@ -246,6 +254,29 @@ public class CheckinService {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
+    /** Die Beweisfotos eines Eintrags: {@code photoIds}, sonst das eine {@code photoId}. */
+    static List<String> photoList(String photoId, List<String> photoIds) {
+        if (photoIds == null || photoIds.isEmpty()) {
+            String one = blankToNull(photoId);
+            return one == null ? List.of() : List.of(one);
+        }
+        List<String> list = new ArrayList<>();
+        for (String id : photoIds) {
+            String one = blankToNull(id);
+            if (one == null) {
+                continue;
+            }
+            if (list.contains(one)) {
+                throw Errors.badRequest("Ein Foto ist doppelt.");
+            }
+            list.add(one);
+        }
+        if (list.size() > MAX_PHOTOS) {
+            throw Errors.badRequest("Höchstens " + MAX_PHOTOS + " Fotos.");
+        }
+        return list;
+    }
+
     /** Ein Foto gehoert der Person, die es hochgeladen hat, und wird genau einmal verwendet. */
     static void attachPhoto(CohabitStore.Tx tx, Cohabit c, String me, String photoId) {
         PhotoMeta meta = PhotoFiles.meta(tx, photoId);
@@ -277,33 +308,24 @@ public class CheckinService {
             achievements.check(tx, after, me, now);
             return;
         }
-        Event e = events.event(tx, c, ch.photoId == null ? EventKind.CHECKIN : EventKind.PHOTO_CHECKIN, me, now);
+        List<String> photoList = ch.photos();
+        Event e = events.event(tx, c, photoList.isEmpty() ? EventKind.CHECKIN : EventKind.PHOTO_CHECKIN, me, now);
         e.checkinId = ch.id;
         e.checkinDate = ch.date;
         e.photoId = ch.photoId;
+        e.photoIds = ch.photoIds == null ? null : new ArrayList<>(ch.photoIds);
         e.caption = ch.caption;
         e.value = ch.value;
         e.detail = detail(after, me);
         ch.eventId = e.id;
         String runTitle = TimelineTexts.runTitle(c, name, ch, tx.checkins(c.id));
         String title = runTitle != null ? runTitle : TimelineTexts.checkinTitle(c, name, ch.value);
-        if (ch.photoId != null) {
-            MessagesFile chat = tx.messagesW(c.id);
-            Message post = new Message();
-            post.id = UUID.randomUUID().toString();
-            post.cohabitId = c.id;
-            post.kind = MessageKind.CHECKIN;
-            post.authorId = me;
-            post.createdAt = now;
-            post.photoId = ch.photoId;
-            post.checkinId = ch.id;
-            post.eventId = e.id;
-            chat.messages.add(post);
-            chat.readState.put(me, post.id);
-            ch.messageId = post.id;
-            notifier.notify(tx, others, new PushMessage("photo", title,
-                    ch.caption == null ? "Neues Beweisfoto" : ch.caption, c.id, "cohabit://cohabit/" + c.id + "/chat"),
-                    Setting.PHOTOS, c, me);
+        if (!photoList.isEmpty()) {
+            checkinPost(tx, c, ch, e, now);
+            String body = ch.caption != null ? ch.caption
+                    : photoList.size() == 1 ? "Neues Beweisfoto" : photoList.size() + " neue Beweisfotos";
+            notifier.notify(tx, others, new PushMessage("photo", title, body, c.id,
+                    "cohabit://cohabit/" + c.id + "/chat"), Setting.PHOTOS, c, me);
         } else {
             notifier.notify(tx, others, new PushMessage("checkin", title,
                     ch.note != null ? ch.note : e.detail == null ? "" : e.detail, c.id, "cohabit://cohabit/" + c.id),
@@ -314,6 +336,64 @@ public class CheckinService {
         }
         if (c.type == CohabitType.CHALLENGE) {
             challenges.finishIfTargetReached(tx, after, now);
+        }
+    }
+
+    /** Der Chat-Post zu einem Eintrag mit Beweisfotos - teilt sich die Reaktionen mit dem Ereignis. */
+    private static void checkinPost(CohabitStore.Tx tx, Cohabit c, Checkin ch, Event e, Instant now) {
+        MessagesFile chat = tx.messagesW(c.id);
+        Message post = new Message();
+        post.id = UUID.randomUUID().toString();
+        post.cohabitId = c.id;
+        post.kind = MessageKind.CHECKIN;
+        post.authorId = ch.personId;
+        post.createdAt = now;
+        post.photoId = ch.photoId;
+        post.photoIds = ch.photoIds == null ? null : new ArrayList<>(ch.photoIds);
+        post.checkinId = ch.id;
+        post.eventId = e.id;
+        chat.messages.add(post);
+        chat.readState.put(ch.personId, post.id);
+        ch.messageId = post.id;
+    }
+
+    /**
+     * Neue Beweisfotos fuer einen bestehenden Eintrag: dazugekommene haengen sich an,
+     * weggefallene werden geloescht; Ereignis und Chat-Post ziehen mit. Kommen die
+     * ersten Fotos dazu, entsteht der Chat-Post jetzt (ohne Push); fallen alle weg, geht er.
+     */
+    private void replacePhotos(CohabitStore.Tx tx, Cohabit c, Checkin ch, List<String> next, Instant now) {
+        if (c.photoRequired && next.isEmpty()) {
+            throw Errors.badRequest("Ein Beweisfoto ist Pflicht.");
+        }
+        List<String> before = ch.photos();
+        for (String id : next) {
+            if (!before.contains(id)) {
+                attachPhoto(tx, c, ch.personId, id);
+            }
+        }
+        photos.delete(tx, before.stream().filter(id -> !next.contains(id)).toList());
+        ch.setPhotos(next);
+        Event e = tx.events().events.stream().filter(x -> x.id.equals(ch.eventId)).findFirst().orElse(null);
+        if (e != null) {
+            tx.eventsW();
+            e.kind = next.isEmpty() ? EventKind.CHECKIN : EventKind.PHOTO_CHECKIN;
+            e.photoId = ch.photoId;
+            e.photoIds = ch.photoIds == null ? null : new ArrayList<>(ch.photoIds);
+        }
+        Message post = ch.messageId == null ? null
+                : tx.messages(c.id).stream().filter(m -> m.id.equals(ch.messageId)).findFirst().orElse(null);
+        if (next.isEmpty()) {
+            if (post != null) {
+                tx.messagesW(c.id).messages.remove(post);
+            }
+            ch.messageId = null;
+        } else if (post != null) {
+            tx.messagesW(c.id);
+            post.photoId = ch.photoId;
+            post.photoIds = ch.photoIds == null ? null : new ArrayList<>(ch.photoIds);
+        } else if (e != null) {
+            checkinPost(tx, c, ch, e, now);
         }
     }
 
@@ -384,6 +464,9 @@ public class CheckinService {
             ch.note = text(in == null ? null : in.note(), MAX_NOTE, "Die Notiz");
             ch.caption = text(in == null ? null : in.caption(), MAX_CAPTION, "Die Caption");
             ch.updatedAt = now;
+            if (ch.kind == CheckinKind.DONE && in != null && in.photoIds() != null) {
+                replacePhotos(tx, c, ch, photoList(null, in.photoIds()), now);
+            }
             tx.events().events.stream().filter(e -> e.id.equals(ch.eventId)).findFirst().ifPresent(e -> {
                 tx.eventsW();
                 e.caption = ch.caption;
@@ -404,7 +487,7 @@ public class CheckinService {
         return views.detail(me, cohabitId);
     }
 
-    /** Eintrag samt Ereignis, Chat-Post und Foto. */
+    /** Eintrag samt Ereignis, Chat-Post und Fotos. */
     void removeCheckin(CohabitStore.Tx tx, Cohabit c, Checkin ch) {
         tx.checkinsW(c.id).remove(ch);
         if (ch.eventId != null) {
@@ -413,7 +496,7 @@ public class CheckinService {
         if (ch.messageId != null) {
             tx.messagesW(c.id).messages.removeIf(m -> m.id.equals(ch.messageId));
         }
-        photos.delete(tx, ch.photoId);
+        photos.delete(tx, ch.photos());
     }
 
     // MARK: - Health

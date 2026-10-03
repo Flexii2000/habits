@@ -84,18 +84,25 @@ export function uploadAvatar(blob) {
 }
 
 /** Unsichtbares Datei-Feld; `capture` oeffnet auf dem Handy direkt die Kamera. */
-export function pickFile({ capture } = {}) {
+export async function pickFile({ capture } = {}) {
+    const files = await pickFiles({ capture });
+    return files[0] || null;
+}
+
+/** Wie `pickFile`, mit `multiple` mehrere auf einmal (die Galerie). */
+export function pickFiles({ capture, multiple = false } = {}) {
     return new Promise(resolve => {
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = 'image/*';
+        input.multiple = multiple;
         if (capture) input.setAttribute('capture', capture);
         input.style.display = 'none';
         document.body.append(input);
         input.addEventListener('change', () => {
-            const file = input.files && input.files[0];
+            const files = Array.from(input.files || []);
             input.remove();
-            resolve(file || null);
+            resolve(files);
         }, { once: true });
         // Abbrechen meldet kein Ereignis zuverlaessig; das Feld bleibt dann
         // unsichtbar liegen, bis die naechste Auswahl es ersetzt.

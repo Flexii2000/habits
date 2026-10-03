@@ -4,7 +4,7 @@
 // Nachrichten alle 20 s, solange die Seite sichtbar ist.
 import { get, post, del, enc } from './api.js';
 import { h, icon, actionSheet, autoGrow, poll, showError, uuid, fill } from './dom.js';
-import { avatar, photo } from './ui.js';
+import { avatar, photo, photoCarousel, photoList } from './ui.js';
 import { dayHeading, dayIn, fmtTime, isMe, personName } from './format.js';
 import { reactionBar, reactionPicker } from './reactions.js';
 import { blockPerson, reportDialog } from './social.js';
@@ -170,7 +170,7 @@ export function mountChat(container, { getDetail, onCheckIn, onRead, alive }) {
                         avatar(who, 32),
                         h('span', { class: 'post-title' }, `${personName(who)} · hat abgehakt`),
                         h('time', { datetime: message.createdAt }, fmtTime(message.createdAt))),
-                    c.photoId ? photo(c.photoId) : null,
+                    photoCarousel(message.photoIds && message.photoIds.length ? message.photoIds : photoList(c)),
                     c.valueText ? h('p', { class: 'post-value' }, c.valueText) : null,
                     c.caption ? h('p', { class: 'post-caption' }, c.caption) : null,
                     reactionBar(message)));

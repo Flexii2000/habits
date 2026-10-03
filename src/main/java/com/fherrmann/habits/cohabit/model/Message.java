@@ -12,6 +12,8 @@ public class Message {
     public Instant createdAt;
     public String text;
     public String photoId;
+    /** Bei einem Check-in-Post alle Fotos des Eintrags; fehlt bei Posts von vorher. */
+    public List<String> photoIds;
     public String checkinId;
     public String systemText;
     /** Bei Systemmeldungen: wer sie ausgeloest hat - fuer die ist sie nicht ungelesen. */

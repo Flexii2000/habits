@@ -378,13 +378,15 @@ public class PhotoService {
             Map<String, String> avatars = new HashMap<>();
             for (Cohabit c : tx.cohabits().cohabits) {
                 for (Checkin ch : tx.checkins(c.id)) {
-                    if (ch.photoId != null) {
-                        usedIn.put(ch.photoId, c.id);
+                    for (String id : ch.photos()) {
+                        usedIn.put(id, c.id);
                     }
                 }
                 for (Message m : tx.messages(c.id)) {
-                    if (m.photoId != null && !m.deleted) {
-                        usedIn.put(m.photoId, c.id);
+                    if (!m.deleted) {
+                        for (String id : Checkin.photos(m.photoId, m.photoIds)) {
+                            usedIn.put(id, c.id);
+                        }
                     }
                 }
             }

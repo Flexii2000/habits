@@ -293,7 +293,7 @@ public class ClassicService {
         String me = viewer.personId();
         store.read(data -> classic(data, cohabitId, me));
         checkins.create(viewer, cohabitId, new CheckinService.CheckinInput(
-                mark == null ? null : mark.id(), null, mark == null ? null : mark.date(), null, null, null, null, null, null));
+                mark == null ? null : mark.id(), null, mark == null ? null : mark.date(), null, null, null, null, null, null, null));
         return one(me, cohabitId);
     }
 
