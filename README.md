@@ -69,6 +69,9 @@ Eintragszeit), der mindestens die Mindestdauer hat. Ist die Ø-Pace nicht schnel
 Grenze, lehnt der Dienst den Eintrag ab. Vorgaben 10 P · 1 P/km · 1 P je 6 Min. · Basis ab
 20 Min. · Pace unter 8:00 min/km, je Challenge einstellbar (`challenge.run`). Die Punkte
 werden bei jedem Abruf neu gerechnet (`rules/RunPoints`), nichts davon steht in den Dateien.
+Die Wertung einer laufenden Runde ist in der App fest; eine bestehende Challenge stellen
+`deploy/challenge-to-run-points.sh` und zurück `deploy/challenge-to-most-entries.sh` um
+(Dienst kurz angehalten, Sicherung neben `cohabits.json`).
 
 **Mehrere Beweisfotos** (seit 2026-10-03): Ein Eintrag trägt bis zu vier Fotos (`photoIds`, Reihenfolge =
 Anzeige); das erste steht weiter in `photoId`, damit ältere Clients ein Bild zeigen. Beim Bearbeiten des
