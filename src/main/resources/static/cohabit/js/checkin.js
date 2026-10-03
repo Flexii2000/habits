@@ -77,6 +77,43 @@ function valueField(unit, initial) {
     };
 }
 
+/** Dauer (ganze Minuten) und Distanz (km) eines Laufs - rechnen tut der Dienst. */
+function runFields(initial) {
+    const minutes = h('input', {
+        class: 'field', type: 'text', inputmode: 'numeric', autocomplete: 'off', placeholder: '0', 'aria-label': 'Dauer in Minuten',
+        value: initial ? String(initial.durationMinutes) : '',
+    });
+    const km = h('input', {
+        class: 'field', type: 'text', inputmode: 'decimal', autocomplete: 'off', placeholder: '0,0', 'aria-label': 'Distanz in km',
+        value: initial ? String(initial.distanceKm).replace('.', ',') : '',
+    });
+    const group = (label, input, suffix) => h('div', { class: 'field-group' },
+        h('label', { class: 'field-label' }, label),
+        h('div', { class: 'field-wrap' }, input, h('span', { class: 'field-suffix' }, suffix)));
+    const check = (input, ok) => {
+        input.classList.toggle('invalid', !ok);
+        if (!ok) input.focus();
+        return ok;
+    };
+    return {
+        el: h('div', { class: 'run-fields' }, group('Dauer', minutes, 'Min.'), group('Distanz', km, 'km')),
+        input: minutes,
+        read() {
+            const m = parseNumber(minutes.value);
+            const d = parseNumber(km.value);
+            if (!check(minutes, Number.isInteger(m) && m > 0)) return null;
+            if (!check(km, d > 0)) return null;
+            return { durationMinutes: m, distanceKm: d };
+        },
+    };
+}
+
+/** Nach dem Eintragen eines Laufs: was er gebracht hat. */
+function savedText(res, fallback) {
+    const run = res && res.checkin && res.checkin.run;
+    return run ? `${run.pointsText} · ${run.breakdownText}` : fallback;
+}
+
 function textField(label, placeholder, initial, maxlength = 500) {
     const input = h('input', { class: 'field', type: 'text', placeholder, maxlength, value: initial || '', autocomplete: 'off' });
     return {
@@ -102,7 +139,7 @@ export async function checkIn(summary, { detail, date, onDone } = {}) {
     const type = summary.ref.type;
     if (type === 'ABSTINENCE') return breakDialog(summary, detail, date, onDone);
     if (summary.photoRequired) return photoSheet(summary, detail, date, onDone);
-    if (summary.valueUnit || date) return entrySheet(summary, detail, date, onDone);
+    if (summary.valueUnit || summary.runEntry || date) return entrySheet(summary, detail, date, onDone);
     return quickCheckIn(summary, onDone);
 }
 
@@ -163,6 +200,7 @@ function photoSheet(summary, knownDetail, presetDate, onDone) {
             h('button', { type: 'button', class: 'cam-btn', 'aria-label': 'Frontkamera', title: 'Kamera wechseln', onclick: () => choose('user') }, icon('switchCamera'))));
 
     const value = summary.valueUnit ? valueField(summary.valueUnit) : null;
+    const run = summary.runEntry ? runFields() : null;
     const caption = textField('Caption (optional)', 'Wie war\'s?', '', 500);
     const dayArea = h('div');
     let day = { value: () => presetDate || null };
@@ -175,33 +213,36 @@ function photoSheet(summary, knownDetail, presetDate, onDone) {
     };
     setHint(summary.members);
 
-    const submit = h('button', { type: 'button', class: 'btn accent block', disabled: true }, 'Posten & abhaken');
+    const submitLabel = run ? summary.checkInLabel || 'Lauf eintragen' : 'Posten & abhaken';
+    const submit = h('button', { type: 'button', class: 'btn accent block', disabled: true }, submitLabel);
     submit.addEventListener('click', async () => {
         if (!blob) return;
         const amount = value ? value.read() : null;
         if (value && amount == null) return;
+        const runValues = run ? run.read() : null;
+        if (run && !runValues) return;
         submit.classList.add('busy');
         submit.textContent = 'Wird gepostet …';
         try {
             if (!uploaded) uploaded = await uploadPhoto(blob, photoKey);
             const res = await post(`${cohabitPath(summary.ref.id)}/checkins`, {
                 id: checkinId, kind: 'DONE', date: day.value(), value: amount, note: null,
-                photoId: uploaded.id, caption: caption.read(),
+                photoId: uploaded.id, caption: caption.read(), ...runValues,
             });
             ref.current.close();
-            toast('Gepostet.');
+            toast(savedText(res, 'Gepostet.'));
             if (onDone) onDone(res.cohabit);
         } catch (err) {
             showError(err);
         } finally {
             submit.classList.remove('busy');
-            submit.textContent = 'Posten & abhaken';
+            submit.textContent = submitLabel;
         }
     });
 
     ref.current = openDialog([
         ...sheetHead(`${name} abhaken`, 'Beweisfoto erforderlich', ref),
-        h('div', { class: 'sheet-body' }, camera, value ? value.el : null, caption.el, dayArea, hint),
+        h('div', { class: 'sheet-body' }, camera, value ? value.el : null, run ? run.el : null, caption.el, dayArea, hint),
         h('div', { class: 'sheet-actions' }, submit),
     ], {
         kind: 'sheet', className: 'photo-sheet', label: `${name} abhaken`,
@@ -221,6 +262,7 @@ function entrySheet(summary, knownDetail, presetDate, onDone) {
     const ref = {};
     const checkinId = uuid();
     const value = summary.valueUnit ? valueField(summary.valueUnit) : null;
+    const run = summary.runEntry ? runFields() : null;
     const note = textField('Notiz (optional)', '', '', 500);
     const dayArea = h('div');
     let day = { value: () => presetDate || null };
@@ -229,14 +271,16 @@ function entrySheet(summary, knownDetail, presetDate, onDone) {
     submit.addEventListener('click', async () => {
         const amount = value ? value.read() : null;
         if (value && amount == null) return;
+        const runValues = run ? run.read() : null;
+        if (run && !runValues) return;
         submit.classList.add('busy');
         try {
             const res = await post(`${cohabitPath(summary.ref.id)}/checkins`, {
                 id: checkinId, kind: 'DONE', date: day.value(), value: amount,
-                note: note.read(), photoId: null, caption: null,
+                note: note.read(), photoId: null, caption: null, ...runValues,
             });
             ref.current.close();
-            toast(doneText(summary.ref.type));
+            toast(savedText(res, doneText(summary.ref.type)));
             if (onDone) onDone(res.cohabit);
         } catch (err) {
             showError(err);
@@ -247,10 +291,11 @@ function entrySheet(summary, knownDetail, presetDate, onDone) {
     const title = summary.checkInLabel && summary.canCheckIn ? summary.checkInLabel : `${summary.ref.name} eintragen`;
     ref.current = openDialog([
         ...sheetHead(title, summary.ref.name !== title ? summary.ref.name : null, ref),
-        h('div', { class: 'sheet-body' }, value ? value.el : null, note.el, dayArea),
+        h('div', { class: 'sheet-body' }, value ? value.el : null, run ? run.el : null, note.el, dayArea),
         h('div', { class: 'sheet-actions' }, submit),
     ], { kind: 'sheet', label: title });
-    if (value) setTimeout(() => value.input.focus(), 50);
+    const first = value || run;
+    if (first) setTimeout(() => first.input.focus(), 50);
 
     loadDetail(summary, knownDetail).then(detail => {
         if (!detail || !ref.current.isConnected) return;
@@ -300,6 +345,7 @@ export function editCheckin(detail, checkin, onDone) {
     const ref = {};
     const unit = detail.summary.valueUnit;
     const value = unit && checkin.kind === 'DONE' ? valueField(unit, checkin.value) : null;
+    const run = detail.summary.runEntry && checkin.kind === 'DONE' ? runFields(checkin.run) : null;
     const note = textField('Notiz', '', checkin.note, 500);
     const caption = checkin.photoId ? textField('Caption', 'Wie war\'s?', checkin.caption, 500) : null;
     const cohabitId = detail.summary.ref.id;
@@ -307,13 +353,15 @@ export function editCheckin(detail, checkin, onDone) {
     save.addEventListener('click', async () => {
         const amount = value ? value.read() : null;
         if (value && amount == null) return;
+        const runValues = run ? run.read() : null;
+        if (run && !runValues) return;
         save.classList.add('busy');
         try {
             const res = await put(`${cohabitPath(cohabitId)}/checkins/${enc(checkin.id)}`, {
-                value: amount, note: note.read(), caption: caption ? caption.read() : null,
+                value: amount, note: note.read(), caption: caption ? caption.read() : null, ...runValues,
             });
             ref.current.close();
-            toast('Gespeichert.');
+            toast(savedText(res, 'Gespeichert.'));
             onDone(res.cohabit);
         } catch (err) {
             showError(err);
@@ -337,7 +385,7 @@ export function editCheckin(detail, checkin, onDone) {
     const title = checkin.kind === 'BREAK' ? 'Unterbrechung' : 'Eintrag';
     ref.current = openDialog([
         ...sheetHead(title, dayShort(checkin.date, dayIn(new Date(), detail.config.timezone)), ref),
-        h('div', { class: 'sheet-body' }, value ? value.el : null, note.el, caption ? caption.el : null),
+        h('div', { class: 'sheet-body' }, value ? value.el : null, run ? run.el : null, note.el, caption ? caption.el : null),
         h('div', { class: 'sheet-actions' }, h('div', { class: 'btn-row' }, remove, save)),
     ], { kind: 'sheet', label: title });
 }

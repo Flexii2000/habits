@@ -17,12 +17,14 @@ import com.fherrmann.habits.cohabit.model.Message;
 import com.fherrmann.habits.cohabit.model.MessageKind;
 import com.fherrmann.habits.cohabit.model.MessagesFile;
 import com.fherrmann.habits.cohabit.model.PhotoMeta;
+import com.fherrmann.habits.cohabit.model.RunScoring;
 import com.fherrmann.habits.cohabit.model.Scoring;
 import com.fherrmann.habits.cohabit.push.Notifier;
 import com.fherrmann.habits.cohabit.push.PushMessage;
 import com.fherrmann.habits.cohabit.push.Setting;
 import com.fherrmann.habits.cohabit.rules.CohabitEval;
 import com.fherrmann.habits.cohabit.rules.CohabitEval.MemberEval;
+import com.fherrmann.habits.cohabit.rules.RunPoints;
 import com.fherrmann.habits.cohabit.rules.StreakModel;
 import com.fherrmann.habits.cohabit.rules.Texts;
 import com.fherrmann.habits.cohabit.store.CohabitStore;
@@ -47,9 +49,12 @@ public class CheckinService {
     static final int MAX_NOTE = 500;
     static final int MAX_CAPTION = 280;
     static final double MAX_VALUE = 1e9;
+    static final int MAX_RUN_MINUTES = 24 * 60;
+    static final double MAX_RUN_KM = 500;
 
+    /** {@code durationMinutes}/{@code distanceKm} nur bei Laufpunkten. */
     public record CheckinInput(String id, CheckinKind kind, LocalDate date, Double value, String note,
-                               String photoId, String caption) {
+                               String photoId, String caption, Integer durationMinutes, Double distanceKm) {
     }
 
     public record Created(CheckinResult result, boolean created) {
@@ -114,6 +119,9 @@ public class CheckinService {
             ch.createdAt = now;
             ch.source = CheckinSource.MANUAL;
             ch.value = value(c, in == null ? null : in.value());
+            if (isRunChallenge(c)) {
+                run(c, ch, in == null ? null : in.durationMinutes(), in == null ? null : in.distanceKm(), true);
+            }
             ch.note = text(in == null ? null : in.note(), MAX_NOTE, "Die Notiz");
             ch.caption = text(in == null ? null : in.caption(), MAX_CAPTION, "Die Caption");
             ch.photoId = in == null ? null : blankToNull(in.photoId());
@@ -191,6 +199,41 @@ public class CheckinService {
         return Texts.round2(value);
     }
 
+    static boolean isRunChallenge(Cohabit c) {
+        return c.type == CohabitType.CHALLENGE && c.challenge != null && c.challenge.runPoints();
+    }
+
+    /**
+     * Dauer und Distanz eines Laufs - und die Pace: was nicht schneller ist als die
+     * Grenze, zaehlt nicht und wird gar nicht erst gespeichert.
+     *
+     * @param required beim Anlegen; beim Bearbeiten heisst {@code null} "unveraendert"
+     */
+    static void run(Cohabit c, Checkin ch, Integer durationMinutes, Double distanceKm, boolean required) {
+        Integer minutes = durationMinutes == null && !required ? ch.durationMinutes : durationMinutes;
+        Double km = distanceKm == null && !required ? ch.distanceKm : distanceKm;
+        if (minutes == null) {
+            throw Errors.badRequest("Die Dauer fehlt.");
+        }
+        if (km == null) {
+            throw Errors.badRequest("Die Distanz fehlt.");
+        }
+        if (minutes < 1 || minutes > MAX_RUN_MINUTES) {
+            throw Errors.badRequest("Die Dauer muss zwischen 1 und 1.440 Minuten liegen.");
+        }
+        double rounded = km.isNaN() ? 0 : Texts.round2(km);
+        if (rounded < 0.01 || rounded > MAX_RUN_KM) {
+            throw Errors.badRequest("Die Distanz muss zwischen 0,01 und 500 km liegen.");
+        }
+        RunScoring r = RunPoints.scoringOf(c);
+        if (!RunPoints.fastEnough(r, minutes, rounded)) {
+            throw Errors.badRequest("Ø-Pace " + RunPoints.paceText(RunPoints.paceSeconds(minutes, rounded))
+                    + " – zählt nur unter " + RunPoints.paceLimitText(r.paceLimit()) + " min/km.");
+        }
+        ch.durationMinutes = minutes;
+        ch.distanceKm = rounded;
+    }
+
     private static String text(String value, int max, String what) {
         String t = blankToNull(value);
         if (t != null && t.length() > max) {
@@ -242,7 +285,8 @@ public class CheckinService {
         e.value = ch.value;
         e.detail = detail(after, me);
         ch.eventId = e.id;
-        String title = TimelineTexts.checkinTitle(c, name, ch.value);
+        String runTitle = TimelineTexts.runTitle(c, name, ch, tx.checkins(c.id));
+        String title = runTitle != null ? runTitle : TimelineTexts.checkinTitle(c, name, ch.value);
         if (ch.photoId != null) {
             MessagesFile chat = tx.messagesW(c.id);
             Message post = new Message();
@@ -333,6 +377,9 @@ public class CheckinService {
             tx.checkinsW(c.id);
             if (ch.kind == CheckinKind.DONE) {
                 ch.value = value(c, in == null ? null : in.value());
+                if (isRunChallenge(c)) {
+                    run(c, ch, in == null ? null : in.durationMinutes(), in == null ? null : in.distanceKm(), false);
+                }
             }
             ch.note = text(in == null ? null : in.note(), MAX_NOTE, "Die Notiz");
             ch.caption = text(in == null ? null : in.caption(), MAX_CAPTION, "Die Caption");

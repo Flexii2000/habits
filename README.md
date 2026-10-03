@@ -25,7 +25,7 @@ beim ersten Start nach coHabit umgezogen (siehe „Migration“).
 | **STREAK** | regelmäßig dranbleiben: täglich, an Wochentagen, n× pro Woche, n× pro Monat oder alle n Tage | Serie in Tagen, Wochen, Monaten bzw. Fenstern |
 | **ABSTINENCE** | auf etwas verzichten – eingetragen wird nur eine Unterbrechung | Tage seit Beitritt bzw. letzter Unterbrechung |
 | **GOAL** | eine Menge (oder Zahl von Einträgen) bis zu einem Datum, allein oder als Team | Prozent, Soll/Ist |
-| **CHALLENGE** | wer schafft im Zeitraum am meisten (Einträge, Summe, zuerst beim Ziel) | Rang |
+| **CHALLENGE** | wer schafft im Zeitraum am meisten (Einträge, Summe, zuerst beim Ziel, Laufpunkte) | Rang |
 
 Der Typ ist nach dem Anlegen fest. Höchstens **8 Mitglieder** einschließlich offener
 Einladungen, genau ein Admin (übertragbar).
@@ -61,6 +61,14 @@ Tage / Gesamttage`. Nach der Deadline: Ergebnis, Systemmeldung, Abschlussdialog.
 **Challenge**: Gleichstand = gleicher Rang. Bei „zuerst beim Ziel“ gewinnt der Zeitpunkt
 des Eintrags, und die Runde endet sofort. Den Einsatz löst ein, wer auf dem letzten
 Platz steht. Wiederkehrende Challenges beginnen am nächsten Montag bzw. Monatsersten neu.
+
+**Laufpunkte** (Wertung `RUN_POINTS`, seit 2026-10-03): Jeder Eintrag ist ein Lauf mit Dauer
+(ganze Minuten) und Distanz (km). Punkte = Basis + `floor(km) × Punkte je km` +
+`floor(Minuten / N)`; die Basis gibt es je Person und Tag nur für den ersten Lauf (nach
+Eintragszeit), der mindestens die Mindestdauer hat. Ist die Ø-Pace nicht schneller als die
+Grenze, lehnt der Dienst den Eintrag ab. Vorgaben 10 P · 1 P/km · 1 P je 6 Min. · Basis ab
+20 Min. · Pace unter 8:00 min/km, je Challenge einstellbar (`challenge.run`). Die Punkte
+werden bei jedem Abruf neu gerechnet (`rules/RunPoints`), nichts davon steht in den Dateien.
 
 **Bestserie** (Serie ≥ 2, über dem bisherigen Rekord) wird je Serie einmal gemeldet – in
 dem Moment, in dem sie den alten Rekord übertrifft. **Meilensteine**: STREAK 7/30/100/365

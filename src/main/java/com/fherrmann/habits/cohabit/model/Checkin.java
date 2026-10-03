@@ -15,6 +15,9 @@ public class Checkin {
     public String note;
     public String photoId;
     public String caption;
+    /** Nur bei Laufpunkten: Dauer in ganzen Minuten und Distanz in km. */
+    public Integer durationMinutes;
+    public Double distanceKm;
     public CheckinSource source;
     /** Das Timeline-Ereignis dazu (CHECKIN, PHOTO_CHECKIN, HEALTH oder BREAK). */
     public String eventId;

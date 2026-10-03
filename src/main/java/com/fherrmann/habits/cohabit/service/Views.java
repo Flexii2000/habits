@@ -18,6 +18,7 @@ import com.fherrmann.habits.cohabit.api.PauseView;
 import com.fherrmann.habits.cohabit.api.PersonView;
 import com.fherrmann.habits.cohabit.api.ProgressView;
 import com.fherrmann.habits.cohabit.api.RankView;
+import com.fherrmann.habits.cohabit.api.RunView;
 import com.fherrmann.habits.cohabit.api.Seats;
 import com.fherrmann.habits.cohabit.api.StreakBlock;
 import com.fherrmann.habits.cohabit.model.AutoSource;
@@ -39,6 +40,7 @@ import com.fherrmann.habits.cohabit.model.Recurrence;
 import com.fherrmann.habits.cohabit.model.Rhythm;
 import com.fherrmann.habits.cohabit.model.RhythmKind;
 import com.fherrmann.habits.cohabit.model.Role;
+import com.fherrmann.habits.cohabit.model.RunScoring;
 import com.fherrmann.habits.cohabit.model.Scoring;
 import com.fherrmann.habits.cohabit.model.Standing;
 import com.fherrmann.habits.cohabit.model.TrackingMode;
@@ -48,6 +50,7 @@ import com.fherrmann.habits.cohabit.rules.CohabitEval;
 import com.fherrmann.habits.cohabit.rules.CohabitEval.MemberEval;
 import com.fherrmann.habits.cohabit.rules.CohabitEval.Place;
 import com.fherrmann.habits.cohabit.rules.PeriodScheme;
+import com.fherrmann.habits.cohabit.rules.RunPoints;
 import com.fherrmann.habits.cohabit.rules.StreakModel;
 import com.fherrmann.habits.cohabit.rules.StreakUnit;
 import com.fherrmann.habits.cohabit.rules.Texts;
@@ -193,9 +196,26 @@ public final class Views {
         if (c.auto != null) {
             rules.add(Texts.autoRule(c.auto));
         }
+        if (c.type == CohabitType.CHALLENGE && c.challenge != null && c.challenge.runPoints()) {
+            rules.addAll(runRules(RunPoints.scoringOf(c)));
+        }
         if (c.type == CohabitType.CHALLENGE && c.challenge != null && c.challenge.stake() != null) {
             rules.add("Einsatz: " + c.challenge.stake());
         }
+        return rules;
+    }
+
+    /** "Basis 10 P ab 20 Min.", "1 P je km", "1 P je 6 Min.", "Pace unter 8:00 min/km". */
+    static List<String> runRules(RunScoring r) {
+        List<String> rules = new ArrayList<>();
+        if (r.base() > 0) {
+            rules.add("Basis " + r.base() + " P" + (r.baseMinutes() > 0 ? " ab " + r.baseMinutes() + " Min." : ""));
+        }
+        if (r.perKm() > 0) {
+            rules.add(r.perKm() + " P je km");
+        }
+        rules.add("1 P je " + r.perMinutes() + " Min.");
+        rules.add("Pace unter " + RunPoints.paceLimitText(r.paceLimit()) + " min/km");
         return rules;
     }
 
@@ -279,7 +299,7 @@ public final class Views {
                 : c.photoRequired ? "Beweisfoto & abhaken" : "Abhaken";
         return new CohabitSummary(CohabitRef.of(c), c.archived, headline, typeLine(c, e.today), subline,
                 streakListLine(c, e, me, remaining), status, section(status), me.unavailable, canCheckIn,
-                c.photoRequired, valueUnit(c), label, members, members.size(), doneTodayBy,
+                c.photoRequired, valueUnit(c), label, false, members, members.size(), doneTodayBy,
                 streakProgress(e, me), null, unread(data, c, viewerId));
     }
 
@@ -443,7 +463,7 @@ public final class Views {
         boolean canCheckIn = !c.archived && !me.entryToday && !e.today.isBefore(me.start);
         return new CohabitSummary(CohabitRef.of(c), c.archived, headline, typeLine(c, e.today),
                 toRecord == null ? record : toRecord, "Abstinenz · " + record, "RUNNING", "RUNNING", null,
-                canCheckIn, false, null, "Unterbrechung eintragen", members, members.size(), List.of(), null,
+                canCheckIn, false, null, "Unterbrechung eintragen", false, members, members.size(), List.of(), null,
                 null, unread(data, c, viewerId));
     }
 
@@ -470,7 +490,7 @@ public final class Views {
         boolean open = !e.today.isBefore(g.start()) && !e.today.isAfter(g.deadline());
         boolean canCheckIn = open && !c.archived && !e.today.isBefore(me.start);
         return new CohabitSummary(CohabitRef.of(c), c.archived, headline, typeLine(c, e.today), subline, listLine,
-                "RUNNING", "RUNNING", null, canCheckIn, c.photoRequired, valueUnit(c), goalCheckInLabel(c),
+                "RUNNING", "RUNNING", null, canCheckIn, c.photoRequired, valueUnit(c), goalCheckInLabel(c), false,
                 members, members.size(), doneTodayBy,
                 new ProgressView(num(total), num(g.target()), fraction(total, g.target())), null,
                 unread(data, c, viewerId));
@@ -533,12 +553,14 @@ public final class Views {
         String subline = joinNonNull(" · ", gap, ends);
         String status = running ? (me.entryToday ? "DONE" : "OPEN") : "RUNNING";
         boolean canCheckIn = running && !c.archived && !e.today.isBefore(me.start);
-        String label = c.tracking.mode() == TrackingMode.VALUE ? "Wert eintragen" : "+1 " + c.name + " eintragen";
+        boolean run = c.challenge.runPoints();
+        String label = run ? "Lauf eintragen"
+                : c.tracking.mode() == TrackingMode.VALUE ? "Wert eintragen" : "+1 " + c.name + " eintragen";
         RankView rank = new RankView(mine == null ? 0 : mine.rank(), e.leaderboard.size(), gap);
         return new CohabitSummary(CohabitRef.of(c), c.archived, headline, typeLine(c, e.today), subline,
                 joinNonNull(" · ", "Challenge", ends, gap), status, section(status), null, canCheckIn,
-                c.photoRequired, valueUnit(c), label, members, members.size(), doneTodayBy, null, rank,
-                unread(data, c, viewerId));
+                c.photoRequired, run ? null : valueUnit(c), label, run, members, members.size(), doneTodayBy,
+                null, rank, unread(data, c, viewerId));
     }
 
     static String joinNonNull(String sep, String... parts) {
@@ -575,7 +597,8 @@ public final class Views {
         if (diff <= 0) {
             return "knapp hinter " + name(data, better.personId());
         }
-        return "noch " + Texts.number(diff) + " bis " + name(data, better.personId());
+        String amount = Texts.number(diff) + (e.cohabit.challenge.runPoints() ? " P" : "");
+        return "noch " + amount + " bis " + name(data, better.personId());
     }
 
     /** "endet heute", "endet morgen", "endet in 3 Tagen", "startet am 05.10.", "beendet". */
@@ -691,9 +714,28 @@ public final class Views {
                                           LocalDate backfillFrom, LocalDate today) {
         boolean editable = ch.personId.equals(viewerId) && !c.archived && !ch.date.isBefore(backfillFrom)
                 && !ch.date.isAfter(today) && ch.source != com.fherrmann.habits.cohabit.model.CheckinSource.HEALTH;
+        RunView run = runView(data, c, ch);
         return new CheckinView(ch.id, ch.cohabitId, person(data, ch.personId), ch.kind.name(), ch.date, ch.createdAt,
-                ch.value == null ? null : num(ch.value), valueText(c, ch.value), ch.note, ch.photoId, ch.caption,
-                ch.source.name(), editable);
+                ch.value == null ? null : num(ch.value), run != null ? runValueText(run) : valueText(c, ch.value),
+                ch.note, ch.photoId, ch.caption, ch.source.name(), editable, run);
+    }
+
+    /** Ein Lauf samt seinen Punkten - die haengen an den anderen Laeufen des Tages. */
+    static RunView runView(CohabitStore.Data data, Cohabit c, Checkin ch) {
+        if (c.type != CohabitType.CHALLENGE || c.challenge == null || !c.challenge.runPoints() || !RunPoints.isRun(ch)) {
+            return null;
+        }
+        RunScoring r = RunPoints.scoringOf(c);
+        RunPoints.Points p = RunPoints.score(r, data.checkins(c.id)).get(ch.id);
+        return new RunView(ch.durationMinutes, num(ch.distanceKm),
+                RunPoints.paceText(RunPoints.paceSeconds(ch.durationMinutes, ch.distanceKm)), p.total(),
+                RunPoints.pointsText(p.total()), RunPoints.breakdownText(r, p));
+    }
+
+    /** "5,8 km · 35 Min. · 6:02 min/km · +20 P" */
+    static String runValueText(RunView run) {
+        return Texts.number(run.distanceKm().doubleValue()) + " km · " + run.durationMinutes() + " Min. · "
+                + run.paceText() + " · " + run.pointsText();
     }
 
     static String valueText(Cohabit c, Double value) {
@@ -908,6 +950,9 @@ public final class Views {
     }
 
     public static String scoreText(Cohabit c, double score) {
+        if (c.challenge != null && c.challenge.runPoints()) {
+            return Texts.number(score) + " P";
+        }
         if (c.challenge != null && c.challenge.scoring() != Scoring.MOST_ENTRIES
                 && c.tracking.mode() == TrackingMode.VALUE && c.tracking.unit() != null) {
             return Texts.valueText(score, c.tracking.unit());
@@ -920,6 +965,7 @@ public final class Views {
         return switch (ch.scoring()) {
             case MOST_ENTRIES -> "Meiste Einträge";
             case HIGHEST_SUM -> "Höchste Summe";
+            case RUN_POINTS -> "Laufpunkte";
             case FIRST_TO_TARGET -> "Zuerst bei " + (ch.target() == null ? "?"
                     : c.tracking.mode() == TrackingMode.VALUE && c.tracking.unit() != null
                     ? Texts.valueText(ch.target(), c.tracking.unit()) : Texts.number(ch.target()));

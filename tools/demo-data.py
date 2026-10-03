@@ -211,6 +211,13 @@ def main():
         "challenge": {"start": month_start.isoformat(), "end": month_end.isoformat(),
                       "scoring": "MOST_ENTRIES", "stake": "Verlierer kocht für alle", "recurrence": "MONTHLY"}},
         ["lena", "max", "sara", "torben"])
+    laufpunkte = create(FELIX, {
+        "type": "CHALLENGE", "name": "Laufpunkte", "color": "peach", "backfillHours": 48,
+        "photoRequired": False,
+        "challenge": {"start": start.isoformat(), "end": (real_today + dt.timedelta(days=30)).isoformat(),
+                      "scoring": "RUN_POINTS", "stake": "Verlierer gibt einen Döner aus", "recurrence": "NONE",
+                      "run": {"basePoints": 10, "pointsPerKm": 1, "minutesPerPoint": 6, "baseMinMinutes": 20,
+                              "paceLimitSeconds": 480}}}, ["torben"])
     lesen = create(FELIX, {
         "type": "STREAK", "name": "Lesen", "color": "rose", "backfillHours": 48,
         "streak": {"rhythm": {"kind": "DAILY"}, "groupStreak": True}}, ["torben"])
@@ -275,6 +282,17 @@ def main():
                 running = api.get(f"/cohabit/api/cohabits/{first_to}", FELIX)["summary"]["canCheckIn"]
                 if running:
                     checkin(first_to, token, value=km)
+        # Laufpunkte: Felix und Torben, manchmal zwei Laeufe am Tag oder ein kurzer.
+        at(date, 18, 20)
+        if day != DAYS and day % 3 != 1:
+            minutes = 28 + day % 15
+            checkin(laufpunkte, FELIX, durationMinutes=minutes, distanceKm=round(minutes / (5.5 + (day % 4) * 0.4), 2))
+        if day != DAYS and day % 2 == 0:
+            minutes = 35 + day % 9
+            checkin(laufpunkte, TORBEN, durationMinutes=minutes, distanceKm=round(minutes / (6.0 + (day % 3) * 0.5), 2))
+        if day in (3, 9):
+            at(date, 20, 5)
+            checkin(laufpunkte, FELIX, durationMinutes=16, distanceKm=2.7)
         # Wer kocht oefter: nur im laufenden Monat.
         at(date, 19, 10 + day % 45)
         if month_start <= date <= month_end:
@@ -328,7 +346,8 @@ def main():
               "setupUrls": setup,
               "ids": {"felix": "felix", "torben": "torben", "lena": lena_id, "max": max_id, "sara": sara_id},
               "cohabits": {"Laufen": laufen, "Ohne Zucker": zucker, "1 Mio. Schritte": schritte,
-                           "Erster bei 42 km": first_to, "Wer kocht öfter?": kochen, "Lesen": lesen}}
+                           "Erster bei 42 km": first_to, "Wer kocht öfter?": kochen, "Lesen": lesen,
+                           "Laufpunkte": laufpunkte}}
     with open(args.out, "w", encoding="utf-8") as f:
         json.dump(tokens, f, indent=2, ensure_ascii=False)
     print(json.dumps(tokens, indent=2, ensure_ascii=False))

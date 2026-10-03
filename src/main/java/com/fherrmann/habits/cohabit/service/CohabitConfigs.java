@@ -15,6 +15,7 @@ import com.fherrmann.habits.cohabit.model.Palette;
 import com.fherrmann.habits.cohabit.model.Recurrence;
 import com.fherrmann.habits.cohabit.model.Rhythm;
 import com.fherrmann.habits.cohabit.model.RhythmKind;
+import com.fherrmann.habits.cohabit.model.RunScoring;
 import com.fherrmann.habits.cohabit.model.Scoring;
 import com.fherrmann.habits.cohabit.model.StreakConfig;
 import com.fherrmann.habits.cohabit.model.Tracking;
@@ -43,6 +44,10 @@ public final class CohabitConfigs {
     static final int MAX_STEP_GOAL = 500_000;
     static final int MAX_FOCUS_MINUTES = 24 * 60;
     static final int MAX_FOCUS_MINUTES_WEEK = 7 * 24 * 60;
+    static final int MAX_RUN_POINTS = 1000;
+    static final int MAX_RUN_MINUTES = 600;
+    static final int MIN_PACE_LIMIT = 60;
+    static final int MAX_PACE_LIMIT = 3600;
     private static final Pattern TIME = Pattern.compile("([01]\\d|2[0-3]):[0-5]\\d");
 
     private CohabitConfigs() {
@@ -123,6 +128,9 @@ public final class CohabitConfigs {
             case CHALLENGE -> challenge(c, in, existing, today);
         }
         if (in.health() != null && in.health().metric() != null) {
+            if (c.type == CohabitType.CHALLENGE && c.challenge.runPoints()) {
+                throw Errors.badRequest("Laufpunkte trägt man von Hand ein.");
+            }
             if (c.type == CohabitType.ABSTINENCE || c.auto != null) {
                 throw Errors.badRequest("Health passt nicht zu diesem Co-Habit.");
             }
@@ -277,6 +285,12 @@ public final class CohabitConfigs {
             }
             target = Texts.round2(ch.target());
         }
+        RunScoring run = null;
+        if (ch.scoring() == Scoring.RUN_POINTS) {
+            run = run(ch.run());
+            // Ein Lauf hat Dauer und Distanz statt eines Werts.
+            c.tracking = Tracking.CHECK;
+        }
         String stake = ch.stake() == null || ch.stake().isBlank() ? null : ch.stake().trim();
         if (stake != null && stake.length() > MAX_STAKE) {
             throw Errors.badRequest("Der Einsatz darf höchstens 80 Zeichen haben.");
@@ -293,7 +307,8 @@ public final class CohabitConfigs {
                 if (ch.end().isBefore(old.end())) {
                     throw Errors.badRequest("Eine laufende Runde lässt sich nur verlängern.");
                 }
-                if (ch.scoring() != old.scoring() || !java.util.Objects.equals(target, old.target())) {
+                if (ch.scoring() != old.scoring() || !java.util.Objects.equals(target, old.target())
+                        || !java.util.Objects.equals(run, old.run())) {
                     throw Errors.badRequest("Die Wertung einer laufenden Runde lässt sich nicht ändern.");
                 }
             } else if (ch.end().isBefore(today)) {
@@ -302,6 +317,28 @@ public final class CohabitConfigs {
         } else if (ch.end().isBefore(today)) {
             throw Errors.badRequest("Das Ende darf nicht in der Vergangenheit liegen.");
         }
-        c.challenge = new ChallengeConfig(ch.start(), ch.end(), ch.scoring(), target, stake, recurrence);
+        c.challenge = new ChallengeConfig(ch.start(), ch.end(), ch.scoring(), target, stake, recurrence, run);
+    }
+
+    /** Die Gewichte einer Lauf-Challenge; was fehlt, bekommt die Vorgabe. */
+    static RunScoring run(RunScoring in) {
+        RunScoring r = in == null ? RunScoring.DEFAULT : in;
+        RunScoring out = new RunScoring(r.base(), r.perKm(), r.perMinutes(), r.baseMinutes(), r.paceLimit());
+        if (out.basePoints() < 0 || out.basePoints() > MAX_RUN_POINTS) {
+            throw Errors.badRequest("Die Basis muss zwischen 0 und 1.000 Punkten liegen.");
+        }
+        if (out.pointsPerKm() < 0 || out.pointsPerKm() > MAX_RUN_POINTS) {
+            throw Errors.badRequest("Die Punkte je km müssen zwischen 0 und 1.000 liegen.");
+        }
+        if (out.minutesPerPoint() < 1 || out.minutesPerPoint() > MAX_RUN_MINUTES) {
+            throw Errors.badRequest("Ein Punkt je 1 bis 600 Minuten.");
+        }
+        if (out.baseMinMinutes() < 0 || out.baseMinMinutes() > MAX_RUN_MINUTES) {
+            throw Errors.badRequest("Die Basis gibt es ab 0 bis 600 Minuten.");
+        }
+        if (out.paceLimitSeconds() < MIN_PACE_LIMIT || out.paceLimitSeconds() > MAX_PACE_LIMIT) {
+            throw Errors.badRequest("Die Pace-Grenze muss zwischen 1:00 und 60:00 min/km liegen.");
+        }
+        return out;
     }
 }

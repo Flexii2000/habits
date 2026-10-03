@@ -192,10 +192,10 @@ public class OverviewService {
         };
     }
 
-    /** CHECK-Modus, ohne Foto, ohne Wert, heute offen - dann hakt das Widget direkt ab. */
+    /** CHECK-Modus, ohne Foto, ohne Wert, kein Lauf, heute offen - dann hakt das Widget direkt ab. */
     static boolean quickCheckIn(Cohabit c, CohabitSummary s) {
         return c.type != CohabitType.ABSTINENCE && c.tracking.mode() == TrackingMode.CHECK && !c.photoRequired
-                && s.status().equals("OPEN") && s.canCheckIn();
+                && !s.runEntry() && s.status().equals("OPEN") && s.canCheckIn();
     }
 
     /** "Wochen · 2/3", "Tage · Rekord 41", "Platz 2 · endet heute". */

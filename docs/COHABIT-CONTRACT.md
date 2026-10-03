@@ -169,8 +169,9 @@ Avatar-Kreis (aus der ID abgeleitet, stabil).
 - `abstinence` (nur ABSTINENCE): `{"groupMode": bool}`.
 - `goal` (nur GOAL): `{"target": number > 0, "start": date, "deadline": date, "counting":"ENTRIES|AMOUNT",
   "mode":"INDIVIDUAL|TEAM"}` (`start` = Anlagetag, nicht änderbar).
-- `challenge` (nur CHALLENGE): `{"start": date, "end": date, "scoring":"MOST_ENTRIES|HIGHEST_SUM|FIRST_TO_TARGET",
-  "target": number|null (nur FIRST_TO_TARGET), "stake": string|null (≤ 80), "recurrence":"NONE|WEEKLY|MONTHLY"}`.
+- `challenge` (nur CHALLENGE): `{"start": date, "end": date, "scoring":"MOST_ENTRIES|HIGHEST_SUM|FIRST_TO_TARGET|RUN_POINTS",
+  "target": number|null (nur FIRST_TO_TARGET), "stake": string|null (≤ 80), "recurrence":"NONE|WEEKLY|MONTHLY",
+  "run": RunScoring|null (nur RUN_POINTS, §2.6a)}`.
 - `health`: `{"metric":"STEPS|RUNNING_DISTANCE|WORKOUTS|WORKOUT_MINUTES|KCAL"}` oder `null` — Werte kommen
   aus Apple Health / Health Connect über die Apps (§3.9); `KCAL` (seit 01.10., Felix) holt der Dienst selbst
   aus dem Kalorienzähler (Healthy). Sinnvoll für GOAL/CHALLENGE/STREAK mit Wert; Einheit dann `KCAL`.
@@ -267,6 +268,55 @@ Avatar-Kreis (aus der ID abgeleitet, stabil).
   Abstand zum Nächstplatzierten: `gapText` „noch 2 bis Lena" (zum direkt Besseren; auf Platz 1:
   „vorn" bzw. „gleichauf mit Lena").
 - „Siege" im Profil = gewonnene Challenge-Runden (geteilter erster Platz zählt).
+
+### 2.6a Laufpunkte (Challenge-Wertung `RUN_POINTS`, seit 03.10., Felix)
+Eine Lauf-Challenge wertet nicht die Zahl der Läufe, sondern Punkte aus Dauer und Distanz. Jeder Eintrag
+ist ein Lauf mit **Dauer** (ganze Minuten) und **Distanz** (km, bis zwei Nachkommastellen), dazu wie
+gewohnt Beweisfoto (bei `photoRequired`), Caption, Tag.
+- Einstellungen je Challenge, `challenge.run` (nur bei `RUN_POINTS`, sonst `null`; fehlt es oder ein
+  Feld, gilt die Vorgabe):
+  `{"basePoints":10,"pointsPerKm":1,"minutesPerPoint":6,"baseMinMinutes":20,"paceLimitSeconds":480}`
+  — Basis je Lauf (0–1000), Punkte je **volle** km (0–1000), 1 Punkt je **volle** N Minuten (1–600),
+  Basis erst ab N Minuten (0–600), Ø-Pace muss **schneller** sein als N Sekunden je km (60–3600,
+  480 = 8:00 min/km).
+- **Punkte eines Laufs** = Basis + `floor(km) × pointsPerKm` + `floor(Minuten / minutesPerPoint)`.
+  Die **Basis** gibt es höchstens einmal je Person und Tag, für den ersten Lauf des Tages (nach
+  Eintragszeit), der mindestens `baseMinMinutes` dauert; kürzere Läufe und weitere Läufe am selben Tag
+  bekommen nur Distanz- und Dauerpunkte. Score der Rangliste = Summe der Punkte. Der Dienst rechnet die
+  Punkte bei jedem Abruf neu (Löschen des ersten Laufs gibt die Basis an den nächsten weiter).
+- **Pace** = Dauer / Distanz. Nicht schneller als die Grenze → der Eintrag wird **abgelehnt**
+  (400 „Ø-Pace 8:30 min/km – zählt nur unter 8:00 min/km.“), nichts wird gespeichert. Wer die Grenze
+  später ändert: Läufe, die dann zu langsam wären, bringen 0 Punkte.
+- `RUN_POINTS` erzwingt `tracking: CHECK` und verträgt kein `health` (400 „Laufpunkte trägt man von
+  Hand ein.“). Wertung und `run` einer laufenden Runde sind wie jede Wertung nicht änderbar.
+- Texte: `scoringText` „Laufpunkte“, `scoreText` „34 P“, `gapText` „noch 12 P bis Torben“,
+  `checkInLabel` „Lauf eintragen“; Regel-Chips „Basis 10 P ab 20 Min.“, „1 P je km“, „1 P je 6 Min.“,
+  „Pace unter 8:00 min/km“ (Chips mit 0 Punkten entfallen).
+- API (Felder kommen dazu, keine fallen weg):
+  - `CohabitConfig.challenge.run` wie oben; `scoring` kennt `RUN_POINTS`.
+  - `CohabitSummary.runEntry` (bool): **true** = das Eintragsblatt fragt Dauer und Distanz statt eines
+    Werts. `valueUnit` ist dann `null`, `quickCheckIn` im Widget `false`.
+  - `POST /cohabits/{id}/checkins` und `PUT …/checkins/{checkinId}`: zusätzlich
+    `"durationMinutes": int, "distanceKm": number`. Bei `runEntry` beim Anlegen Pflicht (400 „Die Dauer
+    fehlt.“ / „Die Distanz fehlt.“, Bereich 1–1440 Min. bzw. 0,01–500 km); beim Bearbeiten heißt `null`
+    „unverändert“. Bei anderen Co-Habits werden beide ignoriert.
+  - `Checkin.run`: `{"durationMinutes":35,"distanceKm":5.8,"paceText":"6:02 min/km","points":20,
+    "pointsText":"+20 P","breakdownText":"Basis 10 · Distanz 5 · Dauer 5"}` oder `null`. Ohne Basis
+    endet `breakdownText` mit dem Grund: „Distanz 5 · Dauer 5 · Basis heute schon vergeben“ bzw.
+    „… · Basis erst ab 20 Min.“. `valueText` eines Laufs: „5,8 km · 35 Min. · 6:02 min/km · +20 P“.
+  - Timeline-Titel eines Laufs: „Felix ist 5,8 km in 35 Min. gelaufen · +20 P“ (auch als Push-Titel).
+- Oberfläche (Web, iOS, Android):
+  - **Anlegen/Bearbeiten**: „Laufpunkte“ als vierte Wertung. Gewählt → fünf Zahlenfelder mit den
+    Vorgaben: „Basis“ (P), „Je km“ (P), „1 P je … Min.“, „Basis ab … Min.“, „Pace unter … min/km“
+    (Eingabe `m:ss`, gesendet als Sekunden). „Mit Wert erfassen“ und Health entfallen dann; Beweisfoto-
+    Pflicht wird beim Wechsel auf Laufpunkte eingeschaltet (abschaltbar).
+  - **Eintragsblatt** bei `runEntry`: Felder „Dauer“ (Min., Ziffernblock) und „Distanz“ (km, Komma
+    erlaubt), dann wie gewohnt Foto, Caption, „Anderer Tag“; Knopf = `checkInLabel`. Fehler des Dienstes
+    (Pace) als Meldung im Blatt, Eingaben bleiben stehen.
+  - **Nach dem Speichern**: `checkin.run.pointsText` groß und `breakdownText` darunter kurz anzeigen
+    (Toast/Snackbar/Banner — wie die Plattform es für Bestätigungen tut).
+  - Eigene Läufe bearbeiten: Dauer und Distanz änderbar (wo es ein Bearbeiten gibt).
+  - Läufe in Listen und Chat-Posts: `valueText` (enthält Pace und Punkte).
 
 ### 2.7 Soziales
 - **Freundschaften** symmetrisch. Anfrage per Nutzername oder Freundes-Link; Annahme macht beide zu
@@ -410,6 +460,7 @@ CohabitSummary {"ref":CohabitRef,"archived":false,
   "unavailableText":null,
   "canCheckIn":true,"photoRequired":true,"valueUnit":null,
   "checkInLabel":"Beweisfoto & abhaken",        // s. §5.3
+  "runEntry":false,                             // Lauf mit Dauer und Distanz eintragen, §2.6a
   "members":[PersonView],"memberCount":3,
   "doneTodayBy":["lena","max"],
   "progress":{"done":2,"goal":3,"fraction":0.67} ,   // Wochen-/Monatsfortschritt, Ziel-%; sonst null
@@ -476,15 +527,16 @@ InvitationView {"id","from":PersonView,"createdAt",
 ### 3.5 Einträge
 | Methode | Pfad | Rumpf → Antwort |
 |---|---|---|
-| POST | `/cohabits/{id}/checkins` | `{"id":"<uuid>","kind":"DONE","date":"2026-09-30"\|null,"value":null,"note":null,"photoId":null,"caption":null}` → 201 `{"checkin":Checkin,"cohabit":CohabitDetail}`. 400 Foto fehlt / außerhalb der Frist / Wert fehlt; 403 automatisches Co-Habit; 409 schon erledigt (STREAK) |
-| PUT | `/cohabits/{id}/checkins/{checkinId}` | `{"value","note","caption"}` → wie POST |
+| POST | `/cohabits/{id}/checkins` | `{"id":"<uuid>","kind":"DONE","date":"2026-09-30"\|null,"value":null,"note":null,"photoId":null,"caption":null,"durationMinutes":null,"distanceKm":null}` → 201 `{"checkin":Checkin,"cohabit":CohabitDetail}`. 400 Foto fehlt / außerhalb der Frist / Wert fehlt; 403 automatisches Co-Habit; 409 schon erledigt (STREAK) |
+| PUT | `/cohabits/{id}/checkins/{checkinId}` | `{"value","note","caption","durationMinutes","distanceKm"}` → wie POST (Lauf-Felder: `null` = unverändert) |
 | DELETE | `/cohabits/{id}/checkins/{checkinId}` | → `CohabitDetail` |
 | PUT | `/cohabits/{id}/health/{date}` | `{"value":8200}` → `CohabitDetail`; nur mit `health` und `healthConsent`; legt den HEALTH-Eintrag des Tages an oder aktualisiert ihn (Timeline-Ereignis wird aktualisiert, nicht verdoppelt) |
 
 ```json
 Checkin {"id","cohabitId","person":PersonView,"kind":"DONE","date":"2026-09-30","createdAt",
   "value":null,"valueText":null,"note":null,"photoId":null,"caption":null,
-  "source":"MANUAL","editable":true}
+  "source":"MANUAL","editable":true,
+  "run":null}                                   // bei Laufpunkten, §2.6a
 ```
 Ein Check-in mit Foto erzeugt einen Chat-Post (`CHECKIN`) und ein Timeline-Ereignis `PHOTO_CHECKIN`;
 ohne Foto nur ein Timeline-Ereignis `CHECKIN`.

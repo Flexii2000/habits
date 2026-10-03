@@ -316,8 +316,15 @@ public final class CohabitEval {
                 .filter(x -> cutoff == null || !x.createdAt.isAfter(cutoff))
                 .sorted(Comparator.comparing((Checkin x) -> x.createdAt).thenComparing(x -> x.id))
                 .toList();
+        // Laufpunkte: die Basis haengt an den anderen Laeufen des Tages - also alle auf einmal.
+        Map<String, RunPoints.Points> runs = scoring == Scoring.RUN_POINTS
+                ? RunPoints.score(RunPoints.scoringOf(c), relevant) : Map.of();
         for (Checkin x : relevant) {
-            double add = scoring == Scoring.MOST_ENTRIES ? 1 : (x.value == null ? 1 : x.value);
+            double add = switch (scoring) {
+                case MOST_ENTRIES -> 1;
+                case RUN_POINTS -> runs.containsKey(x.id) ? runs.get(x.id).total() : 0;
+                default -> x.value == null ? 1 : x.value;
+            };
             double score = Texts.round2(scores.get(x.personId) + add);
             scores.put(x.personId, score);
             if (scoring == Scoring.FIRST_TO_TARGET && ch.target() != null && score >= ch.target()

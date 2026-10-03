@@ -2280,6 +2280,9 @@ dialog.invite, dialog.finished { background: transparent; overflow: visible; }
 }
 
 .inline-number:focus { outline: none; border-color: var(--accent); }
+.run-unit { flex: none; width: 52px; color: var(--muted); font-size: 15px; font-weight: 700; }
+.run-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.run-fields .field-group + .field-group { margin-top: 0; }
 .tiles .field-group + .field-group { margin-top: 0; }
 .field-group > .text-btn { align-self: flex-start; }
 

@@ -75,7 +75,7 @@ final class Fixture {
 
     static Fixture challenge(Scoring scoring, Double target, LocalDate start, LocalDate end) {
         Fixture f = new Fixture(CohabitType.CHALLENGE, start);
-        f.c.challenge = new ChallengeConfig(start, end, scoring, target, "Verlierer kocht", Recurrence.NONE);
+        f.c.challenge = new ChallengeConfig(start, end, scoring, target, "Verlierer kocht", Recurrence.NONE, null);
         f.c.challengeState = new ChallengeState();
         if (scoring != Scoring.MOST_ENTRIES) {
             f.c.tracking = new Tracking(TrackingMode.VALUE, ValueUnit.KM);

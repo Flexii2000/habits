@@ -4,6 +4,7 @@ import com.fherrmann.habits.cohabit.api.CohabitRef;
 import com.fherrmann.habits.cohabit.api.TimelineItem;
 import com.fherrmann.habits.cohabit.api.TimelinePage;
 import com.fherrmann.habits.cohabit.model.ChallengeRound;
+import com.fherrmann.habits.cohabit.model.Checkin;
 import com.fherrmann.habits.cohabit.model.Cohabit;
 import com.fherrmann.habits.cohabit.model.CohabitType;
 import com.fherrmann.habits.cohabit.model.Event;
@@ -100,6 +101,12 @@ public class TimelineService {
                 title = TimelineTexts.checkinTitle(c, name, e.value);
                 if (c.type != CohabitType.STREAK && e.detail != null) {
                     title = title + " · " + e.detail;
+                }
+                if (c.type == CohabitType.CHALLENGE && c.challenge != null && c.challenge.runPoints()) {
+                    List<Checkin> all = data.checkins(c.id);
+                    Checkin run = all.stream().filter(x -> x.id.equals(e.checkinId)).findFirst().orElse(null);
+                    String runTitle = TimelineTexts.runTitle(c, name, run, all);
+                    title = runTitle == null ? title : runTitle;
                 }
                 subtitle = time + " · " + (c.type == CohabitType.STREAK && e.detail != null ? e.detail : c.name);
                 if (e.checkinDate != null && !e.checkinDate.equals(e.day)) {

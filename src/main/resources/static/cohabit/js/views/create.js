@@ -60,6 +60,7 @@ function newDraft() {
         groupMode: false,
         goal: { target: '', start: today, deadline: addDays(today, 30), counting: 'ENTRIES', mode: 'TEAM' },
         challenge: { start: today, end: addDays(today, 6), scoring: 'MOST_ENTRIES', target: '', stake: '', recurrence: 'NONE' },
+        run: { ...RUN_DEFAULTS, pace: paceText(RUN_DEFAULTS.paceLimitSeconds) },
         health: null,
         auto: null,
         weeklyStepGoal: 70000,
@@ -102,6 +103,8 @@ function draftFrom(config) {
             target: config.challenge.target == null ? '' : String(config.challenge.target).replace('.', ','),
             stake: config.challenge.stake || '',
         };
+        const run = { ...RUN_DEFAULTS, ...(config.challenge.run || {}) };
+        d.run = { ...run, pace: paceText(run.paceLimitSeconds) };
     }
     d.health = config.health ? config.health.metric : null;
     if (config.auto) {
@@ -119,8 +122,26 @@ function needsValue(d) {
     if (d.auto) return false;
     if (d.type === 'STREAK') return d.valueTracking;
     if (d.type === 'GOAL') return d.goal.counting === 'AMOUNT';
-    if (d.type === 'CHALLENGE') return d.challenge.scoring !== 'MOST_ENTRIES';
+    if (d.type === 'CHALLENGE') return d.challenge.scoring !== 'MOST_ENTRIES' && d.challenge.scoring !== 'RUN_POINTS';
     return false;
+}
+
+const RUN_DEFAULTS = { basePoints: 10, pointsPerKm: 1, minutesPerPoint: 6, baseMinMinutes: 20, paceLimitSeconds: 480 };
+
+function isRun(d) {
+    return d.type === 'CHALLENGE' && d.challenge.scoring === 'RUN_POINTS';
+}
+
+/** 480 -> "8:00" */
+function paceText(seconds) {
+    return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+}
+
+/** "8:00" oder "8" -> 480; sonst NaN. */
+function paceSeconds(text) {
+    const t = String(text).trim();
+    const m = /^(\d{1,2})(?::([0-5]\d))?$/.exec(t);
+    return m ? Number(m[1]) * 60 + Number(m[2] || 0) : NaN;
 }
 
 /** Baut CohabitConfig (Vertrag 3.4); wirft mit Klartext, wenn etwas fehlt. */
@@ -146,7 +167,7 @@ function toConfig(d, { forEdit = false } = {}) {
         abstinence: null,
         goal: null,
         challenge: null,
-        health: d.health && !d.auto ? { metric: d.health } : null,
+        health: d.health && !d.auto && !isRun(d) ? { metric: d.health } : null,
         auto: null,
     };
     if (d.type === 'STREAK') {
@@ -192,9 +213,26 @@ function toConfig(d, { forEdit = false } = {}) {
             target = parseNumber(c.target);
             if (!(target > 0)) fail('Bitte einen Zielwert angeben.', 'ctarget');
         }
+        let run = null;
+        if (c.scoring === 'RUN_POINTS') {
+            const whole = (value, fid) => {
+                const n = parseNumber(value);
+                if (n == null || !Number.isInteger(n) || n < 0) fail('Bitte eine ganze Zahl angeben.', fid);
+                return n;
+            };
+            run = {
+                basePoints: whole(d.run.basePoints, 'runBase'),
+                pointsPerKm: whole(d.run.pointsPerKm, 'runKm'),
+                minutesPerPoint: whole(d.run.minutesPerPoint, 'runMinutes'),
+                baseMinMinutes: whole(d.run.baseMinMinutes, 'runBaseMin'),
+                paceLimitSeconds: paceSeconds(d.run.pace),
+            };
+            if (!(run.minutesPerPoint > 0)) fail('Bitte eine ganze Zahl über 0 angeben.', 'runMinutes');
+            if (!(run.paceLimitSeconds > 0)) fail('Die Pace bitte als m:ss angeben, z. B. 8:00.', 'runPace');
+        }
         config.challenge = {
             start: c.start, end: c.end, scoring: c.scoring, target,
-            stake: c.stake.trim() ? c.stake.trim().slice(0, 80) : null, recurrence: c.recurrence,
+            stake: c.stake.trim() ? c.stake.trim().slice(0, 80) : null, recurrence: c.recurrence, run,
         };
     }
     if (forEdit) delete config.type;
@@ -282,7 +320,7 @@ function settingsForm(d, { edit = false, errorEl, onChange } = {}) {
         if (needsValue(d)) {
             rows.push(selectRow('Einheit', UNITS, d.unit, v => { d.unit = v; }));
         }
-        if (!d.auto && d.type !== 'ABSTINENCE' && (d.type !== 'STREAK' || d.valueTracking)) {
+        if (!d.auto && d.type !== 'ABSTINENCE' && !isRun(d) && (d.type !== 'STREAK' || d.valueTracking)) {
             rows.push(selectRow('Health-Metrik', HEALTH, d.health, v => {
                 d.health = v;
                 if (v) {
@@ -391,10 +429,33 @@ function settingsForm(d, { edit = false, errorEl, onChange } = {}) {
                 field('Start', dateInput(c.start, v => { c.start = v; }, { 'data-fid': 'start' })),
                 field('Ende', dateInput(c.end, v => { c.end = v; }, { 'data-fid': 'end' }))),
             h('div', { class: 'set-group', style: 'margin:0;padding:0 2px' },
-                selectRow('Wertung', [['MOST_ENTRIES', 'Meiste Einträge'], ['HIGHEST_SUM', 'Höchste Summe'], ['FIRST_TO_TARGET', 'Zuerst zum Zielwert']], c.scoring, v => { c.scoring = v; rerender(); }),
+                selectRow('Wertung', [['MOST_ENTRIES', 'Meiste Einträge'], ['HIGHEST_SUM', 'Höchste Summe'], ['FIRST_TO_TARGET', 'Zuerst zum Zielwert'], ['RUN_POINTS', 'Laufpunkte']], c.scoring, v => {
+                    if (v === 'RUN_POINTS' && c.scoring !== v) {
+                        d.photoRequired = true;
+                        d.health = null;
+                    }
+                    c.scoring = v;
+                    rerender();
+                }),
                 selectRow('Wiederholung', [['NONE', 'Keine'], ['WEEKLY', 'Wöchentlich'], ['MONTHLY', 'Monatlich']], c.recurrence, v => { c.recurrence = v; })),
             c.scoring === 'FIRST_TO_TARGET' ? field('Zielwert', textInput(c.target, v => { c.target = v; }, { inputmode: 'decimal', 'data-fid': 'ctarget' })) : null,
+            c.scoring === 'RUN_POINTS' ? runRows() : null,
             field('Einsatz', textInput(c.stake, v => { c.stake = v; }, { maxlength: 80, placeholder: 'z. B. Verlierer kocht für alle' })));
+    }
+
+    /** Die Gewichte der Laufpunkte: Basis, je km, je N Minuten, Basis ab, Pace-Grenze. */
+    function runRows() {
+        const r = d.run;
+        const row = (label, input, unit) => h('label', { class: 'set-row' },
+            h('span', { class: 'set-label' }, label), input, h('span', { class: 'run-unit' }, unit));
+        const pace = h('input', { class: 'inline-number', type: 'text', inputmode: 'numeric', value: r.pace, 'data-fid': 'runPace', autocomplete: 'off', placeholder: '8:00' });
+        pace.addEventListener('input', () => { r.pace = pace.value; });
+        return h('div', { class: 'set-group', style: 'margin:0;padding:0 2px' },
+            row('Basis', inlineNumber(r.basePoints, v => { r.basePoints = v; }, 'runBase'), 'P'),
+            row('Je km', inlineNumber(r.pointsPerKm, v => { r.pointsPerKm = v; }, 'runKm'), 'P'),
+            row('1 P je', inlineNumber(r.minutesPerPoint, v => { r.minutesPerPoint = v; }, 'runMinutes'), 'Min.'),
+            row('Basis ab', inlineNumber(r.baseMinMinutes, v => { r.baseMinMinutes = v; }, 'runBaseMin'), 'Min.'),
+            row('Pace unter', pace, 'min/km'));
     }
 
     fill(wrap, ...build());

@@ -111,7 +111,8 @@ public class ChallengeService {
         }
         if (round.nextStart != null) {
             LocalDate[] next = nextRound(ch, round.end);
-            c.challenge = new ChallengeConfig(next[0], next[1], ch.scoring(), ch.target(), ch.stake(), ch.recurrence());
+            c.challenge = new ChallengeConfig(next[0], next[1], ch.scoring(), ch.target(), ch.stake(), ch.recurrence(),
+                    ch.run());
             state.currentRound++;
             state.roundEndedAt = null;
             state.endingNotified = false;
