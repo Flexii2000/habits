@@ -1,10 +1,11 @@
-// Profil (S. 5) mit seinen Unterseiten: Benachrichtigungen, archivierte
+// Profil (S. 5) mit seinen Unterseiten: Benachrichtigungen, Farben, archivierte
 // Co-Habits; dazu Profil bearbeiten, Daten exportieren, Abmelden und
 // Account loeschen (zweistufig, mit Eingabe „LÖSCHEN").
 import { API, get, put, del } from '../api.js';
 import { h, icon, openDialog, sheetHead, confirmDialog, showError, toast, fill } from '../dom.js';
 import { avatar, badge, emptyState, errorState, headlineFigure, loadingState, toggleRow } from '../ui.js';
-import { cohabitClass } from '../kinds.js';
+import { COLOR_NAMES, PALETTE, TYPE_SLOTS, cohabitClass, setTypeColors, typeColors } from '../kinds.js';
+import { TYPE_NAMES } from '../format.js';
 import { state, cached, remember } from '../state.js';
 import { squareImage, uploadAvatar, pickFile } from '../photo.js';
 import { USERNAME_RE } from '../invitation.js';
@@ -49,6 +50,7 @@ export function mount(root, params, ctx) {
                 countTile(me.counts.wins, 'Siege', 'butter')),
             h('nav', { class: 'list', 'aria-label': 'Einstellungen' },
                 listRow('Benachrichtigungen', { href: '/cohabit/profil/benachrichtigungen' }),
+                listRow('Farben', { href: '/cohabit/profil/farben' }),
                 listRow('Freunde & Einladungen', { href: '/cohabit/freunde', trailing: news ? badge(`${news} neu`) : null }),
                 listRow('Archivierte Co-Habits', { href: '/cohabit/profil/archiv' }),
                 listRow('Daten exportieren', { href: `${API}/me/export`, download: true }),
@@ -256,6 +258,94 @@ export function mountNotifications(root, params, ctx) {
 
     render();
     load();
+    return {};
+}
+
+// --- Farben -------------------------------------------------------------------
+
+const SLOT_NAMES = { ...TYPE_NAMES, AUTOMATIC: 'Automatisch' };
+
+/**
+ * Typfarben (Vertrag 5.2b): je Platz eine Karte in der gewaehlten Farbe, darunter
+ * die zehn Farben. Ein Klick gilt sofort - auch fuer alle anderen Ansichten, die
+ * beim naechsten Zeichnen ueber kinds.js die neue Farbe holen - und geht als
+ * einzelner Platz an den Dienst. Schlaegt das fehl, springt nur dieser Platz zurueck.
+ */
+export function mountColors(root, params, ctx) {
+    const page = h('div', { class: 'page' });
+    root.append(page);
+    const body = h('div', { class: 'type-colors' });
+    page.append(subHead('Farben'), body);
+
+    // Was der Dienst zuletzt bestaetigt hat; die Anzeige (me.typeColors) ist ihm
+    // um noch laufende Klicks voraus.
+    let saved = typeColors();
+    let queue = Promise.resolve();
+    let clicks = 0;
+    let pending = 0;
+    const lastClick = {};
+
+    function render() {
+        if (!ctx.alive()) return;
+        // Neu gezeichnet wird alles - der Tastaturfokus bleibt auf dem Kreis.
+        const focused = body.contains(document.activeElement) ? document.activeElement.dataset : null;
+        const colors = typeColors();
+        fill(body, TYPE_SLOTS.map(slot => slotCard(slot, colors[slot])));
+        if (focused && focused.slot) {
+            const again = body.querySelector(`[data-slot="${focused.slot}"][data-key="${focused.key}"]`);
+            if (again) again.focus();
+        }
+    }
+
+    function slotCard(slot, chosen) {
+        const name = SLOT_NAMES[slot];
+        return h('section', { class: `card tinted tc-card c-${chosen}` },
+            h('h2', { class: 'tc-name' }, name),
+            h('div', { class: 'tc-picks', role: 'group', 'aria-label': name },
+                PALETTE.map(key => h('button', {
+                    type: 'button',
+                    class: `tc-pick c-${key}`,
+                    dataset: { slot, key },
+                    'aria-pressed': String(key === chosen),
+                    'aria-label': COLOR_NAMES[key],
+                    title: COLOR_NAMES[key],
+                    onclick: () => choose(slot, key),
+                }, key === chosen ? icon('check') : null))));
+    }
+
+    function choose(slot, key) {
+        if (typeColors()[slot] === key) return;
+        const click = ++clicks;
+        lastClick[slot] = click;
+        pending++;
+        setTypeColors({ ...typeColors(), [slot]: key });
+        render();
+        // Nacheinander in der Reihenfolge der Klicks - parallel koennte der Dienst
+        // einen frueheren Klick zuletzt speichern, und die Anzeige stimmte nicht mehr.
+        queue = queue.then(() => save(slot, key, click));
+    }
+
+    async function save(slot, key, click) {
+        try {
+            saved = typeColors(await put('/me/type-colors', { [slot]: key }));
+        } catch (err) {
+            // Zurueck springt nur dieser Platz - und nur, wenn kein spaeterer Klick ihn schon neu gesetzt hat.
+            if (lastClick[slot] === click) setTypeColors({ ...typeColors(), [slot]: saved[slot] });
+            showError(err);
+        }
+        pending--;
+        if (!pending) setTypeColors(saved);
+        render();
+    }
+
+    render();
+    // Frischer Stand, falls eine App die Farben inzwischen geaendert hat; ein Klick geht vor.
+    get('/me/type-colors').then(result => {
+        if (clicks) return;
+        saved = typeColors(result);
+        setTypeColors(saved);
+        render();
+    }).catch(() => { /* Stand aus /me bleibt */ });
     return {};
 }
 

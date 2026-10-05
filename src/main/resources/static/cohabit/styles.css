@@ -1482,6 +1482,48 @@ dialog.gif-sheet .sheet-head { padding-bottom: 4px; }
 .set-value { flex: none; max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 15px; }
 .set-chevron { width: 20px !important; height: 20px !important; }
 
+/* Farben (5.2b): je Typ eine Karte in der gewaehlten Farbe, darunter die zehn
+   Kreise in zwei Reihen zu fuenf - ein Raster, das mit der Breite schrumpft,
+   statt seitlich zu scrollen. */
+.type-colors { display: flex; flex-direction: column; gap: 14px; }
+
+.tc-card {
+    padding: 18px 18px 20px;
+    /* Die Kreise tragen ihre eigene Palettenklasse - der Ring um den gewaehlten
+       braucht aber die Flaeche der Karte; hier aufgeloest, an die Kreise vererbt. */
+    --tc-ground: var(--c-surface);
+}
+
+.tc-name { font-size: 24px; font-weight: 900; letter-spacing: -0.02em; color: var(--c-strong); }
+
+.tc-picks {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    justify-items: center;
+    gap: 14px 8px;
+    margin-top: 14px;
+}
+
+.tc-pick {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    max-width: 46px;
+    aspect-ratio: 1;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: var(--c-accent);
+    /* Dunkler Haken auf jedem Akzentton, hell wie dunkel. */
+    color: #1C1B2E;
+    transition: transform 0.12s ease;
+}
+
+.tc-pick[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--tc-ground), 0 0 0 5.5px var(--ink); }
+.tc-pick:active { transform: scale(0.92); }
+.tc-pick:focus-visible { outline-offset: 7px; }
+.tc-pick .icon { width: 22px; height: 22px; stroke-width: 2.6; }
+
 /* Die native Auswahl liegt unsichtbar ueber der ganzen Zeile. */
 .set-select {
     position: absolute;
