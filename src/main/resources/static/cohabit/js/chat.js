@@ -1,15 +1,32 @@
 // Chat eines Co-Habits (S. 7, Vertrag 3.6): Check-in-Posts als Karten,
-// Textblasen (eigene rechts violett), Systemmeldungen zentriert. Langer Druck
-// bzw. Rechtsklick oeffnet die Reaktionsleiste mit Loeschen, Melden,
-// Blockieren (Vertrag 2.7a). Neue Nachrichten alle 20 s, solange die Seite
-// sichtbar ist.
+// Textblasen (eigene rechts violett), Fotos und GIFs, Systemmeldungen zentriert.
+// Langer Druck bzw. Rechtsklick oeffnet die Reaktionsleiste mit Loeschen,
+// Melden, Blockieren (Vertrag 2.7a). Neue Nachrichten alle 20 s, solange die
+// Seite sichtbar ist.
 import { get, post, del, enc } from './api.js';
 import { h, icon, autoGrow, poll, showError, uuid, fill } from './dom.js';
 import { avatar, photo, photoCarousel, photoList } from './ui.js';
 import { dayHeading, dayIn, fmtTime, isMe, personName } from './format.js';
 import { onLongPress, openReactionBar, reactionPill } from './reactions.js';
 import { blockPerson, reportDialog } from './social.js';
-import { pickFile, resizeImage, uploadPhoto } from './photo.js';
+import { chatImage, pickFile, uploadPhoto } from './photo.js';
+import { cssUrl, gifConfig, gifInput, openGifSheet, shareGif } from './gifs.js';
+
+/**
+ * Ein GIF aus der Suche: Seitenverhaeltnis aus width/height, animiert als webp
+ * (sonst gif), bis dahin das Standbild bzw. der gestreifte Platzhalter.
+ */
+function gifImage(gif) {
+    const w = Math.max(1, Number(gif.width) || 1);
+    const hgt = Math.max(1, Number(gif.height) || 1);
+    const frame = h('div', { class: 'gif-frame', style: `aspect-ratio:${w} / ${hgt}` });
+    if (gif.stillUrl) frame.style.backgroundImage = cssUrl(gif.stillUrl);
+    const img = h('img', { src: gif.webpUrl || gif.gifUrl, alt: gif.title || 'GIF', width: w, height: hgt, loading: 'lazy', decoding: 'async' });
+    img.addEventListener('load', () => frame.classList.add('loaded'));
+    img.addEventListener('error', () => frame.classList.add('failed'));
+    frame.append(img);
+    return frame;
+}
 
 export function mountChat(container, { getDetail, onCheckIn, onRead, alive }) {
     const cohabitId = getDetail().summary.ref.id;
@@ -19,7 +36,8 @@ export function mountChat(container, { getDetail, onCheckIn, onRead, alive }) {
     let loaded = false;
     let failed = null;
     let sending = false;
-    let attachment = null; // { blob, url, key }
+    let attachment = null; // { blob, name, url, key }
+    let gifs = null; // Konfiguration fuer KLIPY, solange der Chat offen ist
     const nodes = new Map();
 
     const list = h('div', { class: 'chat', 'aria-live': 'polite' });
@@ -28,12 +46,14 @@ export function mountChat(container, { getDetail, onCheckIn, onRead, alive }) {
 
     const text = h('textarea', { rows: 1, placeholder: 'Nachricht', maxlength: 2000, 'aria-label': 'Nachricht' });
     const attachBtn = h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Foto anhängen', title: 'Foto anhängen' }, icon('image'));
+    const gifBtn = h('button', { type: 'button', class: 'icon-btn gif-btn', 'aria-label': 'GIF', title: 'GIF', hidden: true },
+        h('span', { 'aria-hidden': 'true' }, 'GIF'));
     const send = h('button', { type: 'button', class: 'composer-send', 'aria-label': 'Senden', title: 'Senden', disabled: true }, icon('send'));
     const checkBtn = h('button', { type: 'button', class: 'composer-check' });
     const preview = h('div', { class: 'attach-preview', hidden: true });
     const composer = h('div', { class: 'composer' },
         preview,
-        h('div', { class: 'composer-row' }, checkBtn, h('div', { class: 'composer-field' }, text, attachBtn), send));
+        h('div', { class: 'composer-row' }, checkBtn, h('div', { class: 'composer-field' }, text, gifBtn, attachBtn), send));
 
     fill(container, list, composer);
 
@@ -56,7 +76,8 @@ export function mountChat(container, { getDetail, onCheckIn, onRead, alive }) {
         updateComposer();
     });
     // Beim Schreiben wird „Abhaken" zum runden Knopf - das Feld braucht dann die Breite.
-    const compact = () => composer.classList.toggle('typing', document.activeElement === text || !!text.value);
+    // Auf schmalen Bildschirmen erscheint „Senden" erst dann (styles.css).
+    const compact = () => composer.classList.toggle('typing', document.activeElement === text || !!text.value || !!attachment);
     text.addEventListener('focus', compact);
     text.addEventListener('blur', () => setTimeout(compact, 150));
     text.addEventListener('keydown', event => {
@@ -69,21 +90,39 @@ export function mountChat(container, { getDetail, onCheckIn, onRead, alive }) {
     send.addEventListener('click', sendMessage);
     attachBtn.addEventListener('click', async () => {
         const file = await pickFile();
-        if (!file) return;
+        if (file) attachFile(file);
+    });
+    // Ein eingefuegtes Bild (Screenshot, GIF-Datei) wird zum Anhang wie aus der Auswahl.
+    text.addEventListener('paste', event => {
+        const data = event.clipboardData;
+        if (!data) return;
+        let files = Array.from(data.files || []);
+        if (!files.length) files = Array.from(data.items || []).filter(item => item.kind === 'file').map(item => item.getAsFile()).filter(Boolean);
+        const image = files.find(file => file.type.startsWith('image/'));
+        if (!image) return;
+        event.preventDefault();
+        attachFile(image);
+    });
+    gifBtn.addEventListener('click', () => {
+        if (gifs) openGifSheet(gifs, { onPick: sendGif });
+    });
+
+    async function attachFile(file) {
         try {
-            const blob = await resizeImage(file);
+            const { blob, name, gif } = await chatImage(file);
             clearAttachment();
-            attachment = { blob, url: URL.createObjectURL(blob), key: uuid() };
+            attachment = { blob, name, url: URL.createObjectURL(blob), key: uuid() };
             fill(preview,
-                h('img', { src: attachment.url, alt: 'Foto zum Senden' }),
-                h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Foto entfernen', onclick: () => { clearAttachment(); updateComposer(); } }, icon('close')));
+                h('img', { src: attachment.url, alt: gif ? 'GIF zum Senden' : 'Foto zum Senden' }),
+                h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Foto entfernen', onclick: () => { clearAttachment(); compact(); updateComposer(); } }, icon('close')));
             preview.hidden = false;
+            compact();
             updateComposer();
             text.focus();
         } catch (err) {
             showError(err);
         }
-    });
+    }
 
     function clearAttachment() {
         if (attachment) URL.revokeObjectURL(attachment.url);
@@ -177,20 +216,28 @@ export function mountChat(container, { getDetail, onCheckIn, onRead, alive }) {
             return node;
         }
         const showAuthor = !mine && message.author && !(prev && sameAuthor(prev, message));
+        const gif = message.kind === 'GIF' && message.gif && !message.deleted ? message.gif : null;
+        const media = !!(gif || message.photoId);
         let bubble;
         if (message.deleted) {
             bubble = h('div', { class: 'bubble deleted' }, 'Nachricht gelöscht');
         } else {
-            const onlyPhoto = message.photoId && !message.text;
-            bubble = h('div', { class: `bubble${onlyPhoto ? ' only-photo' : ''}`, title: fmtTime(message.createdAt) },
-                showAuthor && !onlyPhoto ? h('span', { class: 'bubble-author' }, message.author.displayName) : null,
-                message.photoId ? photo(message.photoId, { alt: 'Foto' }) : null,
+            const onlyMedia = media && !message.text;
+            const kind = onlyMedia ? (gif ? ' only-gif' : ' only-photo') : '';
+            bubble = h('div', { class: `bubble${kind}`, title: fmtTime(message.createdAt) },
+                showAuthor && !onlyMedia ? h('span', { class: 'bubble-author' }, message.author.displayName) : null,
+                gif ? gifImage(gif) : null,
+                message.photoId ? photo(message.photoId, message.photoAnimated
+                    ? { alt: 'GIF', size: 'full' }
+                    : { alt: 'Foto' }) : null,
                 message.text || null);
         }
-        const node = h('div', { class: `msg${mine ? ' mine' : ''}` },
-            showAuthor && message.photoId && !message.text ? h('span', { class: 'bubble-author' }, message.author.displayName) : null,
+        const node = h('div', { class: `msg${mine ? ' mine' : ''}${gif ? ' gif' : ''}` },
+            showAuthor && media && !message.text ? h('span', { class: 'bubble-author' }, message.author.displayName) : null,
             bubble,
             message.deleted ? null : pill(message));
+        // Breite wie ein Foto, hoechstens so breit, dass das GIF nicht hoeher als 460 px wird.
+        if (gif) node.style.setProperty('--ar', String(Math.max(1, Number(gif.width) || 1) / Math.max(1, Number(gif.height) || 1)));
         if (!message.deleted) bindActions(node, message);
         return node;
     }
@@ -220,7 +267,7 @@ export function mountChat(container, { getDetail, onCheckIn, onRead, alive }) {
         const mine = message.mine || isMe(message.author);
         const author = message.author || (message.checkin && message.checkin.person);
         const actions = [];
-        if (mine && (message.kind === 'TEXT' || message.kind === 'PHOTO') && !message.deleted) {
+        if (mine && ['TEXT', 'PHOTO', 'GIF'].includes(message.kind) && !message.deleted) {
             actions.push({ label: 'Löschen', icon: 'trash', danger: true, onSelect: () => removeMessage(message) });
         }
         if (!mine && author && message.kind !== 'SYSTEM') {
@@ -313,13 +360,14 @@ export function mountChat(container, { getDetail, onCheckIn, onRead, alive }) {
         try {
             let photoId = null;
             if (attachment) {
-                const uploaded = await uploadPhoto(attachment.blob, attachment.key);
+                const uploaded = await uploadPhoto(attachment.blob, attachment.key, attachment.name);
                 photoId = uploaded.id;
             }
             const message = await post(`${base}/messages`, { id, text: body || null, photoId });
             text.value = '';
             autoGrow(text);
             clearAttachment();
+            compact();
             merge([message]);
             renderAll({ keepBottom: true });
             markRead();
@@ -331,9 +379,30 @@ export function mountChat(container, { getDetail, onCheckIn, onRead, alive }) {
         }
     }
 
+    /** Ein GIF aus dem Blatt geht sofort raus (ohne Text), danach die Weitergabe an KLIPY. */
+    async function sendGif(item, query) {
+        const gif = gifInput(item);
+        if (!gif) return;
+        const cfg = gifs;
+        try {
+            const message = await post(`${base}/messages`, { id: uuid(), text: null, photoId: null, gif });
+            if (!alive()) return;
+            merge([message]);
+            renderAll({ keepBottom: true });
+            markRead();
+            shareGif(cfg, gif.slug, query);
+        } catch (err) {
+            showError(err);
+        }
+    }
+
     updateComposer();
     renderAll();
     loadLatest();
+    gifConfig().then(cfg => {
+        gifs = cfg;
+        gifBtn.hidden = !cfg;
+    });
     const poller = poll(() => loadLatest(), 20000);
 
     return {

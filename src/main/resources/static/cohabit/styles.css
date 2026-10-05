@@ -1079,8 +1079,10 @@ body.bare .nav { display: none; }
 .react-row-emoji { flex: none; width: 36px; font-size: 26px; text-align: center; }
 
 /* Emoji-Auswahl hinter „+": Suche und Kategorien kleben oben */
-dialog.emoji-sheet { height: min(680px, calc(100dvh - 20px)); }
-dialog.emoji-sheet .sheet-head { padding-bottom: 4px; }
+dialog.emoji-sheet,
+dialog.gif-sheet { height: min(680px, calc(100dvh - 20px)); }
+dialog.emoji-sheet .sheet-head,
+dialog.gif-sheet .sheet-head { padding-bottom: 4px; }
 
 .emoji-top {
     position: sticky;
@@ -1134,6 +1136,73 @@ dialog.emoji-sheet .sheet-head { padding-bottom: 4px; }
 
 .emoji-cell:hover { background: var(--chip); }
 .emoji-cell.mine { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent); }
+
+/* --- GIFs (Vertrag 2.7a) -------------------------------------------------- */
+
+/* Im Chat wie ein Foto, ohne Blasenhintergrund; Breite so, dass es nie hoeher als 460 px wird */
+.msg.gif { width: calc(var(--ar, 1) * 460px); }
+.bubble.only-gif { padding: 0; background: none; }
+.msg.mine .bubble.only-gif { background: none; }
+
+.gif-frame {
+    display: block;
+    width: 100%;
+    border-radius: 18px;
+    overflow: clip;
+    background: repeating-linear-gradient(135deg, var(--c-surface, var(--chip)) 0 14px, color-mix(in srgb, var(--c-surface, var(--chip)) 55%, var(--surface)) 14px 28px);
+    background-size: cover;
+    background-position: center;
+}
+
+.gif-frame img { width: 100%; height: 100%; object-fit: cover; }
+.gif-frame.failed img { visibility: hidden; }
+.bubble:not(.only-gif) .gif-frame { margin: 2px -9px 6px; width: calc(100% + 18px); border-radius: 16px; }
+
+/* Knopf im Eingabefeld: „GIF" als kleines Etikett */
+.composer-field .gif-btn { width: 36px; margin-right: 0; }
+.gif-btn span {
+    padding: 2px 4px 1px;
+    border: 1.8px solid currentColor;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 0.02em;
+    line-height: 1.1;
+}
+
+/* Blatt: Suchfeld klebt oben, darunter zwei Spalten im Seitenverhaeltnis */
+.gif-search {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    padding: 6px 20px 10px;
+    background: var(--surface);
+}
+
+.gif-search-input { min-height: 48px; font-size: 16px; }
+
+.gif-grid { display: flex; align-items: flex-start; gap: 8px; padding: 0 20px; }
+.gif-col { display: flex; flex-direction: column; gap: 8px; flex: 1 1 0; min-width: 0; }
+
+.gif-tile {
+    display: block;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    border-radius: 14px;
+    overflow: clip;
+    background-color: var(--chip);
+    background-size: cover;
+    background-position: center;
+}
+
+.gif-tile img { width: 100%; height: 100%; object-fit: cover; }
+.gif-tile:focus-visible { outline-offset: -3px; }
+
+.gif-status { display: flex; justify-content: center; padding: 18px 20px 26px; color: var(--muted); text-align: center; }
+.gif-status:empty { padding: 0 0 22px; }
+.gif-error { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.gif-sentinel { height: 1px; }
 
 /* --- Statistik ------------------------------------------------------------ */
 
@@ -2110,6 +2179,12 @@ button.cell:hover { box-shadow: inset 0 0 0 2px var(--c-accent); }
 
 .composer-send:disabled { opacity: 0.45; }
 
+/* Schmal: „Senden" erst beim Schreiben (wie in WhatsApp) - sonst bliebe neben
+   „Abhaken", GIF und Foto kein Platz fuer das Feld. */
+@media (max-width: 419px) {
+    .composer:not(.typing) .composer-send { display: none; }
+    .composer-check { padding: 0 15px; gap: 6px; }
+}
 
 .attach-preview {
     display: flex;

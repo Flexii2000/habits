@@ -140,9 +140,10 @@ export function errorState(message, retry) {
  * Foto mit gestreiftem Platzhalter in der Co-Habit-Farbe, bis es geladen ist
  * (wie der „Beweisfoto"-Platzhalter der Entwuerfe). Tippen oeffnet es gross.
  */
-export function photo(id, { alt = 'Beweisfoto', onOpen } = {}) {
-    // In Listen das Vorschaubild (Vertrag 6), gross erst auf Tipp.
-    const img = h('img', { src: photoUrl(id, 'thumb'), alt, loading: 'lazy', decoding: 'async' });
+export function photo(id, { alt = 'Beweisfoto', onOpen, size = 'thumb' } = {}) {
+    // In Listen das Vorschaubild (Vertrag 6), gross erst auf Tipp. Ein eigenes GIF
+    // kommt in voller Groesse - nur die bleibt animiert (Vertrag 2.7a).
+    const img = h('img', { src: photoUrl(id, size), alt, loading: 'lazy', decoding: 'async' });
     const frame = h('button', { type: 'button', class: 'photo', 'aria-label': 'Foto groß anzeigen' }, img);
     img.addEventListener('load', () => frame.classList.add('loaded'));
     img.addEventListener('error', () => frame.classList.add('failed'));

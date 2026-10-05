@@ -1,5 +1,5 @@
 // Fotos werden vor dem Hochladen im Browser verkleinert (hoechstens 2048 px an
-// der langen Kante, JPEG) - das spart Datenvolumen und bleibt sicher unter den
+// der langen Kante, JPEG; eigene GIFs im Chat ausgenommen, siehe chatImage) - das spart Datenvolumen und bleibt sicher unter den
 // 10 MB des Dienstes. Ueber ein <img> gezeichnet, damit der Browser die
 // EXIF-Drehung schon angewandt hat: der Dienst dreht nicht (Vertrag 1.1), und
 // das neu kodierte JPEG traegt keine Metadaten mehr.
@@ -68,15 +68,42 @@ export async function squareImage(file, size = 1024, quality = 0.85) {
     }
 }
 
-function photoForm(blob) {
+function photoForm(blob, name = 'photo.jpg') {
     const form = new FormData();
-    form.append('photo', blob, 'photo.jpg');
+    form.append('photo', blob, name);
     return form;
 }
 
 /** Laedt ein Foto hoch; derselbe Schluessel noch einmal legt nichts doppelt an. */
-export function uploadPhoto(blob, key) {
-    return api('/photos', { method: 'POST', form: photoForm(blob), headers: { 'Idempotency-Key': key } });
+export function uploadPhoto(blob, key, name = 'photo.jpg') {
+    return api('/photos', { method: 'POST', form: photoForm(blob, name), headers: { 'Idempotency-Key': key } });
+}
+
+const MAX_UPLOAD = 10 * 1024 * 1024;
+
+/** GIF nach Typ oder nach „GIF8" am Dateianfang (manche Quellen nennen keinen Typ). */
+export async function isGif(file) {
+    if (file.type === 'image/gif') return true;
+    try {
+        const head = new Uint8Array(await file.slice(0, 4).arrayBuffer());
+        return head[0] === 0x47 && head[1] === 0x49 && head[2] === 0x46 && head[3] === 0x38;
+    } catch (err) {
+        return false;
+    }
+}
+
+/**
+ * Bild fuer den Chat: ein GIF geht unveraendert hoch - neu gezeichnet waere es
+ * nur noch ein Standbild; den Rest (Metadaten, Kommentare) raeumt der Dienst ab
+ * (Vertrag 2.7a). Alles andere wird wie jedes Foto verkleinert.
+ */
+export async function chatImage(file) {
+    if (await isGif(file)) {
+        if (file.size > MAX_UPLOAD) throw new Error('Die Datei ist zu groß.');
+        const blob = file.type === 'image/gif' ? file : new Blob([file], { type: 'image/gif' });
+        return { blob, name: 'photo.gif', gif: true };
+    }
+    return { blob: await resizeImage(file), name: 'photo.jpg', gif: false };
 }
 
 export function uploadAvatar(blob) {
