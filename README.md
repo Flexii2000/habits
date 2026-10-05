@@ -126,7 +126,7 @@ coHabit-Vertrag; hier der Überblick:
 | Bereich | Endpunkte |
 |---|---|
 | öffentlich | `GET /invite-links/{code}`, `POST /invite-links/{code}/accept` (legt ohne Zugang die Person an), `GET /cohabit/setup?token=` |
-| ich | `GET/PUT /me`, `PUT/DELETE /me/avatar`, `GET/PUT /me/notifications`, `GET/POST/DELETE /me/app-links[/{id\|current}]`, `GET /me/export` (ZIP), `DELETE /me` (`{"confirm":"LÖSCHEN"}`), `GET /me/archived`, `POST /me/friend-link`, `GET /me/invitations` |
+| ich | `GET/PUT /me`, `PUT/DELETE /me/avatar`, `GET/PUT /me/notifications`, `GET/PUT /me/type-colors`, `GET/POST/DELETE /me/app-links[/{id\|current}]`, `GET /me/export` (ZIP), `DELETE /me` (`{"confirm":"LÖSCHEN"}`), `GET /me/archived`, `POST /me/friend-link`, `GET /me/invitations` |
 | Freunde | `GET /friends`, `GET /people/search?q=`, `POST /friends/requests`, `POST /friends/requests/{id}/accept\|decline`, `DELETE /friends/{id}`, `GET/POST/DELETE /blocks` |
 | Co-Habits | `GET/POST /cohabits`, `GET/PUT/DELETE /cohabits/{id}`, `POST …/archive\|unarchive`, `GET …/invite-candidates`, `POST …/invitations`, `POST …/invite-link`, `DELETE …/members/{id\|me}`, `PUT …/admin`, `PUT …/settings/me`, `POST/DELETE …/pauses`, `POST …/dialogs/{id}/seen`, `POST /invitations/{id}/accept\|decline` |
 | Einträge | `POST/PUT/DELETE /cohabits/{id}/checkins[/{checkinId}]`, `PUT /cohabits/{id}/health/{date}` |

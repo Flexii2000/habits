@@ -2,7 +2,9 @@ package com.fherrmann.habits.cohabit.model;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Eine Person. Die ID aendert sich nie: fuer Healthy-Personen ihr Name aus
@@ -22,4 +24,6 @@ public class Person {
     public List<String> blocked = new ArrayList<>();
     /** Zufaellige Kennung fuer KLIPYs {@code customer_id} - nicht die Personen-ID. */
     public String gifCustomerId;
+    /** Eigene Typfarben ({@link TypeColors#SLOTS} -> Palettenschluessel); was fehlt, ist die Vorgabe. */
+    public Map<String, String> typeColors = new LinkedHashMap<>();
 }

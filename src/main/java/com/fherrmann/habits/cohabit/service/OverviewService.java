@@ -11,6 +11,7 @@ import com.fherrmann.habits.cohabit.model.CheckinKind;
 import com.fherrmann.habits.cohabit.model.CheckinSource;
 import com.fherrmann.habits.cohabit.model.Cohabit;
 import com.fherrmann.habits.cohabit.model.CohabitType;
+import com.fherrmann.habits.cohabit.model.TypeColors;
 import com.fherrmann.habits.cohabit.model.Event;
 import com.fherrmann.habits.cohabit.model.EventKind;
 import com.fherrmann.habits.cohabit.model.GoalMode;
@@ -180,7 +181,9 @@ public class OverviewService {
                             + " " + s.headline().unit());
                 }
             }
-            return new WidgetData(now, open, items, challenge, teamGoal, openStreak);
+            Map<String, String> colors = TypeColors.effective(
+                    data.person(me).map(p -> p.typeColors).orElse(null));
+            return new WidgetData(now, open, items, challenge, teamGoal, openStreak, colors);
         });
     }
 

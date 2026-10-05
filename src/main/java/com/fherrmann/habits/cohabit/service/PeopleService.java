@@ -10,7 +10,9 @@ import com.fherrmann.habits.cohabit.model.AutoSource;
 import com.fherrmann.habits.cohabit.model.ChallengeRound;
 import com.fherrmann.habits.cohabit.model.Cohabit;
 import com.fherrmann.habits.cohabit.model.Device;
+import com.fherrmann.habits.cohabit.model.Palette;
 import com.fherrmann.habits.cohabit.model.Person;
+import com.fherrmann.habits.cohabit.model.TypeColors;
 import com.fherrmann.habits.cohabit.store.CohabitStore;
 import com.fherrmann.habits.security.HealthUsers;
 import com.fherrmann.habits.security.Viewer;
@@ -23,6 +25,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /** Die eigene Person: Profil, Einstellungen, App-Links, Geraete. */
 @Service
@@ -89,7 +92,7 @@ public class PeopleService {
         List<String> sourceNames = sources.sourcesOf(p.id).stream().map(AutoSource::name).toList();
         return new MeView(PersonView.of(p), users.isOwner(p.id), sourceNames,
                 new MeView.Counts(cohabits, friends, wins(data, p.id)), pending, incoming,
-                viewer.via().isAppToken(), p.createdAt);
+                viewer.via().isAppToken(), p.createdAt, TypeColors.effective(p.typeColors));
     }
 
     /** Gewonnene Challenge-Runden - ein geteilter erster Platz zaehlt. */
@@ -127,6 +130,41 @@ public class PeopleService {
             p.displayName = name;
             p.username = user;
             return meView(tx, viewer);
+        });
+    }
+
+    public Map<String, String> typeColors(Viewer viewer) {
+        return store.read(data -> TypeColors.effective(requirePerson(data, viewer.personId()).typeColors));
+    }
+
+    /**
+     * Setzt einzelne Typfarben; ein Platz mit {@code null} faellt auf die Vorgabe zurueck.
+     * Erst alles pruefen, dann schreiben - eine unbekannte Farbe aendert nichts.
+     */
+    public Map<String, String> updateTypeColors(Viewer viewer, Map<String, String> changes) {
+        if (changes != null) {
+            for (Map.Entry<String, String> e : changes.entrySet()) {
+                if (!TypeColors.SLOTS.contains(e.getKey())) {
+                    throw Errors.badRequest("Unbekannter Typ.");
+                }
+                if (e.getValue() != null && !Palette.isValid(e.getValue())) {
+                    throw Errors.badRequest("Unbekannte Farbe.");
+                }
+            }
+        }
+        return store.write(tx -> {
+            Person p = requirePerson(tx, viewer.personId());
+            if (changes != null && !changes.isEmpty()) {
+                tx.peopleW();
+                changes.forEach((slot, color) -> {
+                    if (color == null || color.equals(TypeColors.DEFAULTS.get(slot))) {
+                        p.typeColors.remove(slot);
+                    } else {
+                        p.typeColors.put(slot, color);
+                    }
+                });
+            }
+            return TypeColors.effective(p.typeColors);
         });
     }
 

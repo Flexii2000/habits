@@ -147,6 +147,14 @@ Feste Palette (Schlüssel in der API, Hexwerte für alle Clients gleich):
 | `butter` | `#FFF0B3` | `#F2D46B` | `#8A6D00` | `#4A4326` |
 | `rose` | `#FBD3E0` | `#EE8FB0` | `#A83A62` | `#4A2F3A` |
 | `aqua` | `#CDEFF1` | `#6CCFD6` | `#1E7F87` | `#27454A` |
+| `lavender` | `#E6DAF7` | `#B392E6` | `#6A3FB0` | `#3B3150` |
+| `sky` | `#D2E8FA` | `#6AB0EB` | `#1D69A6` | `#253A4E` |
+| `sage` | `#DDE6D2` | `#9CB585` | `#4D6A38` | `#343D2C` |
+| `coral` | `#FFD3CC` | `#F47F6E` | `#B4382A` | `#4E2E2A` |
+
+Die letzten vier (Lavendel, Himmelblau, Salbei, Koralle) kamen am 05.10. für die Typfarben dazu (§5.2b). Avatar-
+und Anlegefarben, die der Dienst selbst ableitet, bleiben bei den ersten sechs. Namen in der Oberfläche: Pfirsich,
+Mint, Periwinkle, Butter, Rosé, Aqua, Lavendel, Himmelblau, Salbei, Koralle.
 
 App-Farben: Hintergrund hell `#F3F0FB` / dunkel `#14131C`; Fläche `#FFFFFF` / `#1F1D2B`; Tinte
 `#1C1B2E` / `#F2F0FA`; gedämpft `#6E6A80` / `#A19DB5`; Akzent (Violett, „+"-Knopf, Einladungslink,
@@ -523,6 +531,7 @@ InviteLinkPreview {"kind":"COHABIT","from":PersonView,
 | PUT | `/me/avatar` | multipart `photo` → `MeView` (quadratisch zuschneiden tut der Client) |
 | DELETE | `/me/avatar` | → `MeView` |
 | GET/PUT | `/me/notifications` | `NotificationSettings` |
+| GET/PUT | `/me/type-colors` | `{"STREAK":"peach",…}` – eigene Farbe je Typ, PUT mit einzelnen Plätzen (§5.2b) |
 | GET | `/me/app-links` | → `[{"id","label","createdAt","lastUsedAt"}]` |
 | POST | `/me/app-links` | `{"label":"iPhone"}` → `{"id","label","setupUrl","token"}` (Token nur in dieser Antwort) |
 | DELETE | `/me/app-links/{id}` | → 204 (Abmelden eines Geräts; `DELETE /me/app-links/current` widerruft den eigenen Token) |
@@ -531,7 +540,9 @@ InviteLinkPreview {"kind":"COHABIT","from":PersonView,
 | GET | `/me/archived` | → `[CohabitSummary]` |
 
 ```json
-MeView {"person":PersonView,"isOwner":true,"sources":["FOOD","FOOD_TARGET_WEEKLY","STEPS_WEEKLY","FOCUS"],
+MeView {"typeColors":{"STREAK":"peach","ABSTINENCE":"mint","GOAL":"periwinkle","CHALLENGE":"butter",
+        "AUTOMATIC":"aqua"},   // seit 05.10., §5.2b - immer alle fünf, Vorgaben eingesetzt
+        "person":PersonView,"isOwner":true,"sources":["FOOD","FOOD_TARGET_WEEKLY","STEPS_WEEKLY","FOCUS"],
         "counts":{"cohabits":4,"friends":5,"wins":3},
         "pendingInvitations":1,"incomingFriendRequests":0,"canLogout":false,
         "createdAt":"2026-09-30T12:00:00Z"}
@@ -732,7 +743,7 @@ Stats {"range":"MONTH","label":"September","fulfillmentRate":86,
   "heatmap":{"from":"2026-09-01","to":"2026-09-30","days":[{"date":"2026-09-01","count":1,"level":1}]},
   "cohabits":[{"ref":CohabitRef,"progressText":"11/13","fraction":0.85}]}
 
-WidgetData {"generatedAt","openCount":2,
+WidgetData {"generatedAt","openCount":2,"typeColors":{…},   // wie MeView.typeColors, §5.2b
   "cohabits":[{"ref":CohabitRef,"value":"6","unit":"Wochen","sub":"Wochen · 2/3","status":"OPEN",
                "statusText":"offen","photoRequired":true,"quickCheckIn":false}],
   "challenge":{"ref":CohabitRef,"endsText":"endet heute","myRank":2,
@@ -980,10 +991,29 @@ Ersetzt in §5.2 Nr. 1–2 die Abschnitte und die Farbe je Co-Habit.
   `FOOD_TARGET_WEEKLY`, `EVALUATION` und unbekannte Quellen. Manuelle Streaks behalten die Wochenpunkte;
   bei Challenges bleibt der Platz-Text daneben, der Balken steht darunter.
 - **Farbe nach Typ überall** (Heute, Detail, Chat, Timeline samt Filter, Statistik, Profil/Archiv,
-  Einladungen, Widgets): STREAK `peach`, ABSTINENCE `mint`, GOAL `periwinkle`, CHALLENGE `butter`,
-  automatisch (jeder Typ mit `autoSource`) `aqua` – wie die Typkarten im Anlegen-Schritt 1. Die
+  Einladungen, Widgets): Vorgabe STREAK `peach`, ABSTINENCE `mint`, GOAL `periwinkle`, CHALLENGE `butter`,
+  automatisch (jeder Typ mit `autoSource`) `aqua` – wie die Typkarten im Anlegen-Schritt 1; seit §5.2b je
+  Person einstellbar. Die
   gespeicherte `color` zeigt kein Client mehr. **Anlegen** zeigt keine Farbwahl und schickt die Typfarbe
   als `color`; **Bearbeiten** zeigt keine und lässt die gespeicherte unverändert.
+
+### 5.2b Typfarben je Person (seit 05.10., Felix)
+Torben fand nach §5.2a alles braun (fast alles sind Streaks, Pfirsich ist dunkel braun). Jede Person wählt
+deshalb selbst, welche Farbe jeder Typ bei ihr hat.
+- Plätze: `STREAK`, `ABSTINENCE`, `GOAL`, `CHALLENGE`, `AUTOMATIC` (jedes Co-Habit mit `autoSource`, egal
+  welcher Typ). Vorgaben wie §5.2a. Auswahl: alle zehn Farben aus §2.1; mehrere Plätze dürfen dieselbe haben.
+- `GET /me/type-colors` → `{"STREAK":"peach",…}` (immer alle fünf). `PUT /me/type-colors` mit einzelnen Plätzen
+  (`{"STREAK":"sky"}`) → wieder alle fünf; `null` = zurück zur Vorgabe. Unbekannter Platz → 400 „Unbekannter
+  Typ.", unbekannte Farbe → 400 „Unbekannte Farbe." (dann ändert sich nichts). Dieselben fünf stehen in
+  `MeView.typeColors` und `WidgetData.typeColors` – Clients färben überall, wo §5.2a nach Typ färbt, mit diesen
+  (fehlt das Feld bei einem älteren Dienst: die Vorgaben). Ein neues Co-Habit bekommt beim Anlegen die eigene
+  Typfarbe als `color`.
+- **Oberfläche**: im Profil der Eintrag „Farben" (unter „Benachrichtigungen") → Seite „Farben" mit fünf Karten
+  „Streak", „Abstinenz", „Ziel", „Challenge", „Automatisch". Jede Karte hat die gewählte Farbe als Fläche (Name in
+  der kräftigen Farbe – so sieht man das Ergebnis hell wie dunkel) und darunter die zehn Farben als Kreise in zwei
+  Reihen zu fünf (umbrechend, nie seitlich scrollend), die gewählte mit Ring und Haken. Antippen speichert sofort
+  (nur dieser Platz) und färbt die App sofort um; schlägt es fehl, springt die Wahl zurück und die Meldung des
+  Dienstes erscheint. Keine Erklärtexte, kein Zurücksetzen-Knopf (die Vorgabe wählt man wie jede andere Farbe).
 
 ### 5.3 Abhak-Beschriftungen (`checkInLabel`, vom Dienst)
 STREAK ohne Foto „Abhaken", mit Foto „Beweisfoto & abhaken", erledigt „Heute erledigt" (Knopf

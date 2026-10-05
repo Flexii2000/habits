@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
 
 /** Ich, Profil, App-Links und Geraete. */
 @RestController
@@ -51,6 +52,17 @@ public class MeController {
     @PutMapping("/me")
     public MeView update(Viewer viewer, @RequestBody ProfileRequest request) {
         return people.updateMe(viewer, request.displayName(), request.username());
+    }
+
+    /** Die eigenen Farben je Typ - alle fuenf Plaetze, Vorgaben eingesetzt. */
+    @GetMapping("/me/type-colors")
+    public Map<String, String> typeColors(Viewer viewer) {
+        return people.typeColors(viewer);
+    }
+
+    @PutMapping("/me/type-colors")
+    public Map<String, String> updateTypeColors(Viewer viewer, @RequestBody Map<String, String> changes) {
+        return people.updateTypeColors(viewer, changes);
     }
 
     @GetMapping("/me/notifications")
