@@ -64,6 +64,28 @@ class FocusControllerTest extends ApiTestBase {
     }
 
     @Test
+    void dieKategorieEinesBaumsLaesstSichNachtraeglichAendern() {
+        post("/habits/api/focus/categories", PRIVATE_COOKIE,
+                "{\"id\":\"kat-thesis-0001\",\"name\":\"Bachelorarbeit\"}").expect(201);
+        post("/habits/api/focus/sessions", PRIVATE_COOKIE, BODY).expect(201);
+
+        put("/habits/api/focus/sessions/s1", TORBEN_APP, "{\"categoryId\":\"kat-thesis-0001\"}").expect(403);
+        Response changed = put("/habits/api/focus/sessions/s1", PRIVATE_COOKIE,
+                "{\"categoryId\":\"kat-thesis-0001\"}").expect(200);
+        assertEquals("Bachelorarbeit", changed.json().path("categoryName").asString());
+        assertEquals(45, changed.json().path("minutes").asInt());
+        assertEquals("Bachelorarbeit", get("/habits/api/focus/sessions?from=2026-09-30&to=2026-09-30", PRIVATE_COOKIE)
+                .json().get(0).path("categoryName").asString());
+
+        assertTrue(put("/habits/api/focus/sessions/s1", PRIVATE_COOKIE, "{\"categoryId\":null}")
+                .expect(200).json().path("categoryId").isNull(), "null nimmt die Kategorie weg");
+        Response unknown = put("/habits/api/focus/sessions/s1", PRIVATE_COOKIE,
+                "{\"categoryId\":\"gibt-es-nicht\"}").expect(400);
+        assertEquals("Unbekannte Kategorie.", unknown.body());
+        put("/habits/api/focus/sessions/gibt-es-nicht", PRIVATE_COOKIE, "{\"categoryId\":null}").expect(404);
+    }
+
+    @Test
     void fehlerKommenHierWeiterAlsKlartext() {
         Response bad = post("/habits/api/focus/sessions", PRIVATE_COOKIE,
                 "{\"id\":\"kurz\",\"start\":\"2026-09-30T06:00:00Z\",\"end\":\"2026-09-30T06:00:00Z\"}").expect(400);

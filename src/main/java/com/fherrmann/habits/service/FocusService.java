@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -117,6 +118,34 @@ public class FocusService {
         sessions.add(session);
         repository.save(new FocusData(sessions, data.categories()));
         return new Recorded(view(data, session), true);
+    }
+
+    /**
+     * Gibt einem fertigen Baum eine andere Kategorie ({@code null}: keine) - fuer den, bei
+     * dem vor dem Pflanzen die falsche gewaehlt war. Anfang und Ende bleiben, wie sie sind.
+     * 404, wenn es den Baum nicht gibt; eine unbekannte Kategorie ist wie beim Pflanzen 400.
+     */
+    public synchronized FocusSessionView changeCategory(String id, String rawCategoryId) {
+        FocusData data = repository.load();
+        FocusSession session = data.sessions().stream()
+                .filter(s -> s.id().equals(id))
+                .findFirst()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Kein Baum mit dieser Id."));
+        String categoryId = blankToNull(rawCategoryId);
+        if (Objects.equals(categoryId, session.categoryId())) {
+            return view(data, session);
+        }
+        // Auch hier gilt eine inzwischen geloeschte Kategorie: die Aenderung kann im
+        // Postausgang gewartet haben, waehrend sie geloescht wurde.
+        if (categoryId != null && find(data, categoryId).isEmpty()) {
+            throw badRequest("Unbekannte Kategorie.");
+        }
+        FocusSession changed = new FocusSession(session.id(), session.start(), session.end(), categoryId);
+        List<FocusSession> sessions = data.sessions().stream()
+                .map(s -> s.id().equals(id) ? changed : s)
+                .toList();
+        repository.save(new FocusData(sessions, data.categories()));
+        return view(data, changed);
     }
 
     /** Nimmt einen Baum wieder weg - etwa einen Testbaum von frueher. 404, wenn es ihn nicht gibt. */

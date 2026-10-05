@@ -222,6 +222,7 @@ Die Fokus-Sessions der Fokus-App, nur für Felix (`fh_private`), Fehler als Klar
 |---|---|---|
 | POST | `/habits/api/focus/sessions` | `{id, start, end}` → 201; **dieselbe Id noch einmal → 200**, nichts ändert sich |
 | GET | `/habits/api/focus/sessions?from=&to=` | Sessions, deren Tag im Zeitraum liegt, neueste zuerst (mit `categoryId`, `categoryName`) |
+| PUT | `/habits/api/focus/sessions/{id}` | `{categoryId}` → 200 mit der Session; die Kategorie nachträglich ändern, `null` nimmt sie weg; unbekannter Baum → 404, unbekannte Kategorie → 400 (eine gelöschte gilt, wie beim POST). Anfang und Ende bleiben |
 | DELETE | `/habits/api/focus/sessions/{id}` | Baum fällen → 204; unbekannt → 404 |
 | GET | `/habits/api/focus/categories` | die Kategorien zur Auswahl `[{id, name}]`, in der Reihenfolge des Anlegens |
 | POST | `/habits/api/focus/categories` | `{id?, name}` → 201; dieselbe Id noch einmal → 200 (Postausgang); Name schon da → 409 |

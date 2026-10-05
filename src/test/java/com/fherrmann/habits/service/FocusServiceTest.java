@@ -150,4 +150,31 @@ class FocusServiceTest {
                 () -> service.record(new FocusSessionRequest("x1", at(17, 0, 0), at(18, 0, 0), "gibt-es-nicht")));
         assertEquals(HttpStatus.BAD_REQUEST, unknown.getStatusCode());
     }
+
+    @Test
+    void einBaumBekommtNachtraeglichEineAndereKategorie() {
+        String thesis = service.createCategory(null, "Bachelorarbeit").category().id();
+        String uni = service.createCategory(null, "Uni").category().id();
+        service.record(new FocusSessionRequest("vergessen", at(17, 5, 0), at(18, 0, 0)));
+
+        FocusSessionView changed = service.changeCategory("vergessen", thesis);
+        assertEquals(thesis, changed.categoryId());
+        assertEquals("Bachelorarbeit", changed.categoryName());
+        assertEquals(at(17, 5, 0), changed.start(), "Anfang und Ende bleiben");
+        assertEquals(55, changed.minutes());
+        assertEquals(Map.of(TODAY, 55), service.minutesPerDay(TODAY, TODAY, thesis), "zaehlt sofort fuer die neue");
+
+        service.changeCategory("vergessen", uni);
+        assertTrue(service.minutesPerDay(TODAY, TODAY, thesis).isEmpty(), "und nicht mehr fuer die alte");
+        service.deleteCategory(uni);
+        assertEquals("Uni", service.changeCategory("vergessen", uni).categoryName(),
+                "eine geloeschte Kategorie gilt, wie beim Pflanzen aus dem Postausgang");
+        assertEquals(null, service.changeCategory("vergessen", " ").categoryId(), "leer: ohne Kategorie");
+        assertEquals(1, service.list(TODAY, TODAY).size(), "kein zweiter Baum");
+
+        assertEquals(HttpStatus.BAD_REQUEST, assertThrows(ResponseStatusException.class,
+                () -> service.changeCategory("vergessen", "gibt-es-nicht")).getStatusCode());
+        assertEquals(HttpStatus.NOT_FOUND, assertThrows(ResponseStatusException.class,
+                () -> service.changeCategory("gibt-es-nicht", thesis)).getStatusCode());
+    }
 }

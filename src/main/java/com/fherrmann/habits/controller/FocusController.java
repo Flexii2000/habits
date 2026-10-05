@@ -2,6 +2,7 @@ package com.fherrmann.habits.controller;
 
 import com.fherrmann.habits.dto.FocusCategoryRequest;
 import com.fherrmann.habits.dto.FocusCategoryView;
+import com.fherrmann.habits.dto.FocusSessionCategoryRequest;
 import com.fherrmann.habits.dto.FocusSessionRequest;
 import com.fherrmann.habits.dto.FocusSessionView;
 import com.fherrmann.habits.service.FocusService;
@@ -43,6 +44,13 @@ public class FocusController {
         FocusService.Recorded recorded = service.record(request);
         return ResponseEntity.status(recorded.created() ? HttpStatus.CREATED : HttpStatus.OK)
                 .body(recorded.session());
+    }
+
+    /** Die Kategorie eines fertigen Baums nachtraeglich aendern; {@code categoryId: null} nimmt sie weg. */
+    @PutMapping("/sessions/{id}")
+    public FocusSessionView changeCategory(@PathVariable("id") String id,
+                                           @RequestBody FocusSessionCategoryRequest request) {
+        return service.changeCategory(id, request.categoryId());
     }
 
     /** Einen Baum faellen - fuer Testbaeume von frueher; die App bietet es nicht an. */
