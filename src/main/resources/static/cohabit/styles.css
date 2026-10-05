@@ -2400,19 +2400,6 @@ dialog.invite, dialog.finished { background: transparent; overflow: visible; }
 .type-example { margin-top: 8px; font-size: 14px; font-weight: 700; }
 .type-note { margin-top: 18px; text-align: center; font-size: 14px; color: var(--muted); }
 
-.color-picks { display: flex; flex-wrap: wrap; gap: 10px; }
-
-.color-pick {
-    width: 42px;
-    height: 42px;
-    padding: 0;
-    border: 0;
-    border-radius: 50%;
-    background: var(--c-surface);
-}
-
-.color-pick[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--surface), 0 0 0 5.5px var(--ink); }
-
 .weekday-picks { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; margin-top: 10px; }
 
 .weekday-pick {

@@ -4,7 +4,7 @@
 // sagt der Dienst in dialog.reactionTarget; fehlt das Feld, sucht die Seite sie.
 import { get, post, enc } from './api.js';
 import { h, openDialog, showError } from './dom.js';
-import { colorClass } from './ui.js';
+import { cohabitClass } from './kinds.js';
 import { personName } from './format.js';
 import { setReaction } from './reactions.js';
 import { sameEmoji } from './emoji.js';
@@ -80,7 +80,7 @@ export function finishedDialog(detail, { onTimeline, onCongratulate }) {
             congratulate.classList.remove('busy');
         }
     });
-    const card = h('div', { class: `inv ${colorClass(detail.summary.ref.color)}` },
+    const card = h('div', { class: `inv ${cohabitClass(detail.summary.ref)}` },
         h('div', { class: 'fin-top' },
             h('p', { class: 'fin-kicker' }, isGoal ? 'Ziel beendet' : 'Challenge beendet'),
             h('h2', { class: 'fin-title' }, dialog.title),

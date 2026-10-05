@@ -6,7 +6,8 @@
 // Reagieren: Smiley neben „Antworten", langer Druck oder Rechtsklick auf die Karte.
 import { get, post, enc } from '../api.js';
 import { h, icon, showError, fill, openDialog, sheetHead, prefs } from '../dom.js';
-import { avatar, chip, colorClass, emptyState, errorState, loadingState, photoCarousel, photoList, sectionLabel } from '../ui.js';
+import { avatar, chip, emptyState, errorState, loadingState, photoCarousel, photoList, sectionLabel } from '../ui.js';
+import { cohabitClass } from '../kinds.js';
 import { cached, remember } from '../state.js';
 import { dayHeading, dayIn } from '../format.js';
 import { onLongPress, openReactionBar, reactionPill } from '../reactions.js';
@@ -48,7 +49,7 @@ function titleWithName(item) {
 }
 
 export function timelineItem(item, { onReply } = {}) {
-    const color = colorClass(item.cohabit && item.cohabit.color);
+    const color = cohabitClass(item.cohabit);
     const who = item.kind === 'HEALTH' || !item.person
         ? h('span', { class: `health-avatar ${color}`, 'aria-hidden': 'true' }, icon(item.kind === 'HEALTH' ? 'pulse' : 'flame'))
         : avatar(item.person, 40);
@@ -172,7 +173,7 @@ export function mount(root, params, ctx) {
                     else next.add(r.id);
                     setExcluded(next);
                     render();
-                }, h('span', { class: `color-dot ${colorClass(r.color)}`, 'aria-hidden': 'true' }))));
+                }, h('span', { class: `color-dot ${cohabitClass(r)}`, 'aria-hidden': 'true' }))));
         };
         render();
         ref.current = openDialog([

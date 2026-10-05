@@ -3,17 +3,20 @@
 // Verlauf: Zurueck im Browser fuehrt zum vorigen Schritt, der Entwurf bleibt.
 import { get, post, put, enc } from '../api.js';
 import { h, icon, shareLink, showError, toast, fill } from '../dom.js';
-import { avatar, errorState, loadingState, PALETTE, segmented, selectRow, stepper, toggle, toggleRow } from '../ui.js';
+import { avatar, errorState, loadingState, segmented, selectRow, stepper, toggle, toggleRow } from '../ui.js';
+import { TYPE_COLORS, typeColor } from '../kinds.js';
 import { state, remember, forget } from '../state.js';
 import { addDays, dayIn, parseNumber, TYPE_NAMES, UNIT_LABELS } from '../format.js';
 import { peopleSearch } from './friends.js';
 import { goBack, replaceFlow } from '../app.js';
 
+// Die Farbe eines Co-Habits ist die seines Typs (Vertrag 5.2a) - eine Farbwahl
+// gibt es nicht mehr. Die Typkarten tragen dieselbe.
 const TYPES = [
-    { key: 'STREAK', color: 'peach', desc: 'Regelmäßig dranbleiben, täglich oder im eigenen Rhythmus.', example: 'z. B. 3× pro Woche laufen' },
-    { key: 'ABSTINENCE', color: 'mint', desc: 'Tage zählen, an denen ihr auf etwas verzichtet.', example: 'z. B. ohne Zucker' },
-    { key: 'GOAL', color: 'periwinkle', desc: 'Eine Menge bis zu einem Datum, allein oder als Team.', example: 'z. B. 100.000 Schritte bis 31.10.' },
-    { key: 'CHALLENGE', color: 'butter', desc: 'Wer schafft im Zeitraum am meisten?', example: 'z. B. wer kocht im Oktober öfter' },
+    { key: 'STREAK', desc: 'Regelmäßig dranbleiben, täglich oder im eigenen Rhythmus.', example: 'z. B. 3× pro Woche laufen' },
+    { key: 'ABSTINENCE', desc: 'Tage zählen, an denen ihr auf etwas verzichtet.', example: 'z. B. ohne Zucker' },
+    { key: 'GOAL', desc: 'Eine Menge bis zu einem Datum, allein oder als Team.', example: 'z. B. 100.000 Schritte bis 31.10.' },
+    { key: 'CHALLENGE', desc: 'Wer schafft im Zeitraum am meisten?', example: 'z. B. wer kocht im Oktober öfter' },
 ];
 
 const BACKFILL = [[0, 'Keine'], [24, '24 Stunden'], [48, '48 Stunden'], [72, '72 Stunden'], [168, '7 Tage'], [336, '14 Tage']];
@@ -47,7 +50,7 @@ function newDraft() {
         flow: Math.random().toString(36).slice(2),
         type: null,
         name: '',
-        color: 'peach',
+        storedColor: null,
         timezone: 'Europe/Berlin',
         photoRequired: false,
         valueTracking: false,
@@ -78,7 +81,8 @@ function draftFrom(config) {
     const d = newDraft();
     d.type = config.type;
     d.name = config.name;
-    d.color = config.color;
+    // Bearbeiten laesst die gespeicherte Farbe, wie sie ist.
+    d.storedColor = config.color || null;
     d.timezone = config.timezone || 'Europe/Berlin';
     d.photoRequired = !!config.photoRequired;
     d.valueTracking = config.tracking && config.tracking.mode === 'VALUE';
@@ -156,7 +160,8 @@ function toConfig(d, { forEdit = false } = {}) {
     const config = {
         type: d.type,
         name,
-        color: d.color,
+        // Neu: die Farbe des Typs (automatische Aqua), damit iOS und Android dieselbe sehen.
+        color: d.storedColor || typeColor(d.type, !!d.auto),
         timezone: d.timezone,
         tracking: needsValue(d) ? { mode: 'VALUE', unit: d.unit } : { mode: 'CHECK' },
         photoRequired: d.type === 'ABSTINENCE' || d.auto ? false : d.photoRequired,
@@ -293,14 +298,8 @@ function settingsForm(d, { edit = false, errorEl, onChange } = {}) {
 
     function build() {
         const out = [];
-        // Name und Farbe
-        const colors = h('div', { class: 'color-picks', role: 'group', 'aria-label': 'Farbe' }, PALETTE.map(key => h('button', {
-            type: 'button', class: `color-pick c-${key}`, 'aria-pressed': String(d.color === key), 'aria-label': key,
-            onclick: () => { d.color = key; rerender(); },
-        })));
         out.push(h('section', { class: 'set-group pad stack' },
-            field('Name', textInput(d.name, v => { d.name = v; }, { maxlength: 40, placeholder: namePlaceholder(d.type), 'data-fid': 'name' })),
-            h('div', { class: 'field-group' }, h('span', { class: 'field-label' }, 'Farbe'), colors)));
+            field('Name', textInput(d.name, v => { d.name = v; }, { maxlength: 40, placeholder: namePlaceholder(d.type), 'data-fid': 'name' }))));
 
         if (d.type === 'STREAK') out.push(streakSection());
         if (d.type === 'ABSTINENCE') {
@@ -516,13 +515,10 @@ export function mount(root, params, ctx) {
             ...head('Neues Co-Habit'),
             h('h1', { class: 'create-title' }, 'Was wollt ihr gemeinsam verfolgen?'),
             h('div', { class: 'type-cards' }, TYPES.map(t => h('button', {
-                type: 'button', class: `card type-card tinted deco c-${t.color}`,
+                type: 'button', class: `card type-card tinted deco c-${TYPE_COLORS[t.key]}`,
                 'aria-pressed': String(d.type === t.key),
                 onclick: () => {
-                    if (d.type !== t.key) {
-                        d.type = t.key;
-                        d.color = t.color;
-                    }
+                    d.type = t.key;
                     go(2);
                 },
             },

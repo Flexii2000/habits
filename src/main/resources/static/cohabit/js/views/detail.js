@@ -1,10 +1,11 @@
-// Detailseite eines Co-Habits (S. 6-10): Kopf in seiner Farbe, Umschalter
+// Detailseite eines Co-Habits (S. 6-10): Kopf in der Farbe seines Typs, Umschalter
 // Übersicht | Chat, je Typ die Uebersicht aus Streak-, Abstinenz-, Ziel- oder
 // Challenge-Block, unten der Abhak-Knopf. Menue: Bearbeiten, Mitglieder, Pausen,
 // Einladen, Benachrichtigungen, Archivieren, Verlassen/Loeschen.
 import { get, post, put, del, enc } from '../api.js';
 import { h, icon, actionSheet, confirmDialog, openDialog, sheetHead, poll, shareLink, showError, toast, fill } from '../dom.js';
-import { avatar, chip, colorClass, errorState, loadingState, progressBar, selectRow, toggle, toggleRow } from '../ui.js';
+import { avatar, chip, errorState, loadingState, progressBar, selectRow, toggle, toggleRow } from '../ui.js';
+import { cohabitClass } from '../kinds.js';
 import { cached, remember, forget, state } from '../state.js';
 import { TYPE_NAMES, dateLong, dayIn, dayShort, fmtTime, isMe, personName, plural } from '../format.js';
 import { backfillDays, checkIn, editCheckin } from '../checkin.js';
@@ -682,7 +683,7 @@ export function mount(root, params, ctx) {
         }
         const s = summary();
         document.title = `${s.ref.name} – coHabit`;
-        el.className = `detail ${colorClass(s.ref.color)}`;
+        el.className = `detail ${cohabitClass(s.ref)}`;
         if (tab === 'chat') {
             fill(el, compactHeader(), chatBox);
             if (!chat) {

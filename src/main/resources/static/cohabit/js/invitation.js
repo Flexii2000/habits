@@ -4,6 +4,7 @@
 import { post, enc } from './api.js';
 import { h, openDialog, showError, toast } from './dom.js';
 import { avatarStack, chip, colorClass } from './ui.js';
+import { cohabitClass } from './kinds.js';
 
 export const USERNAME_RE = /^[a-z][a-z0-9._]{2,19}$/;
 
@@ -29,7 +30,8 @@ function seatsChip(seats) {
  */
 export function invitationCard({ from, cohabit, kind = 'COHABIT', full = false, register = false, onAccept, onDecline }) {
     const isFriend = kind === 'FRIEND' || !cohabit;
-    const color = isFriend ? (from && from.color) : cohabit.ref.color;
+    // Freundschaft in der Farbe der Person, ein Co-Habit in der seines Typs.
+    const colors = isFriend ? colorClass(from && from.color) : cohabitClass(cohabit.ref);
     const title = isFriend
         ? `${from.displayName} möchte mit dir befreundet sein`
         : `${from.displayName} lädt dich zu „${cohabit.ref.name}“ ein`;
@@ -108,7 +110,7 @@ export function invitationCard({ from, cohabit, kind = 'COHABIT', full = false, 
         (cohabit.rules || []).map(rule => chip(rule)),
         seatsChip(cohabit.seats));
 
-    return h('div', { class: `inv ${colorClass(color)}` },
+    return h('div', { class: `inv ${colors}` },
         h('div', { class: 'inv-top deco tr' },
             h('div', { class: 'inv-avatars on-tint' }, stack),
             h('h2', { class: 'inv-title' }, title)),

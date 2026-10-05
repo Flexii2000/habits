@@ -6,7 +6,8 @@
 import { get, post, put, del, enc, photoUrl } from './api.js';
 import { h, icon, openDialog, sheetHead, toast, showError, uuid, confirmDialog, fill } from './dom.js';
 import { pickFiles, resizeImage, uploadPhoto } from './photo.js';
-import { colorClass, photoList } from './ui.js';
+import { photoList } from './ui.js';
+import { cohabitClass } from './kinds.js';
 import { addDays, dayIn, dayShort, isMe, joinNames, parseNumber, unitLabel } from './format.js';
 
 const cohabitPath = id => `/cohabits/${enc(id)}`;
@@ -268,7 +269,7 @@ function photoSheet(summary, knownDetail, presetDate, onDone) {
         h('button', { type: 'button', class: 'shutter', 'aria-label': 'Foto aufnehmen', title: 'Foto aufnehmen', onclick: () => choose('environment') }),
         h('button', { type: 'button', class: 'cam-btn', 'aria-label': 'Frontkamera', title: 'Kamera wechseln', onclick: () => choose('user') }, icon('switchCamera')),
     ];
-    const camera = h('div', { class: `camera ${colorClass(summary.ref.color)}` },
+    const camera = h('div', { class: `camera ${cohabitClass(summary.ref)}` },
         label, preview, h('div', { class: 'camera-controls' }, controls));
 
     const value = summary.valueUnit ? valueField(summary.valueUnit) : null;

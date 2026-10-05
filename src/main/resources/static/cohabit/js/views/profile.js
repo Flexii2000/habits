@@ -3,7 +3,8 @@
 // Account loeschen (zweistufig, mit Eingabe „LÖSCHEN").
 import { API, get, put, del } from '../api.js';
 import { h, icon, openDialog, sheetHead, confirmDialog, showError, toast, fill } from '../dom.js';
-import { avatar, badge, colorClass, emptyState, errorState, loadingState, toggleRow } from '../ui.js';
+import { avatar, badge, emptyState, errorState, loadingState, toggleRow } from '../ui.js';
+import { cohabitClass } from '../kinds.js';
 import { state, cached, remember } from '../state.js';
 import { squareImage, uploadAvatar, pickFile } from '../photo.js';
 import { USERNAME_RE } from '../invitation.js';
@@ -276,7 +277,7 @@ export function mountArchive(root, params, ctx) {
                 return;
             }
             fill(body, h('div', { class: 'rows' }, list.map(summary => h('a', {
-                class: `card row-card tinted on-tint ${colorClass(summary.ref.color)}`,
+                class: `card row-card tinted on-tint ${cohabitClass(summary.ref)}`,
                 href: `/cohabit/c/${encodeURIComponent(summary.ref.id)}`, 'data-nav': '',
             },
             h('span', { class: 'row-metric' }, summary.headline ? summary.headline.short : ''),

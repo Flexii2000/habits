@@ -3,7 +3,8 @@
 // Monatsbloecke), Fortschritt je Co-Habit. Alle Zahlen kommen vom Dienst.
 import { get, enc } from '../api.js';
 import { h, icon, prefs, fill } from '../dom.js';
-import { colorClass, errorState, loadingState, progressBar } from '../ui.js';
+import { errorState, loadingState, progressBar } from '../ui.js';
+import { cohabitClass } from '../kinds.js';
 import { cached, remember } from '../state.js';
 import { addDays, dayIn, monthName, parseDay } from '../format.js';
 
@@ -113,7 +114,7 @@ export function mount(root, params, ctx) {
                 h('div', { class: 'heat-legend', 'aria-hidden': 'true' },
                     'weniger', h('i', { class: 'l1' }), h('i', { class: 'l2' }), h('i', { class: 'l3' }), h('i', { class: 'l4' }), 'mehr')),
             (data.cohabits || []).length ? h('div', { class: 'stat-rows' }, data.cohabits.map(entry => h('a', {
-                class: `stat-row ${colorClass(entry.ref.color)}`, href: `/cohabit/c/${enc(entry.ref.id)}`, 'data-nav': '',
+                class: `stat-row ${cohabitClass(entry.ref)}`, href: `/cohabit/c/${enc(entry.ref.id)}`, 'data-nav': '',
             },
             h('span', { class: 'color-dot', 'aria-hidden': 'true' }),
             h('span', { class: 'stat-row-name' }, entry.ref.name),

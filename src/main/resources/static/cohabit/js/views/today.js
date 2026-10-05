@@ -4,7 +4,8 @@
 // die Seite sichtbar ist.
 import { get, post, enc, photoUrl } from '../api.js';
 import { h, icon, poll, prefs, showError, toast, fill } from '../dom.js';
-import { avatar, avatarStack, colorClass, emptyState, errorState, loadingState, logo, progressBar, sectionLabel } from '../ui.js';
+import { avatar, avatarStack, emptyState, errorState, loadingState, logo, progressBar, sectionLabel } from '../ui.js';
+import { cohabitClass } from '../kinds.js';
 import { state, cached, remember } from '../state.js';
 import { TYPE_NAMES, dateTimeShort, isMe } from '../format.js';
 import { checkIn } from '../checkin.js';
@@ -120,7 +121,7 @@ export function mount(root, params, ctx) {
     }
 
     function invitationCard(invitation) {
-        return h('div', { class: `card invite-card tinted deco tr ${colorClass(invitation.cohabit.ref.color)}` },
+        return h('div', { class: `card invite-card tinted deco tr ${cohabitClass(invitation.cohabit.ref)}` },
             avatar(invitation.from, 40),
             h('p', { class: 'invite-text' }, `${invitation.from.displayName} lädt dich zu „${invitation.cohabit.ref.name}“ ein`),
             h('button', {
@@ -187,7 +188,7 @@ export function mount(root, params, ctx) {
     }
 
     function cardClasses(summary, extra) {
-        return `card tinted on-tint ${colorClass(summary.ref.color)} ${extra}${summary.status === 'UNAVAILABLE' ? ' unavailable' : ''}`;
+        return `card tinted on-tint ${cohabitClass(summary.ref)} ${extra}${summary.status === 'UNAVAILABLE' ? ' unavailable' : ''}`;
     }
 
     function subline(summary) {

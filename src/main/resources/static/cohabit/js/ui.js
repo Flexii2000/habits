@@ -5,6 +5,10 @@ import { isMe } from './format.js';
 
 export const PALETTE = ['peach', 'mint', 'periwinkle', 'butter', 'rose', 'aqua'];
 
+/**
+ * Klasse zu einem Palettenschluessel - fuer Personen (Avatar-Kreis). Ein
+ * Co-Habit traegt die Farbe seines Typs: dafuer cohabitClass() aus kinds.js.
+ */
 export function colorClass(key) {
     return `c-${PALETTE.includes(key) ? key : 'periwinkle'}`;
 }

@@ -3,7 +3,8 @@
 // Blockierte.
 import { get, post, del, enc } from '../api.js';
 import { h, icon, actionSheet, confirmDialog, shareLink, showError, toast, fill } from '../dom.js';
-import { avatar, colorClass, errorState, loadingState, sectionLabel } from '../ui.js';
+import { avatar, errorState, loadingState, sectionLabel } from '../ui.js';
+import { cohabitClass } from '../kinds.js';
 import { invitationDialog } from '../invitation.js';
 import { blockPerson, unblockPerson } from '../social.js';
 import { navigate, refreshMe } from '../app.js';
@@ -120,7 +121,7 @@ export function mount(root, params, ctx) {
         const { friends, invitations, blocks } = data;
         fill(body,
             invitations.length ? [sectionLabel('Einladungen'), h('div', { class: 'list' }, invitations.map(inv => h('div', { class: 'person-row' },
-                h('span', { class: `avatar ${colorClass(inv.cohabit.ref.color)}`, style: '--size:44px' }, inv.cohabit.ref.name.slice(0, 2).toUpperCase()),
+                h('span', { class: `avatar ${cohabitClass(inv.cohabit.ref)}`, style: '--size:44px' }, inv.cohabit.ref.name.slice(0, 2).toUpperCase()),
                 h('div', { class: 'person-texts' },
                     h('div', { class: 'person-name' }, inv.cohabit.ref.name),
                     h('div', { class: 'person-sub' }, `von ${inv.from.displayName} · ${inv.cohabit.typeLine || ''}`)),
