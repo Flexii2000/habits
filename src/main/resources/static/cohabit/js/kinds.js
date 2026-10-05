@@ -4,6 +4,18 @@
 // zeigt keine Ansicht mehr, deshalb geht jede Farbe eines Co-Habits ueber
 // cohabitClass(). Dieselbe Zuordnung wie in der iOS-App (CohabitKinds.swift).
 
+/**
+ * Die Palette aus Vertrag 2.1, in der Reihenfolge der Auswahl. Die letzten vier
+ * kamen am 05.10. fuer die Typfarben dazu; Avatare leitet der Dienst weiter nur
+ * aus den ersten sechs ab.
+ */
+export const PALETTE = ['peach', 'mint', 'periwinkle', 'butter', 'rose', 'aqua', 'lavender', 'sky', 'sage', 'coral'];
+
+export const COLOR_NAMES = {
+    peach: 'Pfirsich', mint: 'Mint', periwinkle: 'Periwinkle', butter: 'Butter', rose: 'Rosé',
+    aqua: 'Aqua', lavender: 'Lavendel', sky: 'Himmelblau', sage: 'Salbei', coral: 'Koralle',
+};
+
 /** Wie die Typkarten im Anlegen-Schritt 1; automatische (jeder Typ) sind Aqua. */
 export const TYPE_COLORS = { STREAK: 'peach', ABSTINENCE: 'mint', GOAL: 'periwinkle', CHALLENGE: 'butter' };
 const AUTOMATIC_COLOR = 'aqua';

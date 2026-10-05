@@ -83,6 +83,11 @@
 .c-butter     { --c-surface: #FFF0B3; --c-accent: #F2D46B; --c-strong: #8A6D00; }
 .c-rose       { --c-surface: #FBD3E0; --c-accent: #EE8FB0; --c-strong: #A83A62; }
 .c-aqua       { --c-surface: #CDEFF1; --c-accent: #6CCFD6; --c-strong: #1E7F87; }
+/* Seit 05.10. fuer die Typfarben (5.2b); Avatare bleiben bei den ersten sechs. */
+.c-lavender   { --c-surface: #E6DAF7; --c-accent: #B392E6; --c-strong: #6A3FB0; }
+.c-sky        { --c-surface: #D2E8FA; --c-accent: #6AB0EB; --c-strong: #1D69A6; }
+.c-sage       { --c-surface: #DDE6D2; --c-accent: #9CB585; --c-strong: #4D6A38; }
+.c-coral      { --c-surface: #FFD3CC; --c-accent: #F47F6E; --c-strong: #B4382A; }
 
 @media (prefers-color-scheme: dark) {
     /* Dunkel: die dunkle Flaeche aus 2.1; farbige Schrift im Akzentton, der
@@ -93,6 +98,10 @@
     .c-butter     { --c-surface: #4A4326; --c-strong: #F2D46B; }
     .c-rose       { --c-surface: #4A2F3A; --c-strong: #EE8FB0; }
     .c-aqua       { --c-surface: #27454A; --c-strong: #6CCFD6; }
+    .c-lavender   { --c-surface: #3B3150; --c-strong: #B392E6; }
+    .c-sky        { --c-surface: #253A4E; --c-strong: #6AB0EB; }
+    .c-sage       { --c-surface: #343D2C; --c-strong: #9CB585; }
+    .c-coral      { --c-surface: #4E2E2A; --c-strong: #F47F6E; }
 }
 
 /* --- Grundlagen ----------------------------------------------------------- */

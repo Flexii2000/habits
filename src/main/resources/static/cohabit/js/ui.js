@@ -2,8 +2,7 @@
 import { h, icon, openDialog, fill } from './dom.js';
 import { photoUrl } from './api.js';
 import { isMe } from './format.js';
-
-export const PALETTE = ['peach', 'mint', 'periwinkle', 'butter', 'rose', 'aqua'];
+import { PALETTE } from './kinds.js';
 
 /**
  * Klasse zu einem Palettenschluessel - fuer Personen (Avatar-Kreis). Ein
