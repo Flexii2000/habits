@@ -599,12 +599,18 @@ body.bare .nav { display: none; }
     overflow-wrap: anywhere;
 }
 
+/* Kennzahl ausgeschrieben (Vertrag 5.2a): Zahl gross, Einheit klein daneben -
+   passt es nicht, bricht die Einheit darunter um; .stacked immer darunter. */
 .metric {
     display: flex;
+    flex-wrap: wrap;
     align-items: baseline;
-    gap: 6px;
+    column-gap: 6px;
+    row-gap: 0;
     min-width: 0;
 }
+
+.metric.stacked { flex-direction: column; align-items: flex-start; }
 
 .metric-value {
     font-size: 60px;
@@ -619,9 +625,13 @@ body.bare .nav { display: none; }
     font-size: 19px;
     font-weight: 700;
     letter-spacing: -0.01em;
+    line-height: 1.2;
 }
 
 .big-card .metric { margin-top: 2px; }
+.card-head { min-width: 0; }
+.big-card .card-bar { margin-top: 12px; }
+.small-card .card-bar { margin-top: 8px; height: 8px; }
 
 .card-foot {
     display: flex;
@@ -650,7 +660,7 @@ body.bare .nav { display: none; }
 }
 
 .big-card.side .side-left { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-.big-card.side .side-right { display: flex; align-items: center; gap: 12px; }
+.big-card.side .side-right { display: flex; align-items: center; gap: 12px; flex: none; }
 .big-card.side .card-sub { text-align: left; }
 
 .small-cards {
@@ -676,11 +686,14 @@ body.bare .nav { display: none; }
     gap: 8px;
 }
 
-.small-card .card-type { font-size: 15px; }
+/* Neben dem Abhak-Knopf ist wenig Platz: lange Namen an der Silbe trennen statt mitten im Wort. */
+.small-card .card-type { font-size: 15px; overflow-wrap: break-word; hyphens: auto; min-width: 0; }
 .small-card .metric { margin-top: 8px; }
 .small-card .metric-value { font-size: 46px; }
+.small-card .metric-unit { font-size: 15px; }
 .small-card .card-sub { margin-top: auto; padding-top: 8px; text-align: left; font-size: 14px; }
 
+/* Erledigt: der Haken blass statt Knopf oder Pfeil - auf Karte und Zeile gleich. */
 .done-mark {
     display: grid;
     place-items: center;
@@ -688,8 +701,8 @@ body.bare .nav { display: none; }
     height: 40px;
     flex: none;
     border-radius: 50%;
-    background: var(--surface);
-    color: var(--c-strong);
+    background: color-mix(in srgb, var(--ink) 35%, transparent);
+    color: var(--on-ink);
 }
 
 .done-mark .icon { width: 20px; height: 20px; stroke-width: 2.6; }
@@ -734,29 +747,29 @@ body.bare .nav { display: none; }
     padding: 12px 12px 12px 18px;
 }
 
-.row-metric {
-    flex: none;
-    min-width: 76px;
-    font-size: 25px;
-    font-weight: 900;
-    letter-spacing: -0.04em;
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-}
+/* Feste Spalte: die Einheit steht daneben, wenn sie passt, sonst darunter. */
+.row-figure { flex: none; width: 84px; }
+.row-figure .metric-value { font-size: 25px; letter-spacing: -0.04em; line-height: 1.05; }
+.row-figure .metric-unit { font-size: 13px; line-height: 1.2; }
+.row-figure.metric { column-gap: 4px; }
+.row-card.unavailable .row-figure { opacity: 0.4; }
+.row-card.unavailable .row-figure .metric-value { opacity: 1; }
 
+a.row-card { color: inherit; text-decoration: none; }
 .row-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .row-name { font-size: 17px; font-weight: 800; line-height: 1.2; overflow-wrap: anywhere; }
 .row-sub { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 500; line-height: 1.3; }
 .row-sub span { overflow-wrap: anywhere; }
 
-.dots { display: inline-flex; gap: 4px; flex: none; }
-.dots i { width: 9px; height: 9px; border-radius: 50%; box-shadow: inset 0 0 0 1.6px var(--ink); }
-.dots i.on { background: var(--ink); }
+.week-dots { display: inline-flex; gap: 4px; flex: none; }
+.week-dots i { width: 9px; height: 9px; border-radius: 50%; box-shadow: inset 0 0 0 1.6px var(--ink); }
+.week-dots i.on { background: var(--ink); }
 
 .row-chevron { display: grid; place-items: center; width: 48px; height: 48px; flex: none; }
 .row-chevron .icon { width: 22px; height: 22px; }
 
 .row-card .bar { margin-top: 4px; }
+.row-bar { width: 100%; max-width: 220px; height: 8px; }
 
 .photos-row {
     display: flex;
@@ -1801,7 +1814,8 @@ dialog.lightbox {
 .d-titles { min-width: 0; padding-bottom: 4px; }
 .d-name { font-size: 33px; font-weight: 900; letter-spacing: -0.035em; line-height: 1.05; overflow-wrap: break-word; }
 .d-remaining { margin-top: 6px; font-size: 15px; font-weight: 500; }
-.d-metric { display: flex; flex-direction: column; align-items: flex-end; flex: none; }
+.d-metric { display: flex; flex-direction: column; align-items: flex-end; flex: 0 1 auto; min-width: 0; }
+.d-metric .metric { justify-content: flex-end; }
 .d-metric .metric-value { font-size: 66px; }
 .d-head.goal .d-metric .metric-value { font-size: 58px; }
 .d-metric .metric { gap: 2px; }
@@ -2009,6 +2023,8 @@ button.cell:hover { box-shadow: inset 0 0 0 2px var(--c-accent); }
 .d-head.compact .d-compact-members { font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .d-head.compact .metric-value { font-size: 34px; }
 .d-head.compact .metric-unit { font-size: 15px; }
+.d-head.compact .metric.stacked { flex: none; align-items: flex-end; text-align: right; }
+.d-head.compact .metric.stacked .metric-unit { font-size: 13px; }
 .d-head.compact .tabs { margin-top: 14px; }
 
 .chat {

@@ -4,7 +4,7 @@
 // Einladen, Benachrichtigungen, Archivieren, Verlassen/Loeschen.
 import { get, post, put, del, enc } from '../api.js';
 import { h, icon, actionSheet, confirmDialog, openDialog, sheetHead, poll, shareLink, showError, toast, fill } from '../dom.js';
-import { avatar, chip, errorState, loadingState, progressBar, selectRow, toggle, toggleRow } from '../ui.js';
+import { avatar, chip, errorState, headlineFigure, loadingState, progressBar, selectRow, toggle, toggleRow } from '../ui.js';
 import { cohabitClass } from '../kinds.js';
 import { cached, remember, forget, state } from '../state.js';
 import { TYPE_NAMES, dateLong, dayIn, dayShort, fmtTime, isMe, personName, plural } from '../format.js';
@@ -55,12 +55,6 @@ export function mount(root, params, ctx) {
             make('chat', 'Chat', unread && tab !== 'chat' ? h('span', { class: 'badge' }, String(unread)) : null));
     }
 
-    function bigMetric(headline) {
-        return h('div', { class: 'metric' },
-            h('span', { class: 'metric-value' }, headline.value),
-            headline.unit ? h('span', { class: 'metric-unit' }, headline.unit) : null);
-    }
-
     function header() {
         const s = summary();
         const t = type();
@@ -71,7 +65,7 @@ export function mount(root, params, ctx) {
                 bar(s.typeLine || TYPE_NAMES[t]),
                 h('div', { class: 'd-center' },
                     h('h1', { class: 'd-name' }, s.ref.name),
-                    bigMetric(s.headline),
+                    headlineFigure(s.headline),
                     recordLine ? h('p', { class: 'd-remaining' }, recordLine) : null),
                 tabs());
         }
@@ -83,7 +77,7 @@ export function mount(root, params, ctx) {
                     h('div', { class: 'd-titles' },
                         h('h1', { class: 'd-name' }, s.ref.name),
                         g ? h('p', { class: 'd-remaining' }, g.totalText) : null),
-                    h('div', { class: 'd-metric' }, bigMetric(s.headline))),
+                    h('div', { class: 'd-metric' }, headlineFigure(s.headline))),
                 g ? progressBar(Math.min(1, (g.percent || 0) / 100), 'd-goalbar') : null,
                 g ? h('div', { class: 'd-goalmeta' },
                     g.planDeltaText ? chip(g.planDeltaText, 'white') : h('span'),
@@ -97,7 +91,7 @@ export function mount(root, params, ctx) {
             ? h('div', { class: 'd-metric' },
                 h('div', { class: 'metric' }, h('span', { class: 'metric-value' }, s.headline.value)),
                 s.headline.unit ? h('span', { class: 'd-metric-note' }, s.headline.unit) : null)
-            : h('div', { class: 'd-metric' }, bigMetric(s.headline));
+            : h('div', { class: 'd-metric' }, headlineFigure(s.headline));
         return h('header', { class: 'd-head deco tr' },
             bar(s.typeLine || TYPE_NAMES[t]),
             h('div', { class: 'd-title-row' },
@@ -118,17 +112,9 @@ export function mount(root, params, ctx) {
                 h('div', { class: 'd-compact-titles' },
                     h('h1', { class: 'd-compact-name' }, s.ref.name),
                     h('p', { class: 'd-compact-members' }, ordered.join(', '))),
-                h('div', { class: 'metric' },
-                    h('span', { class: 'metric-value' }, s.headline.short && type() !== 'GOAL' && type() !== 'CHALLENGE' ? s.headline.value : s.headline.short || s.headline.value),
-                    type() === 'STREAK' || type() === 'ABSTINENCE' ? h('span', { class: 'metric-unit' }, shortUnit(s.headline)) : null)),
+                // Die Einheit immer darunter - daneben wuerde der Name gekuerzt.
+                headlineFigure(s.headline, { stacked: true })),
             tabs());
-    }
-
-    function shortUnit(headline) {
-        // „6 Wo." -> „Wo.": die Kurzform liefert der Dienst in headline.short.
-        const short = headline.short || '';
-        const rest = short.startsWith(headline.value) ? short.slice(headline.value.length).trim() : '';
-        return rest || headline.unit;
     }
 
     // --- Uebersicht je Typ ---------------------------------------------------

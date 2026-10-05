@@ -43,6 +43,25 @@ export function avatarStack(people, size = 32, max = 3) {
         rest > 0 ? h('span', { class: 'avatar more', style: `--size:${size}px` }, `+${rest}`) : null);
 }
 
+/**
+ * Die Kennzahl ausgeschrieben (Vertrag 5.2a): `value` gross, `unit` klein in
+ * ganzen Worten daneben („17" „Tage") - passt beides nicht nebeneinander,
+ * bricht die Einheit darunter um; `stacked` stellt sie immer darunter.
+ * `headline.short` („3 Wo.") zeigt die Seite nirgends mehr.
+ */
+export function headlineFigure(headline, { stacked = false, className = '' } = {}) {
+    const unit = headline && headline.unit ? String(headline.unit).trim() : '';
+    return h('div', { class: `metric${stacked ? ' stacked' : ''}${className ? ` ${className}` : ''}` },
+        h('span', { class: 'metric-value' }, headline ? headline.value : ''),
+        unit ? h('span', { class: 'metric-unit' }, unit) : null);
+}
+
+/** „●●○": erledigt gegen Soll im laufenden Zeitraum (manuelle Streaks). */
+export function weekDots(done, goal) {
+    return h('span', { class: 'week-dots', role: 'img', 'aria-label': `${done} von ${goal}` },
+        Array.from({ length: goal }, (_, i) => h('i', { class: i < done ? 'on' : null })));
+}
+
 export function chip(text, className = '') {
     return h('span', { class: `chip ${className}` }, text);
 }

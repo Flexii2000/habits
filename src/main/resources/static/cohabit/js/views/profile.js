@@ -3,7 +3,7 @@
 // Account loeschen (zweistufig, mit Eingabe „LÖSCHEN").
 import { API, get, put, del } from '../api.js';
 import { h, icon, openDialog, sheetHead, confirmDialog, showError, toast, fill } from '../dom.js';
-import { avatar, badge, emptyState, errorState, loadingState, toggleRow } from '../ui.js';
+import { avatar, badge, emptyState, errorState, headlineFigure, loadingState, toggleRow } from '../ui.js';
 import { cohabitClass } from '../kinds.js';
 import { state, cached, remember } from '../state.js';
 import { squareImage, uploadAvatar, pickFile } from '../photo.js';
@@ -280,7 +280,7 @@ export function mountArchive(root, params, ctx) {
                 class: `card row-card tinted on-tint ${cohabitClass(summary.ref)}`,
                 href: `/cohabit/c/${encodeURIComponent(summary.ref.id)}`, 'data-nav': '',
             },
-            h('span', { class: 'row-metric' }, summary.headline ? summary.headline.short : ''),
+            summary.headline ? headlineFigure(summary.headline, { className: 'row-figure' }) : h('span', { class: 'row-figure' }),
             h('div', { class: 'row-main' },
                 h('span', { class: 'row-name' }, summary.ref.name),
                 h('span', { class: 'row-sub' }, h('span', null, summary.typeLine || ''))),

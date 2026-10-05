@@ -2,10 +2,15 @@
 // (je Geraet gemerkt), Stupser-Banner, offene Einladungen, Karten bzw. Zeilen je
 // Co-Habit, Hinweis auf neue Beweisfotos. Aktualisiert sich alle 20 s, solange
 // die Seite sichtbar ist.
+//
+// Nach Typ wie die klassische Liste (Vertrag 5.2a, Felix 05.10.): manuelle
+// Streaks, Ziele und Challenges, Abstinenz, automatische - darin nach
+// Anlegedatum, unabhaengig vom Status, ohne Abschnitte. Kennzahl ausgeschrieben,
+// Balken fuer alles mit einem Ziel zum Auffuellen, Farbe nach Typ.
 import { get, post, enc, photoUrl } from '../api.js';
 import { h, icon, poll, prefs, showError, toast, fill } from '../dom.js';
-import { avatar, avatarStack, emptyState, errorState, loadingState, logo, progressBar, sectionLabel } from '../ui.js';
-import { cohabitClass } from '../kinds.js';
+import { avatar, avatarStack, emptyState, errorState, headlineFigure, loadingState, logo, progressBar, weekDots } from '../ui.js';
+import { cohabitClass, gauge, GROUP, todayGroup, typeOrder } from '../kinds.js';
 import { state, cached, remember } from '../state.js';
 import { TYPE_NAMES, dateTimeShort, isMe } from '../format.js';
 import { checkIn } from '../checkin.js';
@@ -135,16 +140,16 @@ export function mount(root, params, ctx) {
 
     // --- Abhaken ----------------------------------------------------------------
 
+    /**
+     * Abhak-Knopf nur, wo heute etwas offen ist; Erledigtes zeigt den blassen
+     * Haken, alles andere nichts (die Liste dann den Pfeil). Eine Unterbrechung
+     * traegt man bewusst auf der Detailseite ein, nicht im Vorbeigehen.
+     */
     function checkButton(summary, size = '') {
-        // Eine Unterbrechung traegt man bewusst auf der Detailseite ein, nicht
-        // mit einem Tipp im Vorbeigehen (im Entwurf hat die Karte keinen Knopf).
-        if (summary.ref.type === 'ABSTINENCE') return null;
-        if (!summary.canCheckIn) {
-            if (summary.status === 'DONE') {
-                return h('span', { class: 'done-mark', title: 'Heute erledigt', 'aria-label': 'Heute erledigt' }, icon('check'));
-            }
-            return null;
+        if (summary.status === 'DONE') {
+            return h('span', { class: 'done-mark', role: 'img', title: 'Heute erledigt', 'aria-label': 'Heute erledigt' }, icon('check'));
         }
+        if (summary.ref.type === 'ABSTINENCE' || !summary.canCheckIn || summary.status !== 'OPEN') return null;
         const outline = size === 'sm' && !summary.photoRequired;
         const button = h('button', {
             type: 'button',
@@ -167,28 +172,34 @@ export function mount(root, params, ctx) {
 
     // --- Dashboard (S. 1) ---------------------------------------------------------
 
+    /**
+     * Grosse Karten fuer die Streaks, darunter Ziele und Challenges klein
+     * paarweise, dann Abstinenz und zuletzt die automatischen, wieder gross.
+     */
     function dashboard(cohabits) {
-        const big = cohabits.filter(c => c.ref.type === 'STREAK' || c.ref.type === 'ABSTINENCE');
-        const small = cohabits.filter(c => c.ref.type === 'GOAL' || c.ref.type === 'CHALLENGE');
-        const smallCards = small.map((c, i) => smallCard(c, small.length % 2 === 1 && i === small.length - 1));
+        const ordered = typeOrder(cohabits);
+        const of = group => ordered.filter(c => todayGroup(c.ref) === group);
+        const small = of(GROUP.GOALS_AND_CHALLENGES);
+        const bigCard = c => (c.ref.type === 'ABSTINENCE' ? abstinenceCard(c) : streakCard(c));
         return h('div', { class: 'dash' },
-            big.map(c => (c.ref.type === 'ABSTINENCE' ? abstinenceCard(c) : streakCard(c))),
-            small.length ? h('div', { class: 'small-cards' }, smallCards) : null);
+            of(GROUP.STREAK).map(bigCard),
+            small.length ? h('div', { class: 'small-cards' },
+                small.map((c, i) => smallCard(c, small.length % 2 === 1 && i === small.length - 1))) : null,
+            [...of(GROUP.ABSTINENCE), ...of(GROUP.AUTOMATIC)].map(bigCard));
     }
 
     function cardLink(summary) {
         return h('a', { class: 'card-link', href: detailPath(summary.ref.id), 'data-nav': '', 'aria-label': summary.ref.name });
     }
 
-    function metric(headline, unitOverride) {
-        const unit = unitOverride !== undefined ? unitOverride : headline.unit;
-        return h('div', { class: 'metric' },
-            h('span', { class: 'metric-value' }, headline.value),
-            unit ? h('span', { class: 'metric-unit' }, unit) : null);
-    }
-
     function cardClasses(summary, extra) {
         return `card tinted on-tint ${cohabitClass(summary.ref)} ${extra}${summary.status === 'UNAVAILABLE' ? ' unavailable' : ''}`;
+    }
+
+    /** Balken wie beim Ziel - nur, wo es ein Ziel zum Auffuellen gibt. */
+    function cardBar(summary) {
+        const g = gauge(summary);
+        return g && g.bar != null ? progressBar(g.bar, 'card-bar') : null;
     }
 
     function subline(summary) {
@@ -199,10 +210,11 @@ export function mount(root, params, ctx) {
         return h('article', { class: cardClasses(summary, 'big-card deco tr') },
             cardLink(summary),
             h('div', { class: 'card-top' },
-                h('div', null,
+                h('div', { class: 'card-head' },
                     h('p', { class: 'card-type' }, `${summary.ref.name} · ${TYPE_NAMES[summary.ref.type]}`),
-                    metric(summary.headline)),
+                    headlineFigure(summary.headline)),
                 checkButton(summary)),
+            cardBar(summary),
             h('div', { class: 'card-foot' },
                 avatarStack(membersMeLast(summary.members), 34),
                 subline(summary) ? h('p', { class: 'card-sub' }, subline(summary)) : null));
@@ -215,7 +227,7 @@ export function mount(root, params, ctx) {
                 h('p', { class: 'card-type' }, `${summary.ref.name} · ${TYPE_NAMES[summary.ref.type]}`),
                 avatarStack(membersMeLast(summary.members), 34),
                 subline(summary) ? h('p', { class: 'card-sub' }, subline(summary)) : null),
-            h('div', { class: 'side-right' }, metric(summary.headline)));
+            h('div', { class: 'side-right' }, headlineFigure(summary.headline)));
     }
 
     function smallCard(summary, span) {
@@ -223,41 +235,35 @@ export function mount(root, params, ctx) {
             cardLink(summary),
             h('div', { class: 'card-top' },
                 h('p', { class: 'card-type' }, summary.ref.name),
-                summary.status === 'OPEN' || summary.status === 'DONE' ? checkButton(summary, 'xs') : null),
-            metric(summary.headline, summary.ref.type === 'GOAL' ? '' : null),
+                checkButton(summary, 'xs')),
+            headlineFigure(summary.headline),
+            cardBar(summary),
             subline(summary) ? h('p', { class: 'card-sub' }, subline(summary)) : null);
     }
 
     // --- Liste (S. 2) ---------------------------------------------------------
 
+    /** Eine Liste ohne Abschnitte, nach Typ; was man abhakt, bleibt an seinem Platz. */
     function list(cohabits) {
-        const open = cohabits.filter(c => c.section === 'OPEN_TODAY');
-        const running = cohabits.filter(c => c.section !== 'OPEN_TODAY');
-        return h('div', null,
-            open.length ? [sectionLabel('Offen heute'), h('div', { class: 'rows' }, open.map(row))] : null,
-            running.length ? [sectionLabel('Läuft'), h('div', { class: 'rows' }, running.map(row))] : null);
+        return h('div', { class: 'rows' }, typeOrder(cohabits).map(row));
     }
 
     function row(summary) {
-        const progress = summary.progress;
+        const text = summary.status === 'UNAVAILABLE' && summary.unavailableText ? summary.unavailableText : summary.listLine;
+        const g = gauge(summary);
         let sub;
-        if (summary.ref.type === 'GOAL' && progress) {
-            sub = progressBar(progress.fraction, '');
+        if (g && g.bar != null) {
+            sub = [text ? h('span', { class: 'row-sub' }, h('span', null, text)) : null, progressBar(g.bar, 'row-bar')];
         } else {
-            const dots = summary.ref.type === 'STREAK' && progress && progress.goal > 1 && progress.goal <= 14
-                ? h('span', { class: 'dots', 'aria-label': `${progress.done} von ${progress.goal}` },
-                    Array.from({ length: progress.goal }, (_, i) => h('i', { class: i < progress.done ? 'on' : '' })))
-                : null;
-            const text = summary.status === 'UNAVAILABLE' && summary.unavailableText ? summary.unavailableText : summary.listLine;
-            sub = h('span', { class: 'row-sub' }, dots, text ? h('span', null, text) : null);
+            sub = h('span', { class: 'row-sub' },
+                g && g.dots ? weekDots(g.dots.done, g.dots.goal) : null,
+                text ? h('span', null, text) : null);
         }
-        // Wie im Entwurf: Abhak-Knopf nur, wo heute etwas offen ist; was einfach
-        // laeuft (Ziel, Abstinenz), fuehrt mit dem Pfeil zur Detailseite.
-        const chevron = h('span', { class: 'row-chevron', 'aria-hidden': 'true' }, icon('chevronRight'));
-        const action = summary.status === 'OPEN' || summary.status === 'DONE' ? (checkButton(summary, 'sm') || chevron) : chevron;
+        const action = checkButton(summary, 'sm')
+            || h('span', { class: 'row-chevron', 'aria-hidden': 'true' }, icon('chevronRight'));
         return h('article', { class: `card row-card ${cardClasses(summary, '')}` },
             cardLink(summary),
-            h('span', { class: 'row-metric' }, summary.headline.short),
+            headlineFigure(summary.headline, { className: 'row-figure' }),
             h('div', { class: 'row-main' }, h('span', { class: 'row-name' }, summary.ref.name), sub),
             action);
     }
