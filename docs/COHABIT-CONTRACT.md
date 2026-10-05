@@ -962,6 +962,29 @@ Untere Leiste mit fünf Einträgen: **Heute** (Haus), **Timeline**, **+** (viole
     Chat). Einmal je Person (`dialogs/{id}/seen`).
 18. **Widgets** (S. 18), siehe §5.5.
 
+### 5.2a „Heute" nach Typ, Farbe nach Typ (seit 05.10., Felix – iOS zuerst, Web und Android gleich)
+Felix findet die klassische Liste leichter zu verfolgen; „Heute" (Liste **und** Dashboard) folgt ihr jetzt.
+Ersetzt in §5.2 Nr. 1–2 die Abschnitte und die Farbe je Co-Habit.
+- **Reihenfolge** nach Gruppe, darin nach `ref.createdAt` (ältestes zuerst; ohne Datum nach Name):
+  1. manuelle Streaks (`type STREAK`, `autoSource null`), 2. Ziele und Challenges, 3. Abstinenz,
+  4. automatische (jedes `autoSource != null`, egal welcher Typ). Unabhängig vom Status: was man abhakt,
+  bleibt stehen. Das Dashboard behält seine Karten (Streaks groß, Ziele/Challenges klein paarweise,
+  Abstinenz und automatische groß), nur in dieser Folge.
+- **Keine Abschnitte** „Offen heute"/„Läuft": eine Liste ohne Überschriften. Erledigtes zeigt statt des
+  Pfeils den Haken (blass, wie auf der Dashboard-Karte).
+- **Kennzahl ohne Abkürzung**: `headline.value` groß, `headline.unit` klein in ganzen Worten daneben
+  („17" „Tage"), passt es nicht, darunter. `headline.short` („3 Wo.", „17 T") zeigen die Clients nicht
+  mehr – auch nicht im Kopf der Detailseite und im Archiv.
+- **Balken** (wie beim Ziel, aus `progress.fraction`) für GOAL, CHALLENGE (eigener Stand gegen Zielwert
+  bzw. Führenden, §3.4) und automatische mit `autoSource` `STEPS_WEEKLY` oder `FOCUS`; keiner für `FOOD`,
+  `FOOD_TARGET_WEEKLY`, `EVALUATION` und unbekannte Quellen. Manuelle Streaks behalten die Wochenpunkte;
+  bei Challenges bleibt der Platz-Text daneben, der Balken steht darunter.
+- **Farbe nach Typ überall** (Heute, Detail, Chat, Timeline samt Filter, Statistik, Profil/Archiv,
+  Einladungen, Widgets): STREAK `peach`, ABSTINENCE `mint`, GOAL `periwinkle`, CHALLENGE `butter`,
+  automatisch (jeder Typ mit `autoSource`) `aqua` – wie die Typkarten im Anlegen-Schritt 1. Die
+  gespeicherte `color` zeigt kein Client mehr. **Anlegen** zeigt keine Farbwahl und schickt die Typfarbe
+  als `color`; **Bearbeiten** zeigt keine und lässt die gespeicherte unverändert.
+
 ### 5.3 Abhak-Beschriftungen (`checkInLabel`, vom Dienst)
 STREAK ohne Foto „Abhaken", mit Foto „Beweisfoto & abhaken", erledigt „Heute erledigt" (Knopf
 deaktiviert); ABSTINENCE „Unterbrechung eintragen"; GOAL „{Einheit} manuell eintragen" bzw. „Eintrag
