@@ -4,14 +4,15 @@
 import { get, post, put, enc } from '../api.js';
 import { h, icon, shareLink, showError, toast, fill } from '../dom.js';
 import { avatar, errorState, loadingState, segmented, selectRow, stepper, toggle, toggleRow } from '../ui.js';
-import { TYPE_COLORS, typeColor } from '../kinds.js';
+import { typeColor } from '../kinds.js';
 import { state, remember, forget } from '../state.js';
 import { addDays, dayIn, parseNumber, TYPE_NAMES, UNIT_LABELS } from '../format.js';
 import { peopleSearch } from './friends.js';
 import { goBack, replaceFlow } from '../app.js';
 
-// Die Farbe eines Co-Habits ist die seines Typs (Vertrag 5.2a) - eine Farbwahl
-// gibt es nicht mehr. Die Typkarten tragen dieselbe.
+// Die Farbe eines Co-Habits ist die seines Typs (Vertrag 5.2a), wie die Person
+// ihn eingestellt hat (5.2b) - eine Farbwahl gibt es hier nicht mehr. Die
+// Typkarten tragen dieselbe.
 const TYPES = [
     { key: 'STREAK', desc: 'Regelmäßig dranbleiben, täglich oder im eigenen Rhythmus.', example: 'z. B. 3× pro Woche laufen' },
     { key: 'ABSTINENCE', desc: 'Tage zählen, an denen ihr auf etwas verzichtet.', example: 'z. B. ohne Zucker' },
@@ -160,7 +161,7 @@ function toConfig(d, { forEdit = false } = {}) {
     const config = {
         type: d.type,
         name,
-        // Neu: die Farbe des Typs (automatische Aqua), damit iOS und Android dieselbe sehen.
+        // Neu: die eigene Farbe des Typs (bzw. von „Automatisch“) - Vertrag 5.2b.
         color: d.storedColor || typeColor(d.type, !!d.auto),
         timezone: d.timezone,
         tracking: needsValue(d) ? { mode: 'VALUE', unit: d.unit } : { mode: 'CHECK' },
@@ -515,7 +516,7 @@ export function mount(root, params, ctx) {
             ...head('Neues Co-Habit'),
             h('h1', { class: 'create-title' }, 'Was wollt ihr gemeinsam verfolgen?'),
             h('div', { class: 'type-cards' }, TYPES.map(t => h('button', {
-                type: 'button', class: `card type-card tinted deco c-${TYPE_COLORS[t.key]}`,
+                type: 'button', class: `card type-card tinted deco c-${typeColor(t.key)}`,
                 'aria-pressed': String(d.type === t.key),
                 onclick: () => {
                     d.type = t.key;

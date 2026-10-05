@@ -2,7 +2,11 @@
 // 05.10.): die Seite soll so leicht zu verfolgen sein wie die klassische Liste.
 // Jedes Co-Habit traegt die Farbe seines Typs - die gespeicherte `ref.color`
 // zeigt keine Ansicht mehr, deshalb geht jede Farbe eines Co-Habits ueber
-// cohabitClass(). Dieselbe Zuordnung wie in der iOS-App (CohabitKinds.swift).
+// cohabitClass(). Welche Farbe ein Typ hat, waehlt jede Person selbst (5.2b,
+// `me.typeColors`); jede Ansicht fragt beim Zeichnen hier nach und folgt so
+// einer Aenderung, sobald sie neu zeichnet. Dieselbe Zuordnung wie in der
+// iOS-App (CohabitKinds.swift).
+import { state } from './state.js';
 
 /**
  * Die Palette aus Vertrag 2.1, in der Reihenfolge der Auswahl. Die letzten vier
@@ -16,9 +20,30 @@ export const COLOR_NAMES = {
     aqua: 'Aqua', lavender: 'Lavendel', sky: 'Himmelblau', sage: 'Salbei', coral: 'Koralle',
 };
 
-/** Wie die Typkarten im Anlegen-Schritt 1; automatische (jeder Typ) sind Aqua. */
-export const TYPE_COLORS = { STREAK: 'peach', ABSTINENCE: 'mint', GOAL: 'periwinkle', CHALLENGE: 'butter' };
-const AUTOMATIC_COLOR = 'aqua';
+/** Die Plaetze der Typfarben; AUTOMATIC gilt fuer jedes Co-Habit mit `autoSource`. */
+export const TYPE_SLOTS = ['STREAK', 'ABSTINENCE', 'GOAL', 'CHALLENGE', 'AUTOMATIC'];
+
+/**
+ * Vorgaben wie die Typkarten im Anlegen-Schritt 1 - sie gelten, solange die
+ * Person nichts anderes gewaehlt hat oder ein aelterer Dienst das Feld nicht kennt.
+ */
+export const DEFAULT_TYPE_COLORS = { STREAK: 'peach', ABSTINENCE: 'mint', GOAL: 'periwinkle', CHALLENGE: 'butter', AUTOMATIC: 'aqua' };
+
+/** Farbe eines Platzes: die eigene Wahl, wenn sie ein Palettenschluessel ist, sonst die Vorgabe. */
+function slotColor(colors, slot) {
+    const own = colors && colors[slot];
+    return PALETTE.includes(own) ? own : DEFAULT_TYPE_COLORS[slot];
+}
+
+/** Alle fuenf Plaetze der angemeldeten Person, Vorgaben eingesetzt. */
+export function typeColors(colors = state.me && state.me.typeColors) {
+    return Object.fromEntries(TYPE_SLOTS.map(slot => [slot, slotColor(colors, slot)]));
+}
+
+/** Uebernimmt eine neue Zuordnung; die Ansichten zeigen sie beim naechsten Zeichnen. */
+export function setTypeColors(colors) {
+    if (state.me) state.me = { ...state.me, typeColors: typeColors(colors) };
+}
 
 /** Zaehlt von selbst - aus Healthy, Health, dem Wald oder der Evaluation. */
 export function isAutomatic(ref) {
@@ -26,7 +51,9 @@ export function isAutomatic(ref) {
 }
 
 export function typeColor(type, automatic = false) {
-    return automatic ? AUTOMATIC_COLOR : TYPE_COLORS[type] || 'periwinkle';
+    const slot = automatic ? 'AUTOMATIC' : type;
+    if (!TYPE_SLOTS.includes(slot)) return 'periwinkle';
+    return slotColor(state.me && state.me.typeColors, slot);
 }
 
 /** Palettenschluessel eines Co-Habits (CohabitRef) nach seinem Typ. */
