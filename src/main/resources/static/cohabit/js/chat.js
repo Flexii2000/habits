@@ -1,16 +1,15 @@
 // Chat eines Co-Habits (S. 7, Vertrag 3.6): Check-in-Posts als Karten,
 // Textblasen (eigene rechts violett), Systemmeldungen zentriert. Langer Druck
-// bzw. Rechtsklick oeffnet Reagieren, Loeschen, Melden, Blockieren. Neue
-// Nachrichten alle 20 s, solange die Seite sichtbar ist.
+// bzw. Rechtsklick oeffnet die Reaktionsleiste mit Loeschen, Melden,
+// Blockieren (Vertrag 2.7a). Neue Nachrichten alle 20 s, solange die Seite
+// sichtbar ist.
 import { get, post, del, enc } from './api.js';
-import { h, icon, actionSheet, autoGrow, poll, showError, uuid, fill } from './dom.js';
+import { h, icon, autoGrow, poll, showError, uuid, fill } from './dom.js';
 import { avatar, photo, photoCarousel, photoList } from './ui.js';
 import { dayHeading, dayIn, fmtTime, isMe, personName } from './format.js';
-import { reactionBar, reactionPicker } from './reactions.js';
+import { onLongPress, openReactionBar, reactionPill } from './reactions.js';
 import { blockPerson, reportDialog } from './social.js';
 import { pickFile, resizeImage, uploadPhoto } from './photo.js';
-
-const LONG_PRESS_MS = 480;
 
 export function mountChat(container, { getDetail, onCheckIn, onRead, alive }) {
     const cohabitId = getDetail().summary.ref.id;
@@ -157,7 +156,7 @@ export function mountChat(container, { getDetail, onCheckIn, onRead, alive }) {
         if (message.kind === 'SYSTEM') {
             const node = h('div', { class: 'msg system' },
                 h('p', { class: 'system-text' }, message.systemText || ''),
-                (message.reactions || []).some(r => r.count > 0) ? reactionBar(message) : null);
+                pill(message));
             bindActions(node, message);
             return node;
         }
@@ -172,8 +171,8 @@ export function mountChat(container, { getDetail, onCheckIn, onRead, alive }) {
                         h('time', { datetime: message.createdAt }, fmtTime(message.createdAt))),
                     photoCarousel(message.photoIds && message.photoIds.length ? message.photoIds : photoList(c)),
                     c.valueText ? h('p', { class: 'post-value' }, c.valueText) : null,
-                    c.caption ? h('p', { class: 'post-caption' }, c.caption) : null,
-                    reactionBar(message)));
+                    c.caption ? h('p', { class: 'post-caption' }, c.caption) : null),
+                pill(message));
             bindActions(node, message);
             return node;
         }
@@ -191,41 +190,29 @@ export function mountChat(container, { getDetail, onCheckIn, onRead, alive }) {
         const node = h('div', { class: `msg${mine ? ' mine' : ''}` },
             showAuthor && message.photoId && !message.text ? h('span', { class: 'bubble-author' }, message.author.displayName) : null,
             bubble,
-            !message.deleted && (message.reactions || []).some(r => r.count > 0) ? reactionBar(message) : null);
+            message.deleted ? null : pill(message));
         if (!message.deleted) bindActions(node, message);
         return node;
+    }
+
+    /** Antwort des Dienstes auch in den aktuellen Stand uebernehmen und neu zeichnen. */
+    function reacted(message) {
+        const current = messages.find(m => m.id === message.id);
+        if (current && current !== message) current.reactions = message.reactions;
+        nodes.delete(message.id);
+        renderAll();
+    }
+
+    function pill(message) {
+        return reactionPill(message, { onChange: () => reacted(message) });
     }
 
     // --- Aktionen an Nachrichten --------------------------------------------------
 
     function bindActions(node, message) {
-        let timer = null;
-        let startX = 0;
-        let startY = 0;
-        node.addEventListener('contextmenu', event => {
-            if (event.target.closest('a')) return;
-            event.preventDefault();
-            openActions(message);
-        });
-        node.addEventListener('touchstart', event => {
-            const t = event.touches[0];
-            startX = t.clientX;
-            startY = t.clientY;
-            clearTimeout(timer);
-            timer = setTimeout(() => {
-                timer = null;
-                openActions(message);
-            }, LONG_PRESS_MS);
-        }, { passive: true });
-        const cancel = () => { clearTimeout(timer); timer = null; };
-        node.addEventListener('touchmove', event => {
-            const t = event.touches[0];
-            if (Math.abs(t.clientX - startX) > 8 || Math.abs(t.clientY - startY) > 8) cancel();
-        }, { passive: true });
-        node.addEventListener('touchend', cancel);
-        node.addEventListener('touchcancel', cancel);
+        onLongPress(node, () => openActions(message));
         // Am Rechner ohne Rechtsklick-Gewohnheit: ein leiser Knopf beim Zeigen.
-        const more = h('button', { type: 'button', class: 'msg-more', 'aria-label': 'Aktionen', onclick: () => openActions(message) }, '···');
+        const more = h('button', { type: 'button', class: 'msg-more', 'aria-label': 'Reagieren', title: 'Reagieren', onclick: () => openActions(message) }, icon('smile'));
         node.append(more);
     }
 
@@ -240,11 +227,7 @@ export function mountChat(container, { getDetail, onCheckIn, onRead, alive }) {
             actions.push({ label: 'Melden', icon: 'flag', onSelect: () => reportDialog(cohabitId, message) });
             actions.push({ label: `${author.displayName} blockieren`, icon: 'block', danger: true, onSelect: () => blockPerson(author, () => loadLatest({ reset: true })) });
         }
-        const picker = message.deleted ? null : reactionPicker(message, () => {
-            nodes.delete(message.id);
-            renderAll();
-        });
-        actionSheet('Nachricht', actions, picker);
+        openReactionBar(message, { title: 'Nachricht', actions, onChange: () => reacted(message) });
     }
 
     async function removeMessage(message) {

@@ -170,11 +170,12 @@ export function confirmDialog({ title, text, confirm = 'OK', cancel = 'Abbrechen
  */
 export function actionSheet(title, actions, extra) {
     const ref = {};
-    const list = h('div', { class: 'action-list' }, actions.filter(Boolean).map(action =>
+    const items = actions.filter(Boolean);
+    const list = items.length ? h('div', { class: 'action-list' }, items.map(action =>
         h('button', {
             type: 'button', class: `action-item${action.danger ? ' danger' : ''}`,
             onclick: () => { ref.current.close(); action.onSelect(); },
-        }, action.icon ? icon(action.icon) : null, h('span', null, action.label))));
+        }, action.icon ? icon(action.icon) : null, h('span', null, action.label)))) : null;
     ref.current = openDialog([
         ...sheetHead(title, null, ref),
         h('div', { class: 'sheet-body' }, extra || null, list),

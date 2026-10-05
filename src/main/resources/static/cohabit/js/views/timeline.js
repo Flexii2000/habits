@@ -3,12 +3,13 @@
 // 01.10.: die seitlich scrollenden Chips gingen unter); gemerkt werden je Geraet
 // die AUSGEBLENDETEN Co-Habits - neue erscheinen so von selbst. Foto-Karten mit
 // Reaktionen und „Antworten" (oeffnet den Chat), uebrige Ereignisse kompakt.
+// Reagieren: Smiley neben „Antworten", langer Druck oder Rechtsklick auf die Karte.
 import { get, post, enc } from '../api.js';
 import { h, icon, showError, fill, openDialog, sheetHead, prefs } from '../dom.js';
 import { avatar, chip, colorClass, emptyState, errorState, loadingState, photoCarousel, photoList, sectionLabel } from '../ui.js';
 import { cached, remember } from '../state.js';
 import { dayHeading, dayIn } from '../format.js';
-import { reactionBar } from '../reactions.js';
+import { onLongPress, openReactionBar, reactionPill } from '../reactions.js';
 import { navigate } from '../app.js';
 
 const PAGE = 30;
@@ -54,9 +55,20 @@ export function timelineItem(item, { onReply } = {}) {
     const reply = item.canReply
         ? h('button', { type: 'button', class: 'text-btn', onclick: () => onReply(item) }, 'Antworten')
         : null;
+    const pillSlot = h('div', { class: 'tl-pill' });
+    const renderPill = () => fill(pillSlot, reactionPill(item, { onChange: renderPill }));
+    const openBar = () => openReactionBar(item, { onChange: () => {
+        renderPill();
+        if (foot) foot.hidden = false;
+    } });
+    const actions = h('div', { class: 'tl-actions' },
+        h('button', { type: 'button', class: 'icon-btn tl-react', 'aria-label': 'Reagieren', title: 'Reagieren', onclick: openBar }, icon('smile')),
+        reply);
+    renderPill();
+    let foot = null;
     const photos = photoList(item);
     if (photos.length) {
-        return h('article', { class: `tl-item ${color}` },
+        const card = h('article', { class: `tl-item ${color}` },
             h('div', { class: 'tl-head' },
                 who,
                 h('div', { class: 'tl-texts' },
@@ -65,12 +77,14 @@ export function timelineItem(item, { onReply } = {}) {
                 item.cohabit ? chip(item.cohabit.name, 'tint') : null),
             photoCarousel(photos),
             item.caption ? h('p', { class: 'tl-caption' }, item.caption) : null,
-            h('div', { class: 'tl-foot' }, reactionBar(item), reply));
+            h('div', { class: 'tl-foot' }, pillSlot, actions));
+        onLongPress(card, openBar);
+        return card;
     }
     // Kompakt: Reaktionen und „Antworten" erst auf Tipp, ausser es gibt schon
     // welche - so bleibt die Liste ruhig wie im Entwurf.
     const hasReactions = (item.reactions || []).some(r => r.count > 0);
-    const foot = h('div', { class: 'tl-foot', hidden: !hasReactions }, reactionBar(item), reply);
+    foot = h('div', { class: 'tl-foot', hidden: !hasReactions }, pillSlot, actions);
     const head = h('div', {
         class: 'tl-head tappable', role: 'button', tabindex: '0', 'aria-expanded': String(hasReactions),
     }, who, h('div', { class: 'tl-texts' },
@@ -87,7 +101,9 @@ export function timelineItem(item, { onReply } = {}) {
             toggleFoot();
         }
     });
-    return h('article', { class: `tl-item compact ${color}` }, head, foot);
+    const card = h('article', { class: `tl-item compact ${color}` }, head, foot);
+    onLongPress(card, openBar);
+    return card;
 }
 
 export function mount(root, params, ctx) {

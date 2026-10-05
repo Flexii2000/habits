@@ -1,12 +1,15 @@
 // Abschlussdialog (S. 17) fuer Challenge-Runden und Ziele - einmal je Person
-// (dialogs/{id}/seen). „Gratulieren" setzt „Stark" auf die Systemmeldung zum
-// Ende und oeffnet den Chat (Vertrag 5.2, Punkt 17). Welche Meldung das ist,
+// (dialogs/{id}/seen). „Gratulieren" setzt 💪 auf die Systemmeldung zum Ende
+// und oeffnet den Chat (Vertrag 5.2, Punkt 17, und 2.7a). Welche Meldung das ist,
 // sagt der Dienst in dialog.reactionTarget; fehlt das Feld, sucht die Seite sie.
 import { get, post, enc } from './api.js';
 import { h, openDialog, showError } from './dom.js';
 import { colorClass } from './ui.js';
 import { personName } from './format.js';
 import { setReaction } from './reactions.js';
+import { sameEmoji } from './emoji.js';
+
+const CONGRATS = '💪';
 
 function podium(entries) {
     if (!entries || !entries.length) return null;
@@ -60,12 +63,12 @@ export function finishedDialog(detail, { onTimeline, onCongratulate }) {
         congratulate.classList.add('busy');
         try {
             if (dialog.reactionTarget) {
-                await setReaction(dialog.reactionTarget, 'STARK', true);
+                await setReaction(dialog.reactionTarget, CONGRATS);
             } else {
                 const message = await endMessage(cohabitId, dialog);
                 if (message) {
-                    const mine = (message.reactions || []).some(r => r.reaction === 'STARK' && r.mine);
-                    if (!mine) await setReaction(message.reactionTarget, 'STARK', true);
+                    const mine = (message.reactions || []).some(r => r.mine && sameEmoji(r.reaction, CONGRATS));
+                    if (!mine) await setReaction(message.reactionTarget, CONGRATS);
                 }
             }
             markSeen();
