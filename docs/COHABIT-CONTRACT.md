@@ -418,7 +418,8 @@ gewohnt Beweisfoto (bei `photoRequired`), Caption, Tag.
 - Apps: Die Galerie-Auswahl im Chat erkennt GIFs (Typ bzw. `GIF8` am Dateianfang) und lädt die Datei
   unverändert hoch, statt sie als JPEG neu zu kodieren. Android nimmt außerdem GIFs aus der Tastatur
   (Gboard, Rich Content am Textfeld) an, iOS aus der Zwischenablage (Einfügen), das Web per Datei-Auswahl
-  und Einfügen ins Textfeld. Gesendet wird sofort (wie ein Foto, optional mit dem Text im Feld).
+  und Einfügen ins Textfeld. Gesendet wird wie ein Foto der jeweiligen Plattform: Galerie und Einfügen
+  hängen es an (iOS, Web: „Senden" mit dem Text im Feld), ein GIF aus der Gboard-Tastatur geht sofort raus.
 
 **Emoji-Reaktionen** (ersetzen die vier festen; Chat, Check-in-Posts und Timeline gleich):
 - Je Person **eine** Reaktion je Nachricht bzw. Ereignis; ein neues Emoji ersetzt das eigene alte,
