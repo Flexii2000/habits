@@ -49,7 +49,7 @@ public class PhotoController {
                                        @RequestParam(name = "size", required = false) String size) {
         PhotoService.Image image = photos.read(viewer, id, size);
         return ResponseEntity.ok()
-                .contentType(MediaType.IMAGE_JPEG)
+                .contentType(MediaType.parseMediaType(image.contentType()))
                 .cacheControl(CacheControl.maxAge(Duration.ofDays(365)).cachePrivate().immutable())
                 .body(image.bytes());
     }

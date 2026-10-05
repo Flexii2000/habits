@@ -144,8 +144,15 @@ class SocialApiTest extends ApiTestBase {
                 .expect(200).json();
         post("/cohabit/api/reactions", FELIX, map("target", "message:" + msg, "reaction", "STARK")).expect(200);
         r = post("/cohabit/api/reactions", lena.who(), map("target", "message:" + msg, "reaction", "stark")).expect(200).json();
-        assertEquals("[{\"reaction\":\"STARK\",\"label\":\"Stark\",\"count\":2,\"mine\":true}]",
-                r.path("reactions").toString());
+        // Die alten Namen (aeltere Apps, Postausgang) kommen als Emoji an.
+        JsonNode strong = r.path("reactions").get(0);
+        assertEquals(1, r.path("reactions").size());
+        assertEquals("💪", strong.path("reaction").asString());
+        assertEquals("💪", strong.path("label").asString());
+        assertEquals(2, strong.path("count").asInt());
+        assertTrue(strong.path("mine").asBoolean());
+        assertEquals("felix", strong.path("people").get(0).path("id").asString());
+        assertEquals(lena.id(), strong.path("people").get(1).path("id").asString());
         assertEquals(400, post("/cohabit/api/reactions", FELIX, map("target", "message:" + msg, "reaction", "LIKE")).status());
         assertEquals(404, post("/cohabit/api/reactions", max.who(), map("target", "message:" + msg, "reaction", "HAHA")).status());
 

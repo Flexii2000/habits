@@ -83,13 +83,17 @@ public class ApnsClient implements PushTransport {
     /**
      * Alert und Daten zusammen: {@code aps.alert} fuer die Anzeige, {@code thread-id}
      * buendelt die Benachrichtigungen eines Co-Habits, die Datenfelder daneben sagen
-     * der App, wohin der Tipp fuehrt.
+     * der App, wohin der Tipp fuehrt - und welches Bild dazugehoert.
      */
     public static String payload(PushMessage message) {
         Map<String, Object> aps = new LinkedHashMap<>();
         aps.put("alert", Map.of("title", message.title() == null ? "" : message.title(),
                 "body", message.body() == null ? "" : message.body()));
         aps.put("sound", "default");
+        if (message.hasPicture()) {
+            // Die Notification Service Extension der App laedt das Bild und haengt es an.
+            aps.put("mutable-content", 1);
+        }
         if (message.cohabitId() != null) {
             aps.put("thread-id", message.cohabitId());
         }

@@ -324,14 +324,21 @@ def main():
         for item in timeline:
             if reacted >= 5 or not item.get("person") or item["person"]["id"] == "felix":
                 continue
-            api.post("/cohabit/api/reactions", FELIX, {"target": item["reactionTarget"], "reaction": "STARK"})
+            api.post("/cohabit/api/reactions", FELIX, {"target": item["reactionTarget"], "reaction": "💪"})
             members = api.get(f"/cohabit/api/cohabits/{item['cohabit']['id']}", FELIX)["members"]
             others = [m["person"]["id"] for m in members
                       if m["state"] != "INVITED" and m["person"]["id"] not in ("felix", item["person"]["id"])]
             if others:
                 api.post("/cohabit/api/reactions", tokens_by_id[others[0]],
-                         {"target": item["reactionTarget"], "reaction": "RESPEKT"})
+                         {"target": item["reactionTarget"], "reaction": "🔥"})
             reacted += 1
+        # Ein GIF aus der Suche (die Adressen aus KLIPYs Doku) - die Apps laden es direkt von dort.
+        klipy = "https://static.klipy.com/ii/935d7ab9d8c6202580a668421940ec81/14/af/"
+        api.post(f"/cohabit/api/cohabits/{laufen}/messages", LENA, {
+            "id": str(uuid.uuid4()), "text": None, "photoId": None,
+            "gif": {"slug": "hello-hi-662", "title": "Hello", "width": 498, "height": 498,
+                    "gifUrl": klipy + "8GCrVAB7.gif", "webpUrl": klipy + "JUYsGsrc.webp",
+                    "mp4Url": klipy + "V6da8Awi.mp4", "stillUrl": klipy + "UsX8Vqtm.jpg"}})
         today_felix = api.get(f"/cohabit/api/cohabits/{laufen}", FELIX)["summary"]
         if today_felix["status"] == "OPEN":
             api.post(f"/cohabit/api/cohabits/{laufen}/nudges", MAX, {"to": "felix", "text": "Heute noch laufen?"})

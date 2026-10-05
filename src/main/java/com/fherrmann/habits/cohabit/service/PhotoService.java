@@ -51,6 +51,9 @@ import java.util.stream.Stream;
  * <p>Nur ImageIO, keine Bibliothek. Jedes Foto wird neu kodiert - damit sind alle
  * Metadaten (Ort, Geraet) weg, ohne sie einzeln suchen zu muessen. Gedreht wird
  * nicht: die Clients laden aufrecht hoch und verlassen sich nicht auf EXIF.
+ *
+ * <p>Ausnahme: ein eigenes GIF mit mehreren Bildern fuer den Chat. Neu kodiert waere
+ * es ein Standbild; es bleibt, wie es ist, nur ohne Metadaten-Bloecke ({@link GifSanitizer}).
  */
 @Service
 public class PhotoService {
@@ -67,14 +70,16 @@ public class PhotoService {
     /** Beim Dekodieren hoechstens doppelt so gross wie das Ergebnis - der Rest wird schon beim Lesen uebersprungen. */
     static final int DECODE_EDGE = 2 * FULL_EDGE;
     static final Duration UNUSED_GRACE = Duration.ofHours(24);
+    /** Ein GIF wird nicht verkleinert - also gleich nur in vernuenftiger Groesse. */
+    static final int MAX_GIF_EDGE = 2048;
 
-    public record Uploaded(String id, int width, int height) {
+    public record Uploaded(String id, int width, int height, boolean animated) {
     }
 
     public record Result(Uploaded photo, boolean created) {
     }
 
-    public record Image(byte[] bytes) {
+    public record Image(byte[] bytes, String contentType) {
     }
 
     static {
@@ -100,6 +105,11 @@ public class PhotoService {
     // MARK: - Hochladen
 
     public Result upload(Viewer viewer, byte[] bytes, String contentType, String idempotencyKey) {
+        return upload(viewer, bytes, contentType, idempotencyKey, true);
+    }
+
+    /** @param allowAnimated false fuer den Avatar: ein GIF wird dort zum Standbild seines ersten Bildes */
+    Result upload(Viewer viewer, byte[] bytes, String contentType, String idempotencyKey, boolean allowAnimated) {
         String me = viewer.personId();
         String key = idempotencyKey == null || idempotencyKey.isBlank() ? null : idempotencyKey.trim();
         if (key != null && !CheckinService.CLIENT_ID.matcher(key).matches()) {
@@ -109,13 +119,13 @@ public class PhotoService {
             PhotoMeta known = store.read(data -> data.photos().photos.stream()
                     .filter(p -> me.equals(p.ownerId) && key.equals(p.idempotencyKey)).findFirst().orElse(null));
             if (known != null) {
-                return new Result(new Uploaded(known.id, known.width, known.height), false);
+                return new Result(new Uploaded(known.id, known.width, known.height, known.animated), false);
             }
         }
-        Encoded encoded = encode(bytes, contentType);
+        Encoded encoded = encode(bytes, contentType, allowAnimated);
         String id = UUID.randomUUID().toString();
         Instant now = views.now();
-        writeFile(files.full(id), encoded.full());
+        writeFile(encoded.animated() ? files.animated(id) : files.full(id), encoded.full());
         writeFile(files.thumb(id), encoded.thumb());
         try {
             return store.write(tx -> {
@@ -124,7 +134,7 @@ public class PhotoService {
                 if (known != null) {
                     // Zwei gleichzeitige Versuche mit demselben Schluessel: der erste gewinnt.
                     tx.afterCommit(() -> files.deleteFiles(id));
-                    return new Result(new Uploaded(known.id, known.width, known.height), false);
+                    return new Result(new Uploaded(known.id, known.width, known.height, known.animated), false);
                 }
                 PeopleService.requirePerson(tx, me);
                 PhotoMeta meta = new PhotoMeta();
@@ -134,8 +144,9 @@ public class PhotoService {
                 meta.createdAt = now;
                 meta.width = encoded.width();
                 meta.height = encoded.height();
+                meta.animated = encoded.animated();
                 tx.photosW().photos.add(meta);
-                return new Result(new Uploaded(id, meta.width, meta.height), true);
+                return new Result(new Uploaded(id, meta.width, meta.height, meta.animated), true);
             });
         } catch (RuntimeException e) {
             files.deleteFiles(id);
@@ -143,19 +154,26 @@ public class PhotoService {
         }
     }
 
-    record Encoded(byte[] full, byte[] thumb, int width, int height) {
+    /** @param full das JPEG - bzw. bei {@code animated} das bereinigte GIF */
+    record Encoded(byte[] full, byte[] thumb, int width, int height, boolean animated) {
     }
 
     Encoded encode(byte[] bytes, String contentType) {
+        return encode(bytes, contentType, true);
+    }
+
+    Encoded encode(byte[] bytes, String contentType, boolean allowAnimated) {
         if (bytes == null || bytes.length == 0) {
             throw Errors.badRequest("Das Foto fehlt.");
         }
         if (bytes.length > MAX_BYTES) {
             throw new ResponseStatusException(HttpStatus.CONTENT_TOO_LARGE, "Das Foto ist zu groß (höchstens 10 MB).");
         }
-        if (!isJpeg(bytes) && !isPng(bytes)) {
-            throw Errors.badRequest("Nur JPEG oder PNG.");
+        boolean gif = GifSanitizer.isGif(bytes);
+        if (!isJpeg(bytes) && !isPng(bytes) && !gif) {
+            throw Errors.badRequest("Nur JPEG, PNG oder GIF.");
         }
+        GifSanitizer.Result animation = gif && allowAnimated ? animation(bytes) : null;
         try {
             decoding.acquire();
         } catch (InterruptedException e) {
@@ -163,13 +181,47 @@ public class PhotoService {
             throw Errors.badRequest("Abgebrochen.");
         }
         try {
+            if (animation != null) {
+                // Vorschau aus dem ersten Bild; das GIF selbst bleibt unangetastet.
+                BufferedImage thumb = scale(decode(animation.bytes()), THUMB_EDGE);
+                return new Encoded(animation.bytes(), jpeg(thumb, THUMB_QUALITY), animation.width(), animation.height(),
+                        true);
+            }
             BufferedImage image = decode(bytes);
             BufferedImage full = scale(image, FULL_EDGE);
             BufferedImage thumb = scale(full, THUMB_EDGE);
-            return new Encoded(jpeg(full, FULL_QUALITY), jpeg(thumb, THUMB_QUALITY), full.getWidth(), full.getHeight());
+            return new Encoded(jpeg(full, FULL_QUALITY), jpeg(thumb, THUMB_QUALITY), full.getWidth(), full.getHeight(),
+                    false);
         } finally {
             decoding.release();
         }
+    }
+
+    /**
+     * Ein GIF mit mehreren Bildern, ohne Metadaten - oder {@code null} fuer eines mit nur
+     * einem Bild, das wie jedes Foto ein JPEG wird.
+     */
+    static GifSanitizer.Result animation(byte[] bytes) {
+        GifSanitizer.Result gif;
+        try {
+            gif = GifSanitizer.sanitize(bytes);
+        } catch (GifSanitizer.MalformedGif e) {
+            throw Errors.badRequest("Das GIF lässt sich nicht lesen.");
+        }
+        if (gif.frames() < 2) {
+            return null;
+        }
+        if (gif.width() < 1 || gif.height() < 1) {
+            throw Errors.badRequest("Das GIF lässt sich nicht lesen.");
+        }
+        if (gif.width() > MAX_GIF_EDGE || gif.height() > MAX_GIF_EDGE) {
+            throw Errors.badRequest("Das GIF ist zu groß (höchstens 2048 px).");
+        }
+        // Klein auf der Leitung, riesig beim Abspielen: das bremst die Geraete aller Mitglieder.
+        if ((long) gif.width() * gif.height() * gif.frames() > MAX_PIXELS) {
+            throw Errors.badRequest("Das GIF hat zu viele Bilder.");
+        }
+        return gif;
     }
 
     static boolean isJpeg(byte[] b) {
@@ -311,21 +363,24 @@ public class PhotoService {
         if (!CohabitStore.isSafeId(id)) {
             throw Errors.notFound("Foto nicht gefunden.");
         }
-        boolean visible = store.read(data -> {
+        Boolean animated = store.read(data -> {
             PhotoMeta meta = PhotoFiles.meta(data, id);
             if (meta == null) {
-                return false;
+                return null;
             }
-            if (me.equals(meta.ownerId) || meta.avatarOf != null) {
-                return true;
-            }
-            return meta.cohabitId != null && data.cohabit(meta.cohabitId).map(c -> c.isMember(me)).orElse(false);
+            boolean visible = me.equals(meta.ownerId) || meta.avatarOf != null
+                    || meta.cohabitId != null && data.cohabit(meta.cohabitId).map(c -> c.isMember(me)).orElse(false);
+            return visible ? meta.animated : null;
         });
-        if (!visible) {
+        if (animated == null) {
             throw Errors.notFound("Foto nicht gefunden.");
         }
         try {
-            return new Image(Files.readAllBytes(thumb ? files.thumb(id) : files.full(id)));
+            if (thumb) {
+                return new Image(Files.readAllBytes(files.thumb(id)), "image/jpeg");
+            }
+            return animated ? new Image(Files.readAllBytes(files.animated(id)), "image/gif")
+                    : new Image(Files.readAllBytes(files.full(id)), "image/jpeg");
         } catch (IOException e) {
             throw Errors.notFound("Foto nicht gefunden.");
         }
@@ -334,7 +389,7 @@ public class PhotoService {
     // MARK: - Avatar
 
     public MeView setAvatar(Viewer viewer, byte[] bytes, String contentType) {
-        Result result = upload(viewer, bytes, contentType, null);
+        Result result = upload(viewer, bytes, contentType, null, false);
         String id = result.photo().id();
         store.update(tx -> {
             Person p = PeopleService.requirePerson(tx, viewer.personId());
@@ -425,7 +480,7 @@ public class PhotoService {
         try (Stream<Path> list = Files.list(dir)) {
             for (Path file : list.toList()) {
                 String name = file.getFileName().toString();
-                String id = name.replaceFirst("(_thumb)?\\.jpg(\\.tmp)?$", "");
+                String id = name.replaceFirst("(_thumb)?\\.(jpg|gif)(\\.tmp)?$", "");
                 if (known.contains(id)) {
                     continue;
                 }

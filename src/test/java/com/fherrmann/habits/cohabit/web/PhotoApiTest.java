@@ -110,9 +110,11 @@ class PhotoApiTest extends ApiTestBase {
 
     @Test
     void falscheOderZuGrosseDateienWerdenAbgelehnt() throws Exception {
-        assertEquals("Nur JPEG oder PNG.", upload(FELIX, "hallo".getBytes(), "image/jpeg", null).message());
-        byte[] gif = image(10, 10, "gif", false);
-        assertEquals(400, upload(FELIX, gif, "image/gif", null).status());
+        assertEquals("Nur JPEG, PNG oder GIF.", upload(FELIX, "hallo".getBytes(), "image/jpeg", null).message());
+        // Ein GIF mit nur einem Bild ist ein Foto wie jedes andere.
+        JsonNode still = upload(FELIX, image(10, 10, "gif", false), "image/gif", null).expect(201).json();
+        assertFalse(still.path("animated").asBoolean());
+        assertTrue(Files.exists(store.photosDir().resolve(still.path("id").asString() + ".jpg")));
         byte[] jpeg = image(200, 200, "jpg", false);
         byte[] broken = java.util.Arrays.copyOf(jpeg, 40);
         assertEquals("Das Foto lässt sich nicht lesen.", upload(FELIX, broken, "image/jpeg", null).message());

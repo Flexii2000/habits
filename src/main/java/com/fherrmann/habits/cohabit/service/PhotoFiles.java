@@ -12,7 +12,10 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Wo die Fotos liegen ({@code photos/<id>.jpg}, {@code photos/<id>_thumb.jpg}) - und wie sie verschwinden. */
+/**
+ * Wo die Fotos liegen ({@code photos/<id>.jpg}, {@code photos/<id>_thumb.jpg}, bei einem
+ * eigenen GIF {@code photos/<id>.gif} statt des JPEGs) - und wie sie verschwinden.
+ */
 @Component
 public class PhotoFiles {
 
@@ -26,6 +29,15 @@ public class PhotoFiles {
 
     public Path full(String id) {
         return store.photosDir().resolve(CohabitStoreIds.require(id) + ".jpg");
+    }
+
+    public Path animated(String id) {
+        return store.photosDir().resolve(CohabitStoreIds.require(id) + ".gif");
+    }
+
+    /** Die Datei in voller Groesse, wie sie hochgeladen wurde - JPEG oder GIF. */
+    public Path original(PhotoMeta meta) {
+        return meta.animated ? animated(meta.id) : full(meta.id);
     }
 
     public Path thumb(String id) {
@@ -58,6 +70,7 @@ public class PhotoFiles {
     public void deleteFiles(String id) {
         try {
             Files.deleteIfExists(full(id));
+            Files.deleteIfExists(animated(id));
             Files.deleteIfExists(thumb(id));
         } catch (IOException | IllegalArgumentException e) {
             log.warn("Foto {} liess sich nicht loeschen", id, e);

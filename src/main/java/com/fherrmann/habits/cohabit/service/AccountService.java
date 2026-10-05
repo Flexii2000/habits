@@ -56,7 +56,7 @@ public class AccountService {
     public byte[] export(Viewer viewer) {
         String me = viewer.personId();
         Map<String, Object> files = new LinkedHashMap<>();
-        List<String> photoIds = new ArrayList<>();
+        Map<String, Path> photoFiles = new LinkedHashMap<>();
         store.read(data -> {
             Person p = PeopleService.requirePerson(data, me);
             Map<String, Object> profile = new LinkedHashMap<>();
@@ -123,7 +123,9 @@ public class AccountService {
                         entry.put("kind", msg.kind);
                         entry.put("createdAt", msg.createdAt);
                         entry.put("text", msg.text);
-                        entry.put("photo", msg.photoId == null ? null : "photos/" + msg.photoId + ".jpg");
+                        entry.put("photo", msg.photoId == null ? null
+                                : "photos/" + msg.photoId + (msg.photoAnimated ? ".gif" : ".jpg"));
+                        entry.put("gif", msg.gif == null ? null : msg.gif.gifUrl);
                         messages.add(entry);
                     }
                 }
@@ -133,7 +135,7 @@ public class AccountService {
             files.put("messages.json", messages);
             for (PhotoMeta meta : data.photos().photos) {
                 if (me.equals(meta.ownerId)) {
-                    photoIds.add(meta.id);
+                    photoFiles.put("photos/" + meta.id + (meta.animated ? ".gif" : ".jpg"), photos.original(meta));
                 }
             }
             return null;
@@ -145,11 +147,10 @@ public class AccountService {
                 zip.write(json.writeValueAsBytes(e.getValue()));
                 zip.closeEntry();
             }
-            for (String id : photoIds) {
-                Path file = photos.full(id);
-                if (Files.exists(file)) {
-                    zip.putNextEntry(new ZipEntry("photos/" + id + ".jpg"));
-                    zip.write(Files.readAllBytes(file));
+            for (Map.Entry<String, Path> photo : photoFiles.entrySet()) {
+                if (Files.exists(photo.getValue())) {
+                    zip.putNextEntry(new ZipEntry(photo.getKey()));
+                    zip.write(Files.readAllBytes(photo.getValue()));
                     zip.closeEntry();
                 }
             }

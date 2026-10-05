@@ -1,19 +1,23 @@
 package com.fherrmann.habits.cohabit.model;
 
-/** Die feste Auswahl an Reaktionen - je Person hoechstens eine je Art. */
+/**
+ * Die feste Auswahl an Reaktionen bis 05.10. - seitdem sind Reaktionen Emojis. Bleibt,
+ * damit alte Eintraege und aeltere Apps (die diese Namen schicken) lesbar bleiben.
+ */
 public enum ReactionKind {
-    STARK("Stark"),
-    RESPEKT("Respekt"),
-    WEITER_SO("Weiter so"),
-    HAHA("Haha");
+    STARK("💪"),
+    RESPEKT("🙌"),
+    WEITER_SO("🔥"),
+    HAHA("😂");
 
-    private final String label;
+    private final String emoji;
 
-    ReactionKind(String label) {
-        this.label = label;
+    ReactionKind(String emoji) {
+        this.emoji = emoji;
     }
 
-    public String label() {
-        return label;
+    /** Das Emoji, das an die Stelle dieser Art getreten ist. */
+    public String emoji() {
+        return emoji;
     }
 }

@@ -130,9 +130,9 @@ coHabit-Vertrag; hier der Überblick:
 | Freunde | `GET /friends`, `GET /people/search?q=`, `POST /friends/requests`, `POST /friends/requests/{id}/accept\|decline`, `DELETE /friends/{id}`, `GET/POST/DELETE /blocks` |
 | Co-Habits | `GET/POST /cohabits`, `GET/PUT/DELETE /cohabits/{id}`, `POST …/archive\|unarchive`, `GET …/invite-candidates`, `POST …/invitations`, `POST …/invite-link`, `DELETE …/members/{id\|me}`, `PUT …/admin`, `PUT …/settings/me`, `POST/DELETE …/pauses`, `POST …/dialogs/{id}/seen`, `POST /invitations/{id}/accept\|decline` |
 | Einträge | `POST/PUT/DELETE /cohabits/{id}/checkins[/{checkinId}]`, `PUT /cohabits/{id}/health/{date}` |
-| Chat | `GET/POST /cohabits/{id}/messages`, `DELETE …/messages/{id}`, `POST …/messages/{id}/report`, `POST …/read`, `POST/DELETE /reactions` |
+| Chat | `GET/POST /cohabits/{id}/messages` (Text, Foto, GIF), `DELETE …/messages/{id}`, `POST …/messages/{id}/report`, `POST …/read`, `POST/DELETE /reactions`, `GET /gifs/config` |
 | Übersicht | `GET /today`, `GET /timeline?exclude=`, `POST /timeline/seen`, `GET /stats?range=WEEK\|MONTH\|YEAR`, `GET /widget`, `POST /cohabits/{id}/nudges`, `POST /nudges/{id}/seen` |
-| Fotos | `POST /photos` (multipart `photo`, ≤ 10 MB, `Idempotency-Key`), `GET /photos/{id}?size=thumb\|full` |
+| Fotos | `POST /photos` (multipart `photo`: JPEG, PNG, GIF, ≤ 10 MB, `Idempotency-Key`), `GET /photos/{id}?size=thumb\|full` |
 | Geräte, App | `POST /devices`, `DELETE /devices/{token}`, `GET /app/android`, `GET /app/android/apk` |
 | Klassische Liste | `GET/POST /classic/habits`, `PUT/DELETE /classic/habits/{id}`, `POST /classic/habits/{id}/marks`, `DELETE /classic/habits/{id}/marks/{date}` |
 
@@ -158,13 +158,32 @@ heißt bei einem geteilten Co-Habit Verlassen. Details im Vertrag, §3.10.
 **Fotos** werden neu kodiert (2048 px, JPEG 0,85; Vorschau 512 px, 0,8) – damit sind alle
 Metadaten weg. Sichtbar für die hochladende Person, für Mitglieder des Co-Habits, in dem
 das Foto hängt, und als Avatar für alle Angemeldeten. Nach 24 h unbenutzt: gelöscht.
+Ausnahme seit 2026-10-05: ein **eigenes GIF** mit mehreren Bildern bleibt animiert. Der Dienst
+schreibt es Block für Block ohne Kommentare und Application-Extensions neu (außer der Schleife;
+`GifSanitizer`), legt es als `<id>.gif` ab und das erste Bild als JPEG-Vorschau; höchstens
+2048 px je Kante. So ein Foto geht nur in den Chat (`photoAnimated`), nicht als Beweisfoto;
+als Avatar wird es ein Standbild.
+
+**GIFs aus der Suche** (KLIPY, seit 2026-10-05): Suche und Laden laufen direkt zwischen App
+und KLIPY – deren Bedingungen verbieten einen Umweg über den Dienst. Der Dienst gibt
+angemeldeten Personen nur den Schlüssel (`KLIPY_API_KEY`, nie im Repo) und eine zufällige
+Kennung je Person (`GET /gifs/config`) und speichert im Chat die Adressen des GIFs
+(`kind: GIF`). Er nimmt nur Adressen von KLIPYs Medien-Hosts an – eine beliebige URL würde
+allen Mitgliedern beim Öffnen des Chats einen Aufruf irgendwohin unterschieben.
+
+**Reaktionen** sind seit 2026-10-05 Emojis, eines je Person und Nachricht bzw. Ereignis; ein
+neues ersetzt das alte. Die frühere feste Auswahl (`STARK` …) liest der Dienst als 💪 🙌 🔥 😂 –
+auch, wenn eine ältere App sie noch schickt – und schreibt beim nächsten Ändern nur noch Emojis.
+`Emojis` lässt genau ein Graphem durch und vereinheitlicht ❤ zu ❤️.
 
 **Push**: iOS über APNs (Topic `com.fherrmann.cohabit`, Sandbox), Android über Firebase als
 reine Datennachricht – beide ohne Bibliothek. Arten: `checkin`, `photo`, `chat` (gebündelt:
 höchstens eine je Co-Habit alle 2 Minuten), `nudge`, `invite`, `friend-request`,
 `reminder`, `streak-at-risk`, `challenge-ending`, `challenge-ended`, `goal-finished`,
 `milestone`, `report` (an Felix), `app-update` (Android). Nie an die auslösende Person,
-nie von Blockierten; globale Schalter und je Co-Habit stumm/Check-ins/Chat.
+nie von Blockierten; globale Schalter und je Co-Habit stumm/Check-ins/Chat. Beweisfotos und
+einzelne Chat-Nachrichten mit Foto oder GIF tragen das Bild mit (`photoId` bzw. `imageUrl`/
+`imageStillUrl`; iOS dazu `mutable-content`), die Apps laden es selbst nach.
 
 **Scheduler** (jede Minute, in der Zone des Co-Habits): Erinnerung zur Erinnerungszeit an
 alle, die heute noch offen sind; um 20:00 gefährdete Serien; eine Stunde vor
@@ -206,7 +225,7 @@ Alles unter `data/` (auf dem Server `/opt/habits/data/`, **nie überschreiben**)
 | `cohabit/checkins/<id>.json` | Einträge je Co-Habit |
 | `cohabit/messages/<id>.json` | Chat je Co-Habit mit Systemmeldungen, Reaktionen und Lesestand |
 | `cohabit/events.json` | Timeline-Ereignisse (mit Reaktionen), Stupser, wer die Timeline bis wohin gesehen hat |
-| `cohabit/photos.json`, `cohabit/photos/<id>.jpg`, `<id>_thumb.jpg` | Fotos und wo sie hängen |
+| `cohabit/photos.json`, `cohabit/photos/<id>.jpg` bzw. `<id>.gif`, `<id>_thumb.jpg` | Fotos (eigene GIFs als `.gif`) und wo sie hängen |
 | `cohabit/reports.json` | Meldungen (mit Kopie der Nachricht) |
 | `cohabit/scheduler.json` | was der Scheduler schon verschickt hat |
 | `cohabit/android-release.json` | zuletzt angekündigte Android-Version |
@@ -254,6 +273,10 @@ APNs mit Kopie `/etc/apns-cohabit.p8`, Firebase mit Kopie `/etc/fcm-cohabit.json
 `COHABIT_ANDROID_DIR=/opt/cohabit-android`), fügt `location /cohabit/` vor dem
 `/grades/`-Block ein und prüft am Ende Dienst, Wald, 410 und den Weg über nginx.
 Vorlagen: `deploy/`.
+
+Die GIF-Suche braucht einmalig einen Schlüssel aus dem Partner-Panel von KLIPY:
+`ssh -t HeimServerRemote '~/services/habits/deploy/set-klipy-key.sh'` fragt ihn ab, setzt
+`KLIPY_API_KEY` und prüft `/cohabit/api/gifs/config`.
 
 ## Lokal
 

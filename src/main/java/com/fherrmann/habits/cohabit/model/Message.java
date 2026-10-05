@@ -12,6 +12,10 @@ public class Message {
     public Instant createdAt;
     public String text;
     public String photoId;
+    /** Das Foto ist ein eigenes, animiertes GIF. */
+    public boolean photoAnimated;
+    /** Bei kind GIF: das GIF aus der Suche. */
+    public Gif gif;
     /** Bei einem Check-in-Post alle Fotos des Eintrags; fehlt bei Posts von vorher. */
     public List<String> photoIds;
     public String checkinId;

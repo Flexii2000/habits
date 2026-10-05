@@ -20,4 +20,6 @@ public class Person {
     public List<Device> devices = new ArrayList<>();
     /** Wen diese Person blockiert hat. */
     public List<String> blocked = new ArrayList<>();
+    /** Zufaellige Kennung fuer KLIPYs {@code customer_id} - nicht die Personen-ID. */
+    public String gifCustomerId;
 }

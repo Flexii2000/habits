@@ -100,7 +100,7 @@ public class SocialController {
 
     @DeleteMapping("/reactions")
     public ReactionsView unreact(Viewer viewer, @RequestParam("target") String target,
-                                 @RequestParam("reaction") String reaction) {
+                                 @RequestParam(name = "reaction", required = false) String reaction) {
         return reactions.remove(viewer, target, reaction);
     }
 

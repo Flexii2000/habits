@@ -17,6 +17,8 @@ public class PhotoMeta {
     public int height;
     public String cohabitId;
     public String avatarOf;
+    /** Ein eigenes GIF mit mehreren Bildern: liegt als {@code <id>.gif} statt {@code <id>.jpg}. */
+    public boolean animated;
 
     @JsonIgnore
     public boolean isUsed() {

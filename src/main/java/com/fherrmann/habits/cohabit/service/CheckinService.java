@@ -136,7 +136,7 @@ public class CheckinService {
                 throw Errors.badRequest("Ein Beweisfoto ist Pflicht.");
             }
             for (String photo : photoList) {
-                attachPhoto(tx, c, me, photo);
+                attachPhoto(tx, c, me, photo, false);
             }
             ch.setPhotos(photoList);
             tx.checkinsW(c.id).add(ch);
@@ -277,8 +277,11 @@ public class CheckinService {
         return list;
     }
 
-    /** Ein Foto gehoert der Person, die es hochgeladen hat, und wird genau einmal verwendet. */
-    static void attachPhoto(CohabitStore.Tx tx, Cohabit c, String me, String photoId) {
+    /**
+     * Ein Foto gehoert der Person, die es hochgeladen hat, und wird genau einmal verwendet.
+     * Ein eigenes GIF nur im Chat: ein Beweisfoto soll zeigen, nicht unterhalten.
+     */
+    static PhotoMeta attachPhoto(CohabitStore.Tx tx, Cohabit c, String me, String photoId, boolean allowAnimated) {
         PhotoMeta meta = PhotoFiles.meta(tx, photoId);
         if (meta == null || !meta.ownerId.equals(me)) {
             throw Errors.badRequest("Foto nicht gefunden.");
@@ -286,8 +289,12 @@ public class CheckinService {
         if (meta.isUsed()) {
             throw Errors.conflict("Das Foto wird schon verwendet.");
         }
+        if (meta.animated && !allowAnimated) {
+            throw Errors.badRequest("Ein GIF ist kein Beweisfoto.");
+        }
         tx.photosW();
         meta.cohabitId = c.id;
+        return meta;
     }
 
     /** Timeline, Chat-Post, Push, Bestserie, Challenge-Ende - alles, was ein neuer Eintrag ausloest. */
@@ -325,7 +332,8 @@ public class CheckinService {
             String body = ch.caption != null ? ch.caption
                     : photoList.size() == 1 ? "Neues Beweisfoto" : photoList.size() + " neue Beweisfotos";
             notifier.notify(tx, others, new PushMessage("photo", title, body, c.id,
-                    "cohabit://cohabit/" + c.id + "/chat"), Setting.PHOTOS, c, me);
+                    "cohabit://cohabit/" + c.id + "/chat", PushMessage.picture(photoList.getFirst(), null)),
+                    Setting.PHOTOS, c, me);
         } else {
             notifier.notify(tx, others, new PushMessage("checkin", title,
                     ch.note != null ? ch.note : e.detail == null ? "" : e.detail, c.id, "cohabit://cohabit/" + c.id),
@@ -369,7 +377,7 @@ public class CheckinService {
         List<String> before = ch.photos();
         for (String id : next) {
             if (!before.contains(id)) {
-                attachPhoto(tx, c, ch.personId, id);
+                attachPhoto(tx, c, ch.personId, id, false);
             }
         }
         photos.delete(tx, before.stream().filter(id -> !next.contains(id)).toList());

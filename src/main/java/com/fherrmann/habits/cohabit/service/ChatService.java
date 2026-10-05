@@ -1,11 +1,13 @@
 package com.fherrmann.habits.cohabit.service;
 
 import com.fherrmann.habits.cohabit.api.CheckinView;
+import com.fherrmann.habits.cohabit.api.GifView;
 import com.fherrmann.habits.cohabit.api.MessagePage;
 import com.fherrmann.habits.cohabit.api.MessageView;
 import com.fherrmann.habits.cohabit.model.Checkin;
 import com.fherrmann.habits.cohabit.model.Cohabit;
 import com.fherrmann.habits.cohabit.model.Event;
+import com.fherrmann.habits.cohabit.model.Gif;
 import com.fherrmann.habits.cohabit.model.Message;
 import com.fherrmann.habits.cohabit.model.MessageKind;
 import com.fherrmann.habits.cohabit.model.MessagesFile;
@@ -37,7 +39,8 @@ public class ChatService {
     static final int DEFAULT_LIMIT = 50;
     static final int MAX_LIMIT = 200;
 
-    public record SendInput(String id, String text, String photoId) {
+    /** {@code gif}: ein GIF aus der Suche (KLIPY) - statt eines Fotos. */
+    public record SendInput(String id, String text, String photoId, Gifs.Input gif) {
     }
 
     public record Sent(MessageView message, boolean created) {
@@ -140,8 +143,9 @@ public class ChatService {
         }
         return new MessageView(m.id, m.cohabitId, m.kind.name(), Views.person(data, m.authorId),
                 me.equals(m.authorId), m.createdAt, m.deleted ? null : m.text, m.deleted ? null : m.photoId, checkin,
-                m.systemText, reactionTarget, m.deleted ? List.of() : ReactionService.views(reactions, me), m.deleted,
-                m.deleted ? List.of() : Checkin.photos(m.photoId, m.photoIds));
+                m.systemText, reactionTarget, m.deleted ? List.of() : ReactionService.views(data, reactions, me), m.deleted,
+                m.deleted ? List.of() : Checkin.photos(m.photoId, m.photoIds), !m.deleted && m.photoAnimated,
+                m.deleted ? null : GifView.of(m.gif));
     }
 
     // MARK: - Schreiben
@@ -154,6 +158,10 @@ public class ChatService {
         }
         String text = in == null || in.text() == null || in.text().isBlank() ? null : in.text().strip();
         String photoId = in == null || in.photoId() == null || in.photoId().isBlank() ? null : in.photoId().trim();
+        if (in != null && in.gif() != null && photoId != null) {
+            throw Errors.badRequest("Ein GIF kommt ohne Foto.");
+        }
+        Gif gif = in == null || in.gif() == null ? null : Gifs.validate(in.gif());
         Instant now = views.now();
         boolean[] created = {false};
         MessageView result = store.write(tx -> {
@@ -168,37 +176,39 @@ public class ChatService {
             if (c.archived) {
                 throw Errors.conflict("Das Co-Habit ist archiviert.");
             }
-            if (text == null && photoId == null) {
+            if (text == null && photoId == null && gif == null) {
                 throw Errors.badRequest("Die Nachricht ist leer.");
             }
             if (text != null && text.length() > MAX_TEXT) {
                 throw Errors.badRequest("Eine Nachricht hat höchstens 2000 Zeichen.");
             }
-            if (photoId != null) {
-                CheckinService.attachPhoto(tx, c, me, photoId);
-            }
+            boolean animated = photoId != null && CheckinService.attachPhoto(tx, c, me, photoId, true).animated;
             Message m = new Message();
             m.id = id;
             m.cohabitId = c.id;
-            m.kind = photoId == null ? MessageKind.TEXT : MessageKind.PHOTO;
+            m.kind = gif != null ? MessageKind.GIF : photoId != null ? MessageKind.PHOTO : MessageKind.TEXT;
             m.authorId = me;
             m.createdAt = now;
             m.text = text;
             m.photoId = photoId;
+            m.photoAnimated = animated;
+            m.gif = gif;
             MessagesFile chat = tx.messagesW(c.id);
             chat.messages.add(m);
             chat.readState.put(me, m.id);
             created[0] = true;
             String name = Views.name(tx, me);
-            String body = text != null ? name + ": " + text : name + " hat ein Foto geschickt";
+            String body = text != null ? name + ": " + text
+                    : gif != null || animated ? name + " hat ein GIF geschickt"
+                    : photoId != null ? name + " hat ein Foto geschickt" : "";
             List<String> now1 = new ArrayList<>();
             for (var member : c.members) {
                 if (!member.personId.equals(me) && bundler.admit(member.personId, c.id, now)) {
                     now1.add(member.personId);
                 }
             }
-            notifier.notify(tx, now1, new PushMessage("chat", c.name, body, c.id, "cohabit://cohabit/" + c.id + "/chat"),
-                    Setting.CHAT, c, me);
+            notifier.notify(tx, now1, new PushMessage("chat", c.name, body, c.id, "cohabit://cohabit/" + c.id + "/chat",
+                    PushMessage.picture(photoId, gif)), Setting.CHAT, c, me);
             return view(tx, c, m, me, now);
         });
         return new Sent(result, created[0]);
@@ -233,6 +243,8 @@ public class ChatService {
         m.deleted = true;
         m.text = null;
         m.photoId = null;
+        m.photoAnimated = false;
+        m.gif = null;
         m.reactions.clear();
     }
 
@@ -259,6 +271,7 @@ public class ChatService {
             r.authorId = m.authorId;
             r.text = m.text != null ? m.text : m.systemText;
             r.photoId = m.photoId;
+            r.gifUrl = m.gif == null ? null : m.gif.gifUrl;
             r.reason = why;
             r.createdAt = now;
             tx.reportsW().reports.add(r);

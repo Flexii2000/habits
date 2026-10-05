@@ -11,6 +11,7 @@ public class Report {
     public String authorId;
     public String text;
     public String photoId;
+    public String gifUrl;
     public String reason;
     public Instant createdAt;
 }
