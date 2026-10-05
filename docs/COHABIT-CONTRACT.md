@@ -347,9 +347,9 @@ gewohnt Beweisfoto (bei `photoRequired`), Caption, Tag.
   (`https://fherrmann.com/cohabit/join/<code>`, 22 Zeichen Base62, 14 Tage gültig, mehrfach nutzbar bis
   die Plätze voll sind; Admin — oder Mitglieder bei `membersCanInvite` — erzeugt ihn). Freundes-Link
   `https://fherrmann.com/cohabit/join/<code>` mit Art `FRIEND`.
-- **Chat** je Co-Habit: Text (≤ 2000), eigene Fotos (mit optionalem Text), Check-in-Posts
-  (Beweisfotos), Systemmeldungen. Reaktionen: feste Auswahl **[Entscheidung]** `STARK` „Stark",
-  `RESPEKT` „Respekt", `WEITER_SO` „Weiter so", `HAHA` „Haha" — je Person höchstens eine je Art.
+- **Chat** je Co-Habit: Text (≤ 2000), eigene Fotos (mit optionalem Text), GIFs (§2.7a), Check-in-Posts
+  (Beweisfotos), Systemmeldungen. Reaktionen: **Emojis**, je Person höchstens **eines** je Nachricht bzw.
+  Ereignis (§2.7a; bis 05.10. die feste Auswahl `STARK`, `RESPEKT`, `WEITER_SO`, `HAHA`).
   Eigene Nachrichten löschen (bleibt als „Nachricht gelöscht"), melden (landet in `reports.json`, Push an
   Felix), Personen blockieren (deren Nachrichten und Timeline-Einträge sind für mich ausgeblendet; sie
   können mich weder einladen noch anfragen).
@@ -360,6 +360,112 @@ gewohnt Beweisfoto (bei `photoRequired`), Caption, Tag.
 - **Stupser**: an ein Mitglied, das heute noch offen ist; höchstens einer je Absender, Empfänger,
   Co-Habit und Tag (sonst 429); optionaler Text (≤ 60), sonst „Heute noch „{Co-Habit}"?". Push +
   Banner auf „Heute" mit „Zurückstupsen" (stupst den Absender im selben Co-Habit).
+
+### 2.7a GIFs, Emoji-Reaktionen, Bild in Benachrichtigungen (seit 05.10., Felix)
+
+**GIFs aus der Suche (KLIPY).** Tenor hat seine API am 30.06.2026 abgeschaltet; Felix' Wahl ist KLIPY.
+- **Bedingungen von KLIPY (verbindlich):** Suchanfragen **und** das Laden der GIFs gehen **direkt vom
+  Gerät** an KLIPY (`api.klipy.com`, Medien von `static.klipy.com`, `static1.…`, `static2.…`) – kein Umweg
+  über den Dienst. Medien nicht in eigene Dateien kopieren (Speicher und der HTTP-Cache des Systems sind
+  in Ordnung), URLs unverändert verwenden, Ergebnisse in der gelieferten Reihenfolge zeigen, nichts
+  herausfiltern, KLIPY-Inhalte in einem eigenen Raster. Platzhalter des Suchfelds wörtlich
+  **„Search KLIPY"** (Pflicht). „Powered by KLIPY" ist freiwillig und entfällt (keine Zusatztexte).
+- **Zugang**: `GET /gifs/config` → `{"enabled":true,"apiKey":"…","customerId":"…","locale":"de",
+  "contentFilter":"medium"}`; ohne Schlüssel auf dem Server `{"enabled":false}` – dann kein GIF-Knopf
+  (eigene GIFs gehen weiter). Der Schlüssel steht in keinem Repo (habits und cockpit-ios sind öffentlich):
+  Env `KLIPY_API_KEY` in `/etc/habits.env`. `customerId` ist eine zufällige, stabile Kennung je Person
+  (nicht die Personen-ID) für KLIPYs `customer_id`. Clients holen die Konfiguration beim Öffnen des
+  GIF-Blatts (bzw. einmal je Chat) und halten sie im Speicher.
+- **Aufrufe der Clients** (`{k}` = `apiKey`, immer `customer_id`, `locale`, `content_filter` aus der
+  Konfiguration, `per_page=24`):
+  - leeres Suchfeld: `GET https://api.klipy.com/api/v1/{k}/gifs/trending?page=1&per_page=24&…`
+  - Suche: `GET https://api.klipy.com/api/v1/{k}/gifs/search?q=…&page=1&per_page=24&…`, 300 ms nach dem
+    letzten Tastendruck; nachladen beim Scrollen (`page+1`, solange `has_next`).
+  - Antwort: `{"result":true,"data":{"data":[Item],"current_page":1,"per_page":24,"has_next":true}}`,
+    `Item {"id","slug","title","type":"gif","blur_preview":"data:image/jpeg;base64,…",
+    "file":{"hd"|"md"|"sm"|"xs":{"gif"|"webp"|"jpg"|"mp4"|"webm":{"url","width","height","size"}}}}`.
+    Einträge ohne `file` überspringen.
+  - nach dem Senden, feuern und vergessen: `POST https://api.klipy.com/api/v1/{k}/gifs/share/{slug}` mit
+    `{"customer_id":"…","q":"<Suchbegriff, leer bei Trending>"}`.
+- **Blatt**: Suchfeld oben, darunter ein Raster (2 Spalten, Kacheln im Seitenverhältnis des GIFs oder
+  quadratisch beschnitten – der Client entscheidet) mit `sm` (animiert `webp`, sonst `gif`; Platzhalter
+  `blur_preview`). **Antippen sendet sofort** und schließt das Blatt (kein Vorschauschritt).
+- **Senden**: `POST /cohabits/{id}/messages` mit `"gif"` aus `file.md` (fehlt `md`: `hd`, dann `sm`):
+  `{"id":"<uuid>","text":null,"photoId":null,"gif":{"slug":"hello-hi-662","title":"Hello","width":498,
+  "height":498,"gifUrl":"https://static.klipy.com/…gif","webpUrl":"…webp"|null,"mp4Url":"…mp4"|null,
+  "stillUrl":"…jpg"|null}}` → `Message` mit `kind: "GIF"` und `gif` (`GifView` = dieselben Felder plus
+  `"provider":"KLIPY"`). Der Dienst prüft: `gifUrl` Pflicht, jede URL passt auf
+  `^https://static[0-9]*\.klipy\.com/` und hat höchstens 500 Zeichen, `width`/`height` 1–4096, `slug`
+  höchstens 200 Zeichen (sonst 400 „Das GIF ist ungültig."); `title` wird auf 200 Zeichen gekürzt; nicht
+  zusammen mit `photoId` (400 „Ein GIF kommt ohne Foto."). `text` ist erlaubt, die Apps schicken keinen.
+  Offline: in den Postausgang wie eine Textnachricht.
+- **Anzeige** im Chat: wie ein Foto (ohne Blasenhintergrund, Seitenverhältnis aus `width`/`height`,
+  Breite wie Fotos), animiert. Web und Android `webpUrl` (sonst `gifUrl`), iOS `mp4Url` als stumme
+  Schleife oder `gifUrl` (der iOS-Agent entscheidet), Platzhalter `stillUrl`.
+
+**Eigene GIFs** (Galerie, Tastatur, Zwischenablage) bleiben animiert:
+- `POST /photos` nimmt zusätzlich `image/gif`. Ein GIF mit mehr als einem Bild wird **nicht** neu kodiert:
+  der Dienst prüft die Blockstruktur, entfernt Kommentare und alle Application-Extensions außer der
+  Schleife (`NETSCAPE2.0`/`ANIMEXTS1.0`) – damit sind Metadaten wie XMP weg – und legt es als
+  `photos/<id>.gif` ab, dazu `thumb` (erstes Bild, JPEG, 512 px). Grenzen: 10 MB, höchstens 2048 px je Kante
+  (400 „Das GIF ist zu groß (höchstens 2048 px)."), Breite × Höhe × Bilder höchstens 120 Mio. Ein GIF mit
+  nur einem Bild ist ein gewöhnliches Foto (JPEG).
+- Antwort `{"id","width","height","animated":true}` (`animated` immer dabei, sonst `false`).
+  `GET /photos/{id}?size=full` liefert dann `image/gif`, `size=thumb` ein JPEG.
+- Ein animiertes Foto geht **nur** in eine Chat-Nachricht (`photoId`): als Beweisfoto 400 „Ein GIF ist
+  kein Beweisfoto."; als Avatar (`PUT /me/avatar`) nimmt der Dienst das erste Bild.
+- Die Nachricht bleibt `kind: "PHOTO"` und trägt `photoAnimated: true` – ältere Apps zeigen das erste Bild.
+- Apps: Die Galerie-Auswahl im Chat erkennt GIFs (Typ bzw. `GIF8` am Dateianfang) und lädt die Datei
+  unverändert hoch, statt sie als JPEG neu zu kodieren. Android nimmt außerdem GIFs aus der Tastatur
+  (Gboard, Rich Content am Textfeld) an, iOS aus der Zwischenablage (Einfügen), das Web per Datei-Auswahl
+  und Einfügen ins Textfeld. Gesendet wird sofort (wie ein Foto, optional mit dem Text im Feld).
+
+**Emoji-Reaktionen** (ersetzen die vier festen; Chat, Check-in-Posts und Timeline gleich):
+- Je Person **eine** Reaktion je Nachricht bzw. Ereignis; ein neues Emoji ersetzt das eigene alte,
+  dasselbe noch einmal nimmt es zurück (Client: `DELETE`).
+- Bestehende Reaktionen deutet der Dienst um: `STARK` → 💪, `RESPEKT` → 🙌, `WEITER_SO` → 🔥, `HAHA` → 😂;
+  hatte eine Person mehrere auf demselben Ziel, bleibt die zuletzt gesetzte.
+- `POST /reactions` `{"target","reaction":"🔥"}` setzt die eigene Reaktion → `{"reactions":[ReactionView]}`.
+  Die alten Namen (`STARK` …) nimmt der Dienst weiter an (ältere Apps, Postausgang). Kein Emoji → 400
+  „Das ist kein Emoji."
+- `DELETE /reactions?target=…&reaction=…` nimmt die eigene zurück; `reaction` ist optional – ist es
+  angegeben und die eigene Reaktion inzwischen eine andere, bleibt diese (ein später Postausgang-Eintrag
+  löscht keine neuere).
+- Ein Emoji ist genau ein Graphem-Cluster mit einem Extended-Pictographic-Zeichen, einem Flaggenpaar oder
+  einer Tastenkappe (U+20E3), höchstens 32 UTF-16-Einheiten. Der Dienst normalisiert: U+FE0E fällt weg, ein
+  einzelnes Zeichen ohne Emoji-Darstellung bekommt U+FE0F (❤ → ❤️) – so zählen alle Clients gleich.
+- `ReactionView {"reaction":"💪","label":"💪","count":2,"mine":true,"people":[PersonView]}`: `reaction`
+  und `label` sind das Emoji, `people` in der Reihenfolge der Reaktionen. Die Liste ist nach `count`
+  absteigend sortiert, bei Gleichstand nach der frühesten Reaktion.
+- „Gratulieren" im `FinishedDialog` setzt 💪.
+- **Oberfläche**:
+  - Langer Druck auf eine Nachricht bzw. eine Timeline-Karte öffnet eine Leiste mit der Schnellauswahl
+    **💪 🔥 🙌 ❤️ 😂 👏** und „+" für jedes beliebige Emoji (iOS: Emoji-Tastatur oder eigenes Raster,
+    Android: `EmojiPickerView` aus `androidx.emoji2:emoji2-emojipicker`, Web: eigenes Raster; jeweils mit
+    Suche, wo es die Plattform hergibt) – zusammen mit den bisherigen Aktionen (Löschen, Melden,
+    Blockieren). Das eigene aktuelle Emoji ist in der Leiste hervorgehoben.
+  - Unter der Nachricht (an der Unterkante der Blase, wie in WhatsApp) eine Pille mit bis zu drei Emojis
+    (häufigste zuerst) und der Gesamtzahl ab 2; ist die eigene dabei, ist die Pille in der Akzentfarbe
+    umrandet.
+  - Tipp auf die Pille öffnet das Blatt „Reaktionen": Zeilen aus Avatar, Name und Emoji; die eigene Zeile
+    mit „Entfernen".
+  - Timeline-Karten: dieselbe Pille; neben „Antworten" ein Smiley-Knopf, der die Leiste öffnet.
+
+**Bild in Benachrichtigungen** (Felix: jede Benachrichtigung, zu der ein Bild gehört):
+- Datenfelder (§4) zusätzlich: `photoId` – Beweisfoto (bei mehreren das erste), Foto oder eigenes GIF im
+  Chat – bzw. bei KLIPY-GIFs `imageUrl` (= `gifUrl`) und `imageStillUrl` (= `stillUrl`, falls vorhanden).
+  Nur bei `photo` und einzelnen `chat`-Benachrichtigungen; Sammelnachrichten („3 neue Nachrichten")
+  bleiben ohne Bild.
+- **iOS**: `aps.mutable-content: 1`, sobald eines der Felder da ist. Die Notification Service Extension
+  `coHabitNotifications` (Bundle `com.fherrmann.cohabit.notifications`) lädt `GET /photos/{photoId}?size=full`
+  mit dem Token aus dem gemeinsamen Schlüsselbund bzw. `imageUrl` (nur `static*.klipy.com`, ohne Token)
+  und hängt das Bild an (ein GIF bleibt animiert). Reicht die Zeit nicht oder schlägt etwas fehl, kommt die
+  Nachricht ohne Bild.
+- **Android**: Die App lädt beim Empfang `api/photos/{photoId}?size=full` (Token) bzw. `imageStillUrl`
+  (sonst das erste Bild von `imageUrl`), verkleinert auf höchstens 1024 px und zeigt es mit
+  `BigPictureStyle`, eingeklappt als großes Symbol. Zeitlimit 8 s, sonst ohne Bild.
+- Texte: Foto im Chat weiter „{Name} hat ein Foto geschickt" (mit Text „{Name}: {Text}"), GIF (KLIPY oder
+  eigenes) „{Name} hat ein GIF geschickt" (mit Text ebenso „{Name}: {Text}").
 
 ### 2.8 Benachrichtigungen
 Global (Profil): `checkins`, `photos`, `chat`, `nudges`, `invites`, `reminders`, `streakAtRisk`,
@@ -385,7 +491,7 @@ mitschickt (Idempotenz: dieselbe ID noch einmal → 200 mit dem bestehenden Obje
 PersonView   {"id":"torben","displayName":"Torben","username":"torben","initials":"TO",
               "color":"mint","avatarPhotoId":null}
 CohabitRef   {"id":"c-3f2a…","name":"Laufen","color":"peach","type":"STREAK"}
-ReactionView {"reaction":"STARK","label":"Stark","count":2,"mine":true}
+ReactionView {"reaction":"💪","label":"💪","count":2,"mine":true,"people":[PersonView]}   // §2.7a
 Headline     {"value":"6","unit":"Wochen","short":"6 Wo."}      // GOAL: {"value":"68%","unit":"","short":"68%"}
                                                                 // CHALLENGE: {"value":"#2","unit":"dein Platz","short":"#2"}
 ```
@@ -568,21 +674,25 @@ ohne Foto nur ein Timeline-Ereignis `CHECKIN`.
 |---|---|---|
 | GET | `/cohabits/{id}/messages?before=<messageId>&limit=50` | → `{"messages":[Message],"hasMore":true}` (aufsteigend nach Zeit; ohne `before` die neuesten) |
 | GET | `/cohabits/{id}/messages?after=<messageId>` | neuere als … (für Aktualisierung) |
-| POST | `/cohabits/{id}/messages` | `{"id":"<uuid>","text":"…"\|null,"photoId":null}` → 201 `Message` |
+| POST | `/cohabits/{id}/messages` | `{"id":"<uuid>","text":"…"\|null,"photoId":null,"gif":GifInput\|null}` → 201 `Message` (GIF: §2.7a) |
 | DELETE | `/cohabits/{id}/messages/{messageId}` | eigene → `Message` (mit `deleted:true`) |
 | POST | `/cohabits/{id}/messages/{messageId}/report` | `{"reason":"…"}` → 204 |
 | POST | `/cohabits/{id}/read` | `{"lastMessageId"}` → `{"unread":0}` |
-| POST | `/reactions` | `{"target":"event:<id>"\|"message:<id>","reaction":"STARK"}` → `{"reactions":[ReactionView]}` |
-| DELETE | `/reactions?target=…&reaction=…` | → `{"reactions":[ReactionView]}` |
+| POST | `/reactions` | `{"target":"event:<id>"\|"message:<id>","reaction":"💪"}` → `{"reactions":[ReactionView]}` (setzt die eigene, §2.7a) |
+| DELETE | `/reactions?target=…&reaction=…` | → `{"reactions":[ReactionView]}` (`reaction` optional, §2.7a) |
+| GET | `/gifs/config` | → `{"enabled":true,"apiKey","customerId","locale","contentFilter"}` bzw. `{"enabled":false}` (§2.7a) |
 
 ```json
 Message {"id","cohabitId","kind":"TEXT","author":PersonView|null,"mine":true,"createdAt",
   "text":"Bin dabei!","photoId":null,
+  "photoAnimated":false,                  // eigenes GIF (kind=PHOTO), §2.7a
+  "gif":GifView|null,                     // bei kind=GIF: {"provider":"KLIPY","slug","title","width","height",
+                                          //   "gifUrl","webpUrl","mp4Url","stillUrl"}
   "checkin":Checkin|null,                 // bei kind=CHECKIN
   "systemText":null,                      // bei kind=SYSTEM, z. B. "Lena hat eine neue Bestserie: 9 Wochen"
   "reactionTarget":"message:<id>",        // bei CHECKIN: "event:<eventId>"
   "reactions":[ReactionView],"deleted":false}
-// kind: TEXT | PHOTO | CHECKIN | SYSTEM
+// kind: TEXT | PHOTO | GIF | CHECKIN | SYSTEM
 ```
 Systemmeldungen: Beitritt, Austritt, Entfernen, Adminwechsel, neue Bestserie, Meilenstein,
 Challenge-Ende (mit Gewinner), neue Runde, Ziel erreicht/verfehlt, Unterbrechung (nur mit
@@ -636,7 +746,7 @@ Quantilen des Zeitraums. `quickCheckIn` = CHECK-Modus, ohne Foto, ohne Wert, heu
 ### 3.8 Fotos
 | Methode | Pfad | Rumpf → Antwort |
 |---|---|---|
-| POST | `/photos` | multipart `photo`, Header `Idempotency-Key: <uuid>` → 201 `{"id","width","height"}` (413 > 10 MB) |
+| POST | `/photos` | multipart `photo` (JPEG, PNG, GIF), Header `Idempotency-Key: <uuid>` → 201 `{"id","width","height","animated"}` (413 > 10 MB; animierte GIFs: §2.7a) |
 | GET | `/photos/{id}?size=thumb\|full` | JPEG; `Cache-Control: private, max-age=31536000, immutable`. Sichtbar für Mitglieder des Co-Habits, in dem es verwendet wird, für die hochladende Person, und Avatare für alle angemeldeten Personen |
 
 Ein hochgeladenes, nach 24 h nirgends verwendetes Foto wird gelöscht.
@@ -719,6 +829,8 @@ Datenfelder für beide Plattformen (iOS: zusätzlich `aps.alert {title, body}`, 
 {"kind":"checkin","title":"Lena hat Laufen abgehakt","body":"Regenlauf zählt doppelt.",
  "cohabitId":"c-…","link":"cohabit://cohabit/c-…"}
 ```
+Mit Bild (`photo`, einzelne `chat`, §2.7a) zusätzlich `"photoId":"…"` bzw. `"imageUrl":"https://static.klipy.com/…gif",
+"imageStillUrl":"…jpg"`; iOS dann mit `aps.mutable-content: 1`.
 | kind | wann | link |
 |---|---|---|
 | `checkin` | Check-in ohne Foto eines anderen (Einstellung `checkins`) | `cohabit://cohabit/{id}` |
@@ -806,7 +918,8 @@ Untere Leiste mit fünf Einträgen: **Heute** (Haus), **Timeline**, **+** (viole
 7. **Chat** (S. 7): Check-in-Posts als hervorgehobene Karten (Avatar, „{Name} · hat abgehakt",
    Uhrzeit, Foto, Caption, Reaktionen), Textblasen (eigene rechts violett), Systemmeldungen zentriert
    klein. Eingabe: links Knopf „Abhaken" (bzw. Kamera), Textfeld „Nachricht", Senden; Foto anhängen.
-   Langer Druck/Kontext: Reagieren, Löschen (eigene), Melden, Person blockieren.
+   Langer Druck/Kontext: Reagieren, Löschen (eigene), Melden, Person blockieren. GIF-Knopf, eigene
+   GIFs und Emoji-Reaktionen: §2.7a.
 8. **Detail ABSTINENCE** (S. 8): große Tageszahl mittig, „Rekord 41 Tage · noch 18 bis zum Rekord",
    Mitgliederliste mit Tagen und „neuer persönlicher Rekord", „Deine Serien" als Balken, unten
    „Unterbrechung eintragen" (umrandet, mit Rückfrage).
