@@ -491,7 +491,9 @@ mitschickt (Idempotenz: dieselbe ID noch einmal → 200 mit dem bestehenden Obje
 ```json
 PersonView   {"id":"torben","displayName":"Torben","username":"torben","initials":"TO",
               "color":"mint","avatarPhotoId":null}
-CohabitRef   {"id":"c-3f2a…","name":"Laufen","color":"peach","type":"STREAK"}
+CohabitRef   {"id":"c-3f2a…","name":"Laufen","color":"peach","type":"STREAK",
+              "autoSource":null,"createdAt":"2026-09-30T08:00:00Z"}   // seit 05.10., für die iOS-Liste;
+                                                                // autoSource wie `auto.source` (FOOD, STEPS_WEEKLY …)
 ReactionView {"reaction":"💪","label":"💪","count":2,"mine":true,"people":[PersonView]}   // §2.7a
 Headline     {"value":"6","unit":"Wochen","short":"6 Wo."}      // GOAL: {"value":"68%","unit":"","short":"68%"}
                                                                 // CHALLENGE: {"value":"#2","unit":"dein Platz","short":"#2"}
@@ -592,7 +594,8 @@ CohabitSummary {"ref":CohabitRef,"archived":false,
   "runEntry":false,                             // Lauf mit Dauer und Distanz eintragen, §2.6a
   "members":[PersonView],"memberCount":3,
   "doneTodayBy":["lena","max"],
-  "progress":{"done":2,"goal":3,"fraction":0.67} ,   // Wochen-/Monatsfortschritt, Ziel-%; sonst null
+  "progress":{"done":2,"goal":3,"fraction":0.67} ,   // Wochen-/Monatsfortschritt, Ziel-%; CHALLENGE (seit
+                                                     // 05.10.): eigener Stand gegen `target` bzw. den Führenden; sonst null
   "rank":{"mine":2,"of":4,"gapText":"noch 2 bis Lena"},  // nur CHALLENGE, sonst null
   "unreadMessages":2}
 

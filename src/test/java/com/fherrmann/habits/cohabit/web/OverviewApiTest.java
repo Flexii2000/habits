@@ -57,6 +57,43 @@ class OverviewApiTest extends ApiTestBase {
         assertEquals("noch 1 bis Felix · endet in 4 Tagen", card.path("subline").asString());
         assertEquals(2, card.path("rank").path("mine").asInt());
         assertEquals(2, card.path("rank").path("of").asInt());
+        // Der Balken der Challenge: der eigene Stand gegen den Fuehrenden.
+        assertEquals(0, card.path("progress").path("done").asInt());
+        assertEquals(1, card.path("progress").path("goal").asInt());
+        assertEquals(0.0, card.path("progress").path("fraction").asDouble());
+        JsonNode felixCard = get("/cohabit/api/today", FELIX).json().path("cohabits").get(1);
+        assertEquals(1.0, felixCard.path("progress").path("fraction").asDouble(), "wer fuehrt, hat ihn voll");
+    }
+
+    /** Was die iOS-App fuer Typfarben, Reihenfolge und Balken braucht (05.10.). */
+    @Test
+    void refTraegtAutomatikUndAnlegedatumChallengeBalkenBisZumZiel() {
+        Registered lena = register("Lena", "lena", FELIX);
+        Map<String, Object> config = challenge("Wer kocht öfter?");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> rules = (Map<String, Object>) config.get("challenge");
+        // Einen Zielwert hat nur „Wer zuerst …".
+        rules.put("scoring", "FIRST_TO_TARGET");
+        rules.put("target", 4);
+        String kochen = withMembers(config, lena.who());
+        create(FELIX, map("type", "STREAK", "name", "Track food", "color", "peach",
+                "streak", map("rhythm", daily(), "groupStreak", false), "auto", map("source", "FOOD")));
+        checkin(kochen, FELIX, map("id", "33333333-3333-3333-3333-333333333333"));
+        JsonNode cohabits = get("/cohabit/api/today", FELIX).json().path("cohabits");
+        JsonNode challenge = null;
+        JsonNode food = null;
+        for (JsonNode c : cohabits) {
+            if (c.path("ref").path("type").asString().equals("CHALLENGE")) {
+                challenge = c;
+            } else {
+                food = c;
+            }
+        }
+        assertEquals(0.25, challenge.path("progress").path("fraction").asDouble(), "1 von 4, nicht voll als Erster");
+        assertEquals(4, challenge.path("progress").path("goal").asInt());
+        assertTrue(challenge.path("ref").path("autoSource").isNull());
+        assertEquals("FOOD", food.path("ref").path("autoSource").asString());
+        assertEquals("2026-09-30T08:00:00Z", challenge.path("ref").path("createdAt").asString());
     }
 
     @Test

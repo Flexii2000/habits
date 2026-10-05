@@ -557,10 +557,23 @@ public final class Views {
         String label = run ? "Lauf eintragen"
                 : c.tracking.mode() == TrackingMode.VALUE ? "Wert eintragen" : "+1 " + c.name + " eintragen";
         RankView rank = new RankView(mine == null ? 0 : mine.rank(), e.leaderboard.size(), gap);
+        boolean scored = running || e.phase == CohabitEval.ChallengePhase.FINISHED;
         return new CohabitSummary(CohabitRef.of(c), c.archived, headline, typeLine(c, e.today), subline,
                 joinNonNull(" · ", "Challenge", ends, gap), status, section(status), null, canCheckIn,
                 c.photoRequired, run ? null : valueUnit(c), label, run, members, members.size(), doneTodayBy,
-                null, rank, unread(data, c, viewerId));
+                scored ? challengeProgress(e, mine) : null, rank, unread(data, c, viewerId));
+    }
+
+    /**
+     * Der eigene Stand als Balken: bis zum Zielwert, sonst bis zum Fuehrenden - wer
+     * fuehrt, hat ihn voll. Vor dem Start gibt es keinen.
+     */
+    static ProgressView challengeProgress(CohabitEval e, Place mine) {
+        double score = mine == null ? 0 : mine.score();
+        Double target = e.cohabit.challenge.target();
+        double goal = target != null && target > 0 ? target
+                : e.leaderboard.stream().mapToDouble(Place::score).max().orElse(0);
+        return new ProgressView(num(score), num(goal), fraction(score, goal));
     }
 
     static String joinNonNull(String sep, String... parts) {
