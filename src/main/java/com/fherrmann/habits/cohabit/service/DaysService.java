@@ -1,10 +1,12 @@
 package com.fherrmann.habits.cohabit.service;
 
+import com.fherrmann.habits.client.FoodClient;
 import com.fherrmann.habits.client.SourceUnavailableException;
 import com.fherrmann.habits.cohabit.api.CohabitRef;
 import com.fherrmann.habits.cohabit.api.DaySeriesView;
 import com.fherrmann.habits.cohabit.api.DayValueView;
 import com.fherrmann.habits.cohabit.api.DaysView;
+import com.fherrmann.habits.cohabit.model.AutoSource;
 import com.fherrmann.habits.cohabit.model.ChallengeRound;
 import com.fherrmann.habits.cohabit.model.ChallengeState;
 import com.fherrmann.habits.cohabit.model.Cohabit;
@@ -102,17 +104,35 @@ public class DaysService {
             return list;
         });
 
+        // Der Kalorienzaehler einmal fuer alle Co-Habits, die ihn brauchen, ueber die Spanne
+        // aller ihrer Zeitraeume - nicht je Co-Habit neu. Auch ein Fehlschlag wird gemerkt:
+        // ein langsamer Dienst soll die Antwort nicht zweimal aufhalten.
+        LocalDate foodFrom = null;
+        LocalDate foodTo = null;
+        for (Item item : items) {
+            Snapshot s = item.snapshot();
+            if (s.auto() != null && usesFood(s.auto().source())) {
+                LocalDate lo = lower(s, from);
+                LocalDate hi = upper(s, to);
+                if (!lo.isAfter(hi)) {
+                    foodFrom = foodFrom == null || lo.isBefore(foodFrom) ? lo : foodFrom;
+                    foodTo = foodTo == null || hi.isAfter(foodTo) ? hi : foodTo;
+                }
+            }
+        }
+        FoodOnce food = new FoodOnce(sources, me, foodFrom, foodTo);
+
         List<DaySeriesView> series = new ArrayList<>();
         for (Item item : items) {
             Snapshot s = item.snapshot();
             Map<LocalDate, Double> auto = Map.of();
             String unavailable = null;
             if (s.auto() != null) {
-                LocalDate lo = s.start() == null || s.start().isBefore(from) ? from : s.start();
-                LocalDate hi = s.last().isAfter(to) ? to : s.last();
+                LocalDate lo = lower(s, from);
+                LocalDate hi = upper(s, to);
                 if (!lo.isAfter(hi)) {
                     try {
-                        auto = sources.dayValues(s.auto(), me, lo, hi);
+                        auto = sources.dayValues(s.auto(), me, lo, hi, food::get);
                     } catch (SourceUnavailableException e) {
                         unavailable = e.getMessage();
                     }
@@ -126,6 +146,50 @@ public class DaysService {
                     computed.unit() == null ? null : Texts.unitLabel(computed.unit()), s.health(), unavailable, days));
         }
         return new DaysView(from, to, series);
+    }
+
+    private static LocalDate lower(Snapshot s, LocalDate from) {
+        return s.start() == null || s.start().isBefore(from) ? from : s.start();
+    }
+
+    private static LocalDate upper(Snapshot s, LocalDate to) {
+        return s.last().isAfter(to) ? to : s.last();
+    }
+
+    private static boolean usesFood(AutoSource source) {
+        return source == AutoSource.FOOD || source == AutoSource.FOOD_TARGET_WEEKLY;
+    }
+
+    /** Der Bereich des Kalorienzaehlers, hoechstens einmal je Anfrage geholt - Fehlschlag inklusive. */
+    private static final class FoodOnce {
+        private final AutoSources sources;
+        private final String person;
+        private final LocalDate from;
+        private final LocalDate to;
+        private Map<LocalDate, FoodClient.Day> days;
+        private SourceUnavailableException failure;
+
+        FoodOnce(AutoSources sources, String person, LocalDate from, LocalDate to) {
+            this.sources = sources;
+            this.person = person;
+            this.from = from;
+            this.to = to;
+        }
+
+        Map<LocalDate, FoodClient.Day> get() {
+            if (failure != null) {
+                throw failure;
+            }
+            if (days == null) {
+                try {
+                    days = from == null ? Map.of() : sources.foodRange(person, from, to);
+                } catch (SourceUnavailableException e) {
+                    failure = e;
+                    throw e;
+                }
+            }
+            return days;
+        }
     }
 
     /**

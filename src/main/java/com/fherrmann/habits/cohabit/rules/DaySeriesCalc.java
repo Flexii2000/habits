@@ -33,7 +33,8 @@ import java.util.TreeMap;
  *   <li>STREAK ohne Wert, Ziel nach Eintraegen, Challenge "meiste Eintraege": 1 mit
  *       Eintrag, sonst 0 ({@link Kind#BINARY}).</li>
  *   <li>STREAK mit Wert, Ziel nach Menge, Challenge nach Summe: die Summe der Werte,
- *       ohne Eintrag 0; ein Eintrag ohne Wert laesst den Tag offen. Laufpunkte: die
+ *       ohne Eintrag 0. Ein Eintrag ohne Wert zaehlt wie in coHabit: bei Challenges 1,
+ *       bei Zielen 0; bei einer Serie mit Wert laesst er den Tag offen. Laufpunkte: die
  *       gelaufenen km ({@link Kind#AMOUNT}).</li>
  *   <li>ABSTINENCE: 1 ohne, 0 mit Unterbrechung.</li>
  *   <li>Health-Metrik: die Summe der Werte. Zwischen erstem Eintrag und letztem Abgleich
@@ -162,7 +163,19 @@ public final class DaySeriesCalc {
                 continue;
             }
             done.add(f.date());
-            Double amount = runPoints ? f.distanceKm() : f.value();
+            // Wie coHabit selbst zaehlt (CohabitEval): bei Challenges ein Eintrag ohne Wert 1
+            // ("Wer zuerst ..." darf ohne Wert gefuehrt werden), bei Zielen nach Menge 0;
+            // Laufpunkte zaehlen die gelaufenen km.
+            Double amount;
+            if (runPoints) {
+                amount = f.distanceKm();
+            } else if (s.type() == CohabitType.CHALLENGE) {
+                amount = f.value() == null ? 1.0 : f.value();
+            } else if (s.type() == CohabitType.GOAL) {
+                amount = f.value() == null ? 0.0 : f.value();
+            } else {
+                amount = f.value();
+            }
             if (amount == null) {
                 withoutValue.add(f.date());
             } else {

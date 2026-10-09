@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 /**
  * Holt die Daten der automatischen Quellen - vor der Rechnung, ausserhalb jedes Locks.
@@ -92,6 +93,11 @@ public class AutoSources {
         }
     }
 
+    /** Der Kalorienzaehler fuer einen Zeitraum in einem Aufruf - fuer {@code DaysService}. */
+    public Map<LocalDate, FoodClient.Day> foodRange(String personId, LocalDate from, LocalDate to) {
+        return food.range(personId, from, to);
+    }
+
     /**
      * Ein Wert je Tag fuer das Logbook in Healthy ({@code GET /me/days}) - nur fuer die
      * fragende Person und genau den Zeitraum, ohne den Rueckblick der Serien.
@@ -111,15 +117,26 @@ public class AutoSources {
      * @throws SourceUnavailableException wenn die Quelle nicht antwortet
      */
     public Map<LocalDate, Double> dayValues(AutoConfig cfg, String personId, LocalDate from, LocalDate to) {
+        return dayValues(cfg, personId, from, to, () -> food.range(personId, from, to));
+    }
+
+    /**
+     * Wie oben, aber der Bereich des Kalorienzaehlers kommt von aussen - {@code DaysService}
+     * holt ihn je Anfrage einmal fuer alle Co-Habits, die ihn brauchen ("Track food" und das
+     * Wochenmittel), statt ihn je Co-Habit neu zu fragen. Er darf ueber den Zeitraum
+     * hinausreichen; was ausserhalb liegt, faellt unten weg.
+     */
+    public Map<LocalDate, Double> dayValues(AutoConfig cfg, String personId, LocalDate from, LocalDate to,
+                                            Supplier<Map<LocalDate, FoodClient.Day>> foodRange) {
         Map<LocalDate, Double> values = switch (cfg.source()) {
             case FOOD -> {
                 Map<LocalDate, Double> v = new HashMap<>();
-                food.range(personId, from, to).forEach((d, day) -> v.put(d, isFoodDone(day) ? 1.0 : 0.0));
+                foodRange.get().forEach((d, day) -> v.put(d, isFoodDone(day) ? 1.0 : 0.0));
                 yield v;
             }
             case FOOD_TARGET_WEEKLY -> {
                 Map<LocalDate, Double> v = new HashMap<>();
-                food.range(personId, from, to).forEach((d, day) -> {
+                foodRange.get().forEach((d, day) -> {
                     if (day.targetKcal() > 0 && isFoodDone(day)) {
                         v.put(d, day.kcal() <= day.targetKcal() ? 1.0 : 0.0);
                     }

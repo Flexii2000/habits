@@ -108,6 +108,21 @@ class DaysApiTest extends ApiTestBase {
     }
 
     @Test
+    void bothFoodCohabitsShareOneCallToTheCalorieCounter() {
+        Map<String, Object> track = streak("Track food", daily());
+        track.put("auto", map("source", "FOOD"));
+        createDaysAgo(FELIX, track, 3);
+        Map<String, Object> target = streak("Im Ziel", daily());
+        target.put("auto", map("source", "FOOD_TARGET_WEEKLY"));
+        createDaysAgo(FELIX, target, 20);
+        food.calls.set(0);
+
+        get(RANGE, FELIX).expect(200);
+
+        assertEquals(1, food.calls.get(), "ein Bereich fuer beide, ueber die Spanne beider");
+    }
+
+    @Test
     void aSourceThatIsDownMarksOnlyItsOwnCohabit() {
         Map<String, Object> config = streak("Track food", daily());
         config.put("auto", map("source", "FOOD"));

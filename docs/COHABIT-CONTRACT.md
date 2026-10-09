@@ -863,8 +863,8 @@ Challenges in der laufenden und den früheren Runden. **Ein fehlender Tag heißt
 | STREAK ohne Wert | BINARY | 1 mit eigenem Eintrag, sonst 0 |
 | STREAK mit Wert | AMOUNT (`tracking.unit`) | Summe der Werte, ohne Eintrag 0; Eintrag ohne Wert → Tag fehlt |
 | ABSTINENCE | BINARY | 1 ohne, 0 mit Unterbrechung |
-| GOAL nach Einträgen / nach Menge | BINARY / AMOUNT | 1/0 bzw. Summe der Werte |
-| CHALLENGE meiste Einträge / Summe, zuerst am Ziel / Laufpunkte | BINARY / AMOUNT / AMOUNT KM | 1/0 bzw. Summe bzw. gelaufene km |
+| GOAL nach Einträgen / nach Menge | BINARY / AMOUNT | 1/0 bzw. Summe der Werte (Eintrag ohne Wert = 0, wie beim Ziel) |
+| CHALLENGE meiste Einträge / Summe, zuerst am Ziel / Laufpunkte | BINARY / AMOUNT / AMOUNT KM | 1/0 bzw. Summe (Eintrag ohne Wert = 1, wie in der Wertung) bzw. gelaufene km |
 | Health-Metrik | AMOUNT (Einheit der Metrik) | Summe; zwischen erstem Eintrag und letztem Abgleich fehlt ein Tag nicht, er ist 0 — außer bei `KCAL` (0 kcal heißt „nichts getrackt“) |
 | auto FOOD | BINARY | getrackt (Regel „Track food“) 1, sonst 0 |
 | auto FOOD_TARGET_WEEKLY | BINARY | an getrackten Tagen 1, wenn die kcal höchstens beim Ziel lagen, sonst 0; ungetrackt fehlt |
@@ -872,8 +872,9 @@ Challenges in der laufenden und den früheren Runden. **Ein fehlender Tag heißt
 | auto FOCUS | AMOUNT MINUTES | Minuten der Kategorie, ohne Session 0 (nur Felix) |
 
 Antwortet eine Quelle nicht, trägt nur dieses Co-Habit `unavailableText` und leere `days`; die
-Antwort bleibt 200. Der Kalorienzähler wird für den ganzen Zeitraum **einmal** gefragt
-(`/api/food/daily` mit `meals` + `/api/food/targets`), nicht je Tag. Healthy-Personen, die coHabit nie
+Antwort bleibt 200. Der Kalorienzähler wird je Anfrage **einmal** gefragt — für alle Co-Habits, die ihn
+brauchen, über die Spanne ihrer Zeiträume (`/api/food/daily` mit `meals` + `/api/food/targets`), nicht je
+Tag und nicht je Co-Habit. Healthy-Personen, die coHabit nie
 geöffnet haben, legt schon die Anmeldung an (wie bei jedem Zugriff mit Healthy-Token).
 
 ---

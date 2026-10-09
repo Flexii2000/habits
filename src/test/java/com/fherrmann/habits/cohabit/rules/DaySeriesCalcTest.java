@@ -180,6 +180,24 @@ class DaySeriesCalcTest {
     }
 
     @Test
+    void entriesWithoutAValueCountLikeCoHabitDoes() {
+        // "Wer zuerst ..." darf ohne Wert gefuehrt werden: jeder Eintrag zaehlt 1.
+        S challenge = new S().done(-4).done(-4).done(-2);
+        challenge.type = CohabitType.CHALLENGE;
+        challenge.challenge = new ChallengeConfig(day(-5), day(5), Scoring.FIRST_TO_TARGET, 10.0, null,
+                Recurrence.NONE, null);
+        challenge.rounds.add(new Span(day(-5), day(5)));
+        assertEquals(Kind.AMOUNT, challenge.series().kind());
+        assertEquals(values(-5, 0, -4, 2, -3, 0, -2, 1, -1, 0, 0, 0), challenge.series().days());
+
+        // Ein Ziel nach Menge zaehlt einen Eintrag ohne Wert mit 0 - wie CohabitEval.contribution.
+        S goal = new S().done(-3).done(-3, 4);
+        goal.type = CohabitType.GOAL;
+        goal.goal = new GoalConfig(100.0, day(-5), day(5), GoalCounting.AMOUNT, GoalMode.INDIVIDUAL);
+        assertEquals(4.0, goal.series().days().get(day(-3)));
+    }
+
+    @Test
     void healthValuesFillZerosBetweenTheFirstEntryAndTheLastSync() {
         S cohabit = new S().done(-4, 3).done(-2, 1);
         cohabit.health = HealthMetric.WORKOUTS;
