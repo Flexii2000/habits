@@ -111,6 +111,7 @@ public abstract class ApiTestBase {
         androidTransport.sent.clear();
         androidTransport.dead.clear();
         food.days = (person, day) -> new com.fherrmann.habits.client.FoodClient.Day(0, 0, java.util.Set.of());
+        food.unavailable = false;
         steps.perDay = (person, day) -> 0;
         autoSources.forgetHistory();
     }

@@ -13,7 +13,9 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -53,8 +55,41 @@ public class FoodClient {
     }
 
     public Day day(String personId, LocalDate date) {
+        return parse(get(personId, "/api/food/day?date=" + date));
+    }
+
+    /**
+     * Alle Tage von {@code from} bis {@code to} (beide einschliesslich) mit zwei
+     * Anfragen statt einer je Tag: die Tagessummen samt Mahlzeiten und das kcal-Ziel.
+     * Tage ohne Eintrag fehlen beim Kalorienzaehler - hier stehen sie mit 0 kcal und
+     * ohne Mahlzeit, also nicht getrackt. Das Ziel ist das heutige; ein Verlauf der
+     * Ziele existiert nicht (dieselbe Grenze wie bei "Track food").
+     */
+    public Map<LocalDate, Day> range(String personId, LocalDate from, LocalDate to) {
+        double target = get(personId, "/api/food/targets").path("kcal").asDouble(0);
+        JsonNode daily = get(personId, "/api/food/daily?from=" + from + "&to=" + to);
+        return parseRange(daily, target, from, to);
+    }
+
+    static Map<LocalDate, Day> parseRange(JsonNode daily, double target, LocalDate from, LocalDate to) {
+        Map<LocalDate, Day> days = new HashMap<>();
+        for (JsonNode day : daily) {
+            Set<String> meals = new HashSet<>();
+            for (JsonNode meal : day.path("meals")) {
+                meals.add(meal.asString());
+            }
+            days.put(LocalDate.parse(day.path("date").asString()),
+                    new Day(day.path("consumed").path("kcal").asDouble(0), target, meals));
+        }
+        for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
+            days.putIfAbsent(d, new Day(0, target, Set.of()));
+        }
+        return days;
+    }
+
+    private JsonNode get(String personId, String path) {
         HttpRequest.Builder request = HttpRequest.newBuilder()
-                .uri(URI.create(baseUrl + "/api/food/day?date=" + date))
+                .uri(URI.create(baseUrl + path))
                 .header("Accept", "application/json")
                 .timeout(Duration.ofSeconds(5))
                 .GET();
@@ -70,7 +105,7 @@ public class FoodClient {
             if (response.statusCode() != 200) {
                 throw new SourceUnavailableException("Kalorienzähler", response.statusCode());
             }
-            return parse(objectMapper.readTree(response.body()));
+            return objectMapper.readTree(response.body());
         } catch (IOException e) {
             throw new SourceUnavailableException("Kalorienzähler", e);
         } catch (InterruptedException e) {

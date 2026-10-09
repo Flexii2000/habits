@@ -2,13 +2,16 @@ package com.fherrmann.habits.cohabit.web;
 
 import com.fherrmann.habits.cohabit.api.AppLinkCreated;
 import com.fherrmann.habits.cohabit.api.AppLinkView;
+import com.fherrmann.habits.cohabit.api.DaysView;
 import com.fherrmann.habits.cohabit.api.MeView;
 import com.fherrmann.habits.cohabit.api.NotificationSettings;
+import com.fherrmann.habits.cohabit.service.DaysService;
 import com.fherrmann.habits.cohabit.service.PeopleService;
 import com.fherrmann.habits.security.AuthCookies;
 import com.fherrmann.habits.security.AuthVia;
 import com.fherrmann.habits.security.Viewer;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,8 +22,10 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -39,9 +44,11 @@ public class MeController {
     }
 
     private final PeopleService people;
+    private final DaysService daySeries;
 
-    public MeController(PeopleService people) {
+    public MeController(PeopleService people, DaysService days) {
         this.people = people;
+        this.daySeries = days;
     }
 
     @GetMapping("/me")
@@ -63,6 +70,17 @@ public class MeController {
     @PutMapping("/me/type-colors")
     public Map<String, String> updateTypeColors(Viewer viewer, @RequestBody Map<String, String> changes) {
         return people.updateTypeColors(viewer, changes);
+    }
+
+    /**
+     * Jedes eigene Co-Habit als Tagesreihe, aktiv und archiviert - das Logbook in Healthy
+     * rechnet sie gegen die Recovery (der Weight Tracker fragt je Person mit ihrem Token).
+     */
+    @GetMapping("/me/days")
+    public DaysView days(Viewer viewer,
+                         @RequestParam("from") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+                         @RequestParam("to") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        return daySeries.days(viewer, from, to);
     }
 
     @GetMapping("/me/notifications")

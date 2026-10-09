@@ -92,6 +92,61 @@ public class AutoSources {
         }
     }
 
+    /**
+     * Ein Wert je Tag fuer das Logbook in Healthy ({@code GET /me/days}) - nur fuer die
+     * fragende Person und genau den Zeitraum, ohne den Rueckblick der Serien.
+     *
+     * <ul>
+     *   <li>FOOD: getrackt (Regel wie "Track food") 1, sonst 0.</li>
+     *   <li>FOOD_TARGET_WEEKLY: an getrackten Tagen 1, wenn die kcal hoechstens beim Ziel
+     *       lagen, sonst 0; ungetrackte Tage fehlen - sie zaehlen auch im Wochenmittel nicht.</li>
+     *   <li>STEPS_WEEKLY: die Schritte; Tage ohne Messung fehlen.</li>
+     *   <li>FOCUS: die Minuten (nur die Kategorie, falls gesetzt); ohne Session 0.</li>
+     * </ul>
+     *
+     * <p>Ein {@code switch}-Ausdruck, kein Statement: kommt eine Quelle dazu (etwa die
+     * Evaluation), baut der Dienst erst wieder, wenn hier entschieden ist, was sie je Tag
+     * bedeutet.
+     *
+     * @throws SourceUnavailableException wenn die Quelle nicht antwortet
+     */
+    public Map<LocalDate, Double> dayValues(AutoConfig cfg, String personId, LocalDate from, LocalDate to) {
+        Map<LocalDate, Double> values = switch (cfg.source()) {
+            case FOOD -> {
+                Map<LocalDate, Double> v = new HashMap<>();
+                food.range(personId, from, to).forEach((d, day) -> v.put(d, isFoodDone(day) ? 1.0 : 0.0));
+                yield v;
+            }
+            case FOOD_TARGET_WEEKLY -> {
+                Map<LocalDate, Double> v = new HashMap<>();
+                food.range(personId, from, to).forEach((d, day) -> {
+                    if (day.targetKcal() > 0 && isFoodDone(day)) {
+                        v.put(d, day.kcal() <= day.targetKcal() ? 1.0 : 0.0);
+                    }
+                });
+                yield v;
+            }
+            case STEPS_WEEKLY -> {
+                Map<LocalDate, Double> v = new HashMap<>();
+                steps.steps(personId, from, to).forEach((d, n) -> v.put(d, n.doubleValue()));
+                yield v;
+            }
+            case FOCUS -> {
+                if (!users.isOwner(personId)) {
+                    throw new SourceUnavailableException("Fokus-Sessions", 403);
+                }
+                Map<LocalDate, Integer> perDay = focus.minutesPerDay(from, to, cfg.focusCategoryId());
+                Map<LocalDate, Double> v = new HashMap<>();
+                for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
+                    v.put(d, perDay.getOrDefault(d, 0).doubleValue());
+                }
+                yield v;
+            }
+        };
+        values.keySet().removeIf(d -> d.isBefore(from) || d.isAfter(to));
+        return values;
+    }
+
     private AutoFacts fetchFood(String personId, LocalDate memberStart, LocalDate today,
                                 Predicate<LocalDate> paused) {
         Map<LocalDate, Boolean> done = new HashMap<>();

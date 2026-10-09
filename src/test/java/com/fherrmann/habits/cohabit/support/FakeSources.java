@@ -30,6 +30,23 @@ public final class FakeSources {
             calls.incrementAndGet();
             return days.apply(personId, date);
         }
+
+        /** Wie der echte Bereichsaufruf: jeder Tag des Zeitraums, aus derselben Tabelle wie {@link #day}. */
+        @Override
+        public Map<LocalDate, Day> range(String personId, LocalDate from, LocalDate to) {
+            calls.incrementAndGet();
+            if (unavailable) {
+                throw new com.fherrmann.habits.client.SourceUnavailableException("Kalorienzähler", 503);
+            }
+            Map<LocalDate, Day> result = new HashMap<>();
+            for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
+                result.put(d, days.apply(personId, d));
+            }
+            return result;
+        }
+
+        /** Der Kalorienzaehler antwortet nicht - nur fuer den Bereichsaufruf. */
+        public volatile boolean unavailable;
     }
 
     public static final class Steps extends StepsClient {

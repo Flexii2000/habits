@@ -538,6 +538,7 @@ InviteLinkPreview {"kind":"COHABIT","from":PersonView,
 | GET | `/me/export` | → `application/zip` (profile.json, cohabits.json, checkins.json, messages.json, photos/…) |
 | DELETE | `/me` | `{"confirm":"LÖSCHEN"}` → 204. Löscht Profil, Einträge, Nachrichten (bleiben als „Nachricht gelöscht"), Fotos, Freundschaften, Geräte, App-Token; verlässt alle Co-Habits (Admin geht an das am längsten beteiligte Mitglied; allein → Co-Habit gelöscht). Healthy-Token bleiben (gehören nicht coHabit) |
 | GET | `/me/archived` | → `[CohabitSummary]` |
+| GET | `/me/days?from=&to=` | → `DaysView`: jedes eigene Co-Habit als Tagesreihe (seit 09.10., für das Logbook in Healthy, §3.11) |
 
 ```json
 MeView {"typeColors":{"STREAK":"peach","ABSTINENCE":"mint","GOAL":"periwinkle","CHALLENGE":"butter",
@@ -833,6 +834,47 @@ Track food“).
 Eigenheiten der alten Antwort, bewusst übernommen: `recent` bei QUIT zählt Tage ohne Rückfall ab dem
 Start, `atRisk` ist bei QUIT und bei den Schritten nie gesetzt, `markedDays` umfasst 31 Tage und ist bei
 automatischen leer. `MigrationParityTest` vergleicht die Antwort Feld für Feld mit der alten Rechnung.
+
+### 3.11 Tageswerte für Healthy (Logbook, seit 2026-10-09)
+Healthy rechnet im Weight Tracker jede Gewohnheit gegen die Recovery des nächsten Morgens
+(Whoop-Prinzip, Felix: „alle Habits aus coHabit automatisch, auch künftig neu angelegte“). Der
+Weight Tracker fragt dafür je Person mit ihrem Healthy-Token:
+
+| Methode | Pfad | Antwort |
+|---|---|---|
+| GET | `/me/days?from=&to=` | `DaysView`; beide Tage einschließlich, höchstens 400 Tage (sonst 400 „Höchstens 400 Tage auf einmal.“), `from` nach `to` → 400 |
+
+```json
+DaysView {"from":"2026-09-24","to":"2026-09-30","series":[{
+  "ref":CohabitRef,"archived":false,
+  "kind":"BINARY|AMOUNT","unit":null|"COUNT|MINUTES|KM|STEPS|KCAL","unitLabel":null|"Kilometer",
+  "healthMetric":null|"STEPS|RUNNING_DISTANCE|WORKOUTS|WORKOUT_MINUTES|KCAL",
+  "unavailableText":null|"Kalorienzähler antwortete mit HTTP 503",
+  "days":[{"date":"2026-09-25","value":0},{"date":"2026-09-26","value":1}]}]}
+```
+Jedes Co-Habit, in dem die Person Mitglied ist, **aktiv und archiviert**, in der Reihenfolge der
+Datei. Ein Tag steht nur da, wenn das Co-Habit für die Person galt: ab Beitritt bzw. Start (nie
+davor), bis heute bzw. zum Tag des Archivierens, ohne Pausen, bei Zielen in `[start, deadline]`, bei
+Challenges in der laufenden und den früheren Runden. **Ein fehlender Tag heißt „unbekannt“, 0 heißt
+„nicht getan“.**
+
+| Co-Habit | `kind` | Wert je Tag |
+|---|---|---|
+| STREAK ohne Wert | BINARY | 1 mit eigenem Eintrag, sonst 0 |
+| STREAK mit Wert | AMOUNT (`tracking.unit`) | Summe der Werte, ohne Eintrag 0; Eintrag ohne Wert → Tag fehlt |
+| ABSTINENCE | BINARY | 1 ohne, 0 mit Unterbrechung |
+| GOAL nach Einträgen / nach Menge | BINARY / AMOUNT | 1/0 bzw. Summe der Werte |
+| CHALLENGE meiste Einträge / Summe, zuerst am Ziel / Laufpunkte | BINARY / AMOUNT / AMOUNT KM | 1/0 bzw. Summe bzw. gelaufene km |
+| Health-Metrik | AMOUNT (Einheit der Metrik) | Summe; zwischen erstem Eintrag und letztem Abgleich fehlt ein Tag nicht, er ist 0 — außer bei `KCAL` (0 kcal heißt „nichts getrackt“) |
+| auto FOOD | BINARY | getrackt (Regel „Track food“) 1, sonst 0 |
+| auto FOOD_TARGET_WEEKLY | BINARY | an getrackten Tagen 1, wenn die kcal höchstens beim Ziel lagen, sonst 0; ungetrackt fehlt |
+| auto STEPS_WEEKLY | AMOUNT STEPS | Schritte; Tage ohne Messung fehlen |
+| auto FOCUS | AMOUNT MINUTES | Minuten der Kategorie, ohne Session 0 (nur Felix) |
+
+Antwortet eine Quelle nicht, trägt nur dieses Co-Habit `unavailableText` und leere `days`; die
+Antwort bleibt 200. Der Kalorienzähler wird für den ganzen Zeitraum **einmal** gefragt
+(`/api/food/daily` mit `meals` + `/api/food/targets`), nicht je Tag. Healthy-Personen, die coHabit nie
+geöffnet haben, legt schon die Anmeldung an (wie bei jedem Zugriff mit Healthy-Token).
 
 ---
 
