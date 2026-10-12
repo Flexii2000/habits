@@ -273,6 +273,13 @@ Ein Eintrag trägt **bis zu vier** Beweisfotos (optional mehr als eins; bei `pho
 - Neue Bestserie eines Mitglieds (Serie ≥ 2 und größer als sein bisheriger Rekord in diesem Co-Habit)
   → Systemmeldung + Timeline-Ereignis `NEW_BEST`.
 - Meilensteine STREAK: 7, 30, 100, 365 Tage · 4, 12, 26, 52 Wochen · 3, 6, 12 Monate.
+- **Regel geändert → Rekord neu** (seit 2026-10-12): Ändert ein Admin, was eine Serie ausmacht —
+  Rhythmus samt Einheit, bei automatischen Quellen auch Ziel, Kategorie oder Zeitraum —, gelten
+  gespeicherte Bestserie und erreichte Meilensteine nicht mehr. Der Dienst erfasst sie still neu unter
+  der neuen Regel: Rekord = längste Serie nach der neuen Regel, erreichte Meilensteine gelten als
+  gemeldet, nichts wird angekündigt. Ohne Quelle sofort aus den Einträgen, mit Quelle beim nächsten
+  Lauf, der ihre Werte hat. Name, Farbe, Erinnerung, Gruppen-Streak usw. ändern nichts daran. Anlass:
+  nach täglich → 4× pro Woche standen 28 Tage als „Rekord 28 Wo.“ da.
 
 ### 2.5 ABSTINENCE
 - Serie = Tage seit Start (Beitritt) bzw. seit dem letzten `BREAK`; heute zählt mit; Unterbrechung heute

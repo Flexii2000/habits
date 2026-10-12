@@ -185,7 +185,11 @@ public class CohabitService {
                 throw Errors.conflict("Das Co-Habit ist archiviert.");
             }
             tx.cohabitsW();
+            List<Object> rule = Milestones.seriesRule(c);
             CohabitConfigs.apply(c, checked, true, today(c, now), sources.sourcesOf(me));
+            if (!rule.equals(Milestones.seriesRule(c))) {
+                Milestones.resetSeries(c, tx.checkins(c.id), today(c, now));
+            }
             events.system(tx, c, Views.name(tx, me) + " hat die Einstellungen geändert", me, now);
         });
         return views.detail(me, id);

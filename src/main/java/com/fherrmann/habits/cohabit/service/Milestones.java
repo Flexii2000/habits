@@ -13,6 +13,7 @@ import com.fherrmann.habits.cohabit.rules.StreakUnit;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -58,6 +59,48 @@ public final class Milestones {
             }
         }
         return result;
+    }
+
+    /**
+     * Was eine Serie ausmacht: Rhythmus und Einheit, bei automatischen Quellen dazu die
+     * Vorgaben, an denen ein Tag oder eine Woche gemessen wird. Aendert sich das, misst der
+     * gespeicherte Rekord etwas anderes - nach dem Wechsel von taeglich auf 4x pro Woche
+     * stuenden sonst 40 Tage als „Rekord 40 Wochen" da (12.10.).
+     */
+    public static List<Object> seriesRule(Cohabit c) {
+        if (c.type != CohabitType.STREAK) {
+            return List.of();
+        }
+        List<Object> rule = new ArrayList<>();
+        rule.add(StreakModel.rhythm(c));
+        rule.add(StreakModel.scheme(c).unit());
+        if (c.auto != null) {
+            // Ohne den Namen der Fokus-Kategorie: der wird beim Speichern aufgefrischt und
+            // aendert an der Wertung nichts.
+            rule.add(Arrays.asList(c.auto.source(), c.auto.weeklyStepGoal(), c.auto.focusMinutesGoal(),
+                    c.auto.focusCategoryId(), c.auto.focusPeriod()));
+        }
+        return rule;
+    }
+
+    /**
+     * Die Serien-Regel hat sich geaendert: Bestserie und Meilensteine gelten fuer die alte
+     * und werden unter der neuen still neu erfasst - Rekord ist dann die laengste Serie nach
+     * der neuen Regel, gemeldet wird nichts. Ohne Quelle sofort aus den Eintraegen; mit
+     * Quelle beim naechsten Lauf, der ihre Werte hat (Achievements). Bis dahin zeigt die
+     * Ansicht die laengste Serie, die sich berechnen laesst.
+     */
+    public static void resetSeries(Cohabit c, List<Checkin> checkins, LocalDate today) {
+        for (Member m : c.members) {
+            m.bestStreak = 0;
+            m.bestAnnouncedRun = null;
+            m.milestones.clear();
+            if (c.auto == null) {
+                silentBaseline(c, m, checkins, today);
+            } else {
+                m.baselinePending = true;
+            }
+        }
     }
 
     /** Fuer Co-Habits ohne Quelle: alles bis jetzt Erreichte vermerken, ohne etwas zu melden. */

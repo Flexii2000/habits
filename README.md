@@ -82,6 +82,12 @@ entsteht der Chat-Post dann (ohne Push); fallen alle weg, verschwindet er.
 **Bestserie** (Serie ≥ 2, über dem bisherigen Rekord) wird je Serie einmal gemeldet – in
 dem Moment, in dem sie den alten Rekord übertrifft. **Meilensteine**: STREAK 7/30/100/365
 Tage, 4/12/26/52 Wochen, 3/6/12 Monate; Abstinenz 7/14/30/50/100/200/365 Tage, dann jährlich.
+Ändert sich die Regel einer Serie (Rhythmus, Einheit, bei Quellen Ziel/Kategorie/Zeitraum),
+erfasst der Dienst Bestserie und Meilensteine still neu unter der neuen Regel
+(`Milestones.seriesRule`/`resetSeries`, seit 2026-10-12) – sonst stünden nach täglich →
+4× pro Woche alte Tage als Wochen-Rekord da. Einen Streak von Felix stellt
+`deploy/set-rhythm.sh` auf „N× pro Woche“ um (fragt nach Co-Habit und Anzahl, geht über die
+API auf localhost, ohne Neustart).
 
 **Automatische Co-Habits fragen ihre Quelle, sie kopieren sie nicht** (nur STREAK, nur für
 Personen mit dieser Quelle):
@@ -273,6 +279,9 @@ APNs mit Kopie `/etc/apns-cohabit.p8`, Firebase mit Kopie `/etc/fcm-cohabit.json
 `COHABIT_ANDROID_DIR=/opt/cohabit-android`), fügt `location /cohabit/` vor dem
 `/grades/`-Block ein und prüft am Ende Dienst, Wald, 410 und den Weg über nginx.
 Vorlagen: `deploy/`.
+
+Rhythmus eines eigenen Streaks auf „N× pro Woche“ umstellen (fragt interaktiv):
+`ssh -t HeimServerRemote '~/services/habits/deploy/set-rhythm.sh'`.
 
 Die GIF-Suche braucht einmalig einen Schlüssel aus dem Partner-Panel von KLIPY:
 `ssh -t HeimServerRemote '~/services/habits/deploy/set-klipy-key.sh'` fragt ihn ab, setzt
