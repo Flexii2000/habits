@@ -7,8 +7,9 @@ import { h, icon, actionSheet, confirmDialog, openDialog, sheetHead, poll, share
 import { avatar, chip, errorState, headlineFigure, loadingState, progressBar, selectRow, toggle, toggleRow } from '../ui.js';
 import { cohabitClass } from '../kinds.js';
 import { cached, remember, forget, state } from '../state.js';
-import { TYPE_NAMES, dateLong, dayIn, dayShort, fmtTime, isMe, personName, plural } from '../format.js';
+import { TYPE_NAMES, dateLong, dayHeading, dayIn, dayShort, fmtNumber, fmtTime, isMe, personName, plural } from '../format.js';
 import { backfillDays, checkIn, editCheckin } from '../checkin.js';
+import * as limits from '../limit.js';
 import { finishedDialog } from '../finished.js';
 import { nudgeDialog, blockPerson } from '../social.js';
 import { mountChat } from '../chat.js';
@@ -34,6 +35,9 @@ export function mount(root, params, ctx) {
     const type = () => detail.summary.ref.type;
     const archived = () => !!detail.summary.archived;
     const isAdmin = () => detail.myRole === 'ADMIN';
+    /** Abstinenz mit Tageslimit aus dem Logbook (Vertrag 2.5a): gezaehlt, nicht abgehakt. */
+    const isLimit = () => !!(detail.config.abstinence && detail.config.abstinence.limit);
+    const unavailable = () => detail.summary.status === 'UNAVAILABLE';
 
     // --- Kopf ---------------------------------------------------------------
 
@@ -60,7 +64,9 @@ export function mount(root, params, ctx) {
         const t = type();
         if (t === 'ABSTINENCE') {
             const a = detail.abstinence;
-            const recordLine = a ? [a.record != null ? `Rekord ${plural(a.record, 'Tag', 'Tage')}` : null, a.toRecordText].filter(Boolean).join(' · ') : '';
+            // Ohne Logbook keine Zahl - also auch kein „noch 3 bis zum Rekord“.
+            const recordLine = isLimit() && unavailable() ? s.unavailableText
+                : a ? [a.record != null ? `Rekord ${plural(a.record, 'Tag', 'Tage')}` : null, a.toRecordText].filter(Boolean).join(' · ') : '';
             return h('header', { class: 'd-head deco bl' },
                 bar(s.typeLine || TYPE_NAMES[t]),
                 h('div', { class: 'd-center' },
@@ -204,7 +210,7 @@ export function mount(root, params, ctx) {
 
     function abstinenceBlocks() {
         const a = detail.abstinence;
-        if (!a) return [];
+        if (!a || (isLimit() && unavailable())) return [];
         const out = [];
         const members = [...(a.members || [])].sort((x, y) => (isMe(y.person) ? 1 : 0) - (isMe(x.person) ? 1 : 0));
         out.push(h('section', { class: 'panel member-days' },
@@ -218,6 +224,7 @@ export function mount(root, params, ctx) {
                 h('span', { class: 'health-avatar', 'aria-hidden': 'true' }, icon('users')),
                 h('div', { class: 'person-texts' }, h('div', { class: 'person-name' }, 'Gruppe')),
                 h('span', { class: 'member-day-value' }, `${a.group.days} T`)) : null));
+        if (isLimit()) out.push(...limitBlocks());
         const series = a.series || [];
         if (series.length) {
             const max = Math.max(1, ...series.map(x => x.days));
@@ -231,6 +238,61 @@ export function mount(root, params, ctx) {
                 ]))));
         }
         return out;
+    }
+
+    /**
+     * Tageslimit (Vertrag 5.2c): „− 3 +“ fuer heute, darunter die letzten Tage der
+     * Nachtragsfrist - ein Tipp oeffnet denselben Zaehler fuer diesen Tag.
+     */
+    function limitBlocks() {
+        const s = summary();
+        const limit = s.limit;
+        if (!limit || !limits.canCount(s) || archived()) return [];
+        const unit = limit.unit ? ` ${limit.unit}` : '';
+        const out = [h('section', { class: 'panel limit-panel' },
+            h('h2', { class: 'panel-title' }, 'Heute'),
+            limits.counter(id, limit.date, limit.count, {
+                perDay: limit.perDay, large: true, onChange: render, onSettled: settled,
+            }),
+            h('p', { class: 'limit-of' }, `höchstens ${limit.perDay}${unit}`))];
+        const days = (detail.abstinence.limitDays || []).filter(day => day.date !== limit.date);
+        if (days.length) {
+            const zone = detail.config.timezone;
+            const today = dayIn(new Date(), zone);
+            out.push(h('section', { class: 'panel' },
+                h('h2', { class: 'panel-title' }, 'Letzte Tage'),
+                h('div', { class: 'limit-days' }, days.map(day => {
+                    const count = limits.shownCount(id, day.date, day.count);
+                    const known = day.count != null || limits.isWaiting(id, day.date);
+                    const over = count > limit.perDay;
+                    return h('button', {
+                        type: 'button', class: 'limit-day',
+                        'aria-label': `${dayShort(day.date, today)}: ${known ? fmtNumber(count) : 'nichts eingetragen'}${over ? ', über dem Limit' : ''}`,
+                        onclick: () => dayDialog(day),
+                    },
+                    h('span', { class: 'limit-day-name' }, dayShort(day.date, today)),
+                    h('span', { class: `limit-day-count${over ? ' over' : ''}` }, known ? fmtNumber(count) : day.countText),
+                    icon('chevronRight'));
+                }))));
+        }
+        return out;
+    }
+
+    function dayDialog(day) {
+        const limit = summary().limit;
+        const ref = {};
+        const zone = detail.config.timezone;
+        const body = h('div', { class: 'sheet-body' },
+            limits.counter(id, day.date, day.count, { perDay: limit.perDay, large: true, onChange: render, onSettled: settled }),
+            h('p', { class: 'limit-of' }, `höchstens ${limit.perDay}${limit.unit ? ` ${limit.unit}` : ''}`));
+        const title = dayHeading(day.date, dayIn(new Date(), zone));
+        ref.current = openDialog([...sheetHead(title, summary().ref.name, ref), body], { kind: 'sheet', label: title });
+    }
+
+    /** Der Dienst hat bestaetigt (frischer Stand) oder abgelehnt (dann neu laden: sein Stand gilt). */
+    function settled(fresh) {
+        if (fresh) apply(fresh);
+        else load();
     }
 
     function goalBlocks() {
@@ -311,6 +373,8 @@ export function mount(root, params, ctx) {
     }
 
     function myEntries() {
+        // Beim Tageslimit gibt es keine Eintraege - die Zahlen stehen im Logbook.
+        if (isLimit()) return null;
         const list = detail.myCheckins || [];
         const days = backfillDays(detail);
         const canBackfill = !archived() && !detail.config.auto && days.length > 1 && summary().canCheckIn !== undefined;
@@ -581,7 +645,7 @@ export function mount(root, params, ctx) {
                 toggleRow('Stummschalten', { checked: settings.muted, onchange: v => save({ muted: v }) }),
                 selectRow('Check-ins', triState, settings.checkins, v => save({ checkins: v })),
                 selectRow('Chat', triState, settings.chat, v => save({ chat: v })),
-                type() === 'ABSTINENCE'
+                type() === 'ABSTINENCE' && !isLimit()
                     ? toggleRow('Unterbrechungen teilen', { checked: settings.shareBreaks, onchange: v => save({ shareBreaks: v }) })
                     : null));
         ref.current = openDialog([...sheetHead('Benachrichtigungen', summary().ref.name, ref), body], { kind: 'sheet', label: 'Benachrichtigungen' });

@@ -1996,6 +1996,48 @@ button.cell:hover { box-shadow: inset 0 0 0 2px var(--c-accent); }
 .member-day-value { margin-left: auto; font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 .series { display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: center; gap: 10px 14px; }
+
+/* Tageslimit (Vertrag 5.2c): „− 3 +“ fuer heute, darunter die letzten Tage zum Korrigieren.
+   Ueber dem Limit steht die Zahl in der Farbe fuer „nicht geschafft“. */
+.limit-counter {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 6px;
+    border-radius: 999px;
+    background: var(--field);
+}
+
+.limit-counter .stepper-btn { display: grid; place-items: center; }
+.limit-counter .stepper-btn .icon { width: 22px; height: 22px; stroke-width: 2.4; }
+.limit-counter.large .stepper-btn { width: 56px; height: 56px; }
+.limit-figure { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+.limit-value { font-size: 26px; font-weight: 900; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.limit-counter.large .limit-value { font-size: 44px; line-height: 1; }
+.limit-value.over, .limit-day-count.over, .card-sub.over, .row-sub.over > span:last-child { color: var(--danger); }
+.limit-of { margin-top: 10px; text-align: center; font-size: 14.5px; color: var(--muted); }
+
+.limit-days { display: flex; flex-direction: column; }
+
+.limit-day {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 52px;
+    padding: 6px 0;
+    border: 0;
+    border-top: 1px solid var(--line);
+    background: none;
+    text-align: left;
+}
+
+.limit-day:first-child { border-top: 0; }
+.limit-day-name { flex: 1 1 auto; min-width: 0; font-weight: 700; }
+.limit-day-count { font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.limit-day .icon { width: 18px; height: 18px; color: var(--muted); }
+.sheet-body .limit-counter { margin-top: 4px; }
 .series-label { font-size: 15px; color: var(--muted); }
 .series-label.current { color: var(--ink); font-weight: 800; }
 .series-bar { display: flex; align-items: center; gap: 10px; min-width: 0; }

@@ -5,6 +5,7 @@ const svg = body => `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="fals
 export const ICONS = {
     home: svg('<path d="M4 10.2 12 4l8 6.2V19a1 1 0 0 1-1 1h-4.6v-5.6H9.6V20H5a1 1 0 0 1-1-1z"/>'),
     plus: svg('<path d="M12 5v14M5 12h14"/>'),
+    minus: svg('<path d="M5 12h14"/>'),
     check: svg('<path d="m5 12.5 4.5 4.5L19 7.5"/>'),
     camera: svg('<path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2.3l1.4-2h5.6l1.4 2h2.3A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z"/><circle cx="12" cy="12.8" r="3.3"/>'),
     chevronRight: svg('<path d="m9.5 5.5 6.5 6.5-6.5 6.5"/>'),

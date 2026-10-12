@@ -62,6 +62,8 @@ function newDraft() {
         rhythm: { kind: 'DAILY', weekdays: [1, 3, 5], weekTimes: 3, monthTimes: 2, days: 2 },
         groupStreak: false,
         groupMode: false,
+        // Tageslimit aus dem Logbook (Vertrag 2.5a) - nur beim Bearbeiten, anlegen geht per Skript.
+        limit: null,
         goal: { target: '', start: today, deadline: addDays(today, 30), counting: 'ENTRIES', mode: 'TEAM' },
         challenge: { start: today, end: addDays(today, 6), scoring: 'MOST_ENTRIES', target: '', stake: '', recurrence: 'NONE' },
         run: { ...RUN_DEFAULTS, pace: paceText(RUN_DEFAULTS.paceLimitSeconds) },
@@ -100,7 +102,10 @@ function draftFrom(config) {
         if (r.kind === 'INTERVAL') d.rhythm.days = r.days;
         d.groupStreak = !!config.streak.groupStreak;
     }
-    if (config.abstinence) d.groupMode = !!config.abstinence.groupMode;
+    if (config.abstinence) {
+        d.groupMode = !!config.abstinence.groupMode;
+        d.limit = config.abstinence.limit ? { ...config.abstinence.limit } : null;
+    }
     if (config.goal) d.goal = { ...config.goal, target: String(config.goal.target).replace('.', ',') };
     if (config.challenge) {
         d.challenge = {
@@ -203,7 +208,8 @@ function toConfig(d, { forEdit = false } = {}) {
             };
         }
     } else if (d.type === 'ABSTINENCE') {
-        config.abstinence = { groupMode: d.groupMode };
+        // Beim Limit aendert sich nur die Zahl; das Verhalten waehlt man nicht neu.
+        config.abstinence = d.limit ? { groupMode: false, limit: { perDay: d.limit.perDay } } : { groupMode: d.groupMode };
     } else if (d.type === 'GOAL') {
         const target = parseNumber(d.goal.target);
         if (!(target > 0)) fail('Bitte einen Zielwert angeben.', 'target');
@@ -303,7 +309,9 @@ function settingsForm(d, { edit = false, errorEl, onChange } = {}) {
             field('Name', textInput(d.name, v => { d.name = v; }, { maxlength: 40, placeholder: namePlaceholder(d.type), 'data-fid': 'name' }))));
 
         if (d.type === 'STREAK') out.push(streakSection());
-        if (d.type === 'ABSTINENCE') {
+        if (d.type === 'ABSTINENCE' && d.limit) {
+            out.push(limitSection());
+        } else if (d.type === 'ABSTINENCE') {
             out.push(h('section', { class: 'set-group' }, toggleRow('Gruppenmodus', { checked: d.groupMode, onchange: v => { d.groupMode = v; } })));
         }
         if (d.type === 'GOAL') out.push(goalSection());
@@ -331,13 +339,18 @@ function settingsForm(d, { edit = false, errorEl, onChange } = {}) {
                 rerender();
             }));
         }
-        rows.push(selectRow('Zeitzone', timezones(d.timezone), d.timezone, v => { d.timezone = v; }));
-        rows.push(selectRow('Nachtragsfrist', BACKFILL, d.backfillHours, v => { d.backfillHours = v; }));
+        // Beim Tageslimit legt das Logbook Zeitzone und Frist fest, und es zaehlt eine Person allein.
+        if (!d.limit) {
+            rows.push(selectRow('Zeitzone', timezones(d.timezone), d.timezone, v => { d.timezone = v; }));
+            rows.push(selectRow('Nachtragsfrist', BACKFILL, d.backfillHours, v => { d.backfillHours = v; }));
+        }
         rows.push(reminderRow(d));
         if (d.type === 'STREAK') {
             rows.push(toggleRow('Gruppen-Streak', { checked: d.groupStreak, onchange: v => { d.groupStreak = v; } }));
         }
-        rows.push(toggleRow('Mitglieder dürfen einladen', { checked: d.membersCanInvite, onchange: v => { d.membersCanInvite = v; } }));
+        if (!d.limit) {
+            rows.push(toggleRow('Mitglieder dürfen einladen', { checked: d.membersCanInvite, onchange: v => { d.membersCanInvite = v; } }));
+        }
         out.push(h('section', { class: 'set-group' }, rows));
         if (errorEl) out.push(errorEl);
         return out;
@@ -403,6 +416,18 @@ function settingsForm(d, { edit = false, errorEl, onChange } = {}) {
             sections.push(h('section', { class: 'set-group' }, rows));
         }
         return sections;
+    }
+
+    /** Tageslimit: das Verhalten nur zur Anzeige, die Zahl zum Einstellen. */
+    function limitSection() {
+        const unit = d.limit.unitLabel ? ` ${d.limit.unitLabel}` : '';
+        return h('section', { class: 'set-group pad stack' },
+            h('div', { class: 'set-row', style: 'padding:0' },
+                h('span', { class: 'set-label' }, 'Verhalten'),
+                h('span', { class: 'set-value' }, d.limit.behaviorName || '–')),
+            h('div', { class: 'field-group' },
+                h('span', { class: 'field-label' }, 'Höchstens pro Tag'),
+                stepper(d.limit.perDay ?? 0, 0, 1000, n => `${n}${unit}`, n => { d.limit.perDay = n; })));
     }
 
     function inlineNumber(value, onInput, fid) {

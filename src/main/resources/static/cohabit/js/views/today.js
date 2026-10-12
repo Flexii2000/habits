@@ -14,9 +14,15 @@ import { cohabitClass, gauge, GROUP, todayGroup, typeOrder } from '../kinds.js';
 import { state, cached, remember } from '../state.js';
 import { TYPE_NAMES, dateTimeShort, isMe } from '../format.js';
 import { checkIn } from '../checkin.js';
+import * as limits from '../limit.js';
 import { invitationDialog } from '../invitation.js';
 import { sendNudge } from '../social.js';
 import { navigate } from '../app.js';
+
+/** „Gewohnheit A · Streak" - ein Tageslimit heisst wie im Typtext des Dienstes „Limit". */
+function cardType(summary) {
+    return `${summary.ref.name} · ${summary.limit ? 'Limit' : TYPE_NAMES[summary.ref.type]}`;
+}
 
 const detailPath = id => `/cohabit/c/${enc(id)}`;
 
@@ -146,6 +152,8 @@ export function mount(root, params, ctx) {
      * traegt man bewusst auf der Detailseite ein, nicht im Vorbeigehen.
      */
     function checkButton(summary, size = '') {
+        // Ein Tageslimit wird gezaehlt, nicht abgehakt (Vertrag 5.2c).
+        if (summary.limit) return limits.plusButton(summary, { size, onChange: render, onSettled: () => load() });
         if (summary.status === 'DONE') {
             return h('span', { class: 'done-mark', role: 'img', title: 'Heute erledigt', 'aria-label': 'Heute erledigt' }, icon('check'));
         }
@@ -180,7 +188,8 @@ export function mount(root, params, ctx) {
         const ordered = typeOrder(cohabits);
         const of = group => ordered.filter(c => todayGroup(c.ref) === group);
         const small = of(GROUP.GOALS_AND_CHALLENGES);
-        const bigCard = c => (c.ref.type === 'ABSTINENCE' ? abstinenceCard(c) : streakCard(c));
+        // Ein Tageslimit hat ein „+“ an der Stelle des Hakens - also die Karte mit dem Knopf oben.
+        const bigCard = c => (c.ref.type === 'ABSTINENCE' && !c.limit ? abstinenceCard(c) : streakCard(c));
         return h('div', { class: 'dash' },
             of(GROUP.STREAK).map(bigCard),
             small.length ? h('div', { class: 'small-cards' },
@@ -203,7 +212,13 @@ export function mount(root, params, ctx) {
     }
 
     function subline(summary) {
-        return summary.status === 'UNAVAILABLE' && summary.unavailableText ? summary.unavailableText : summary.subline;
+        if (summary.status === 'UNAVAILABLE' && summary.unavailableText) return summary.unavailableText;
+        return summary.limit ? limits.today(summary).text : summary.subline;
+    }
+
+    /** Ueber dem Tageslimit steht der Satz in der Farbe fuer „nicht geschafft“. */
+    function subClass(summary, base) {
+        return summary.limit && summary.status !== 'UNAVAILABLE' && limits.today(summary).over ? `${base} over` : base;
     }
 
     function streakCard(summary) {
@@ -211,20 +226,20 @@ export function mount(root, params, ctx) {
             cardLink(summary),
             h('div', { class: 'card-top' },
                 h('div', { class: 'card-head' },
-                    h('p', { class: 'card-type' }, `${summary.ref.name} · ${TYPE_NAMES[summary.ref.type]}`),
+                    h('p', { class: 'card-type' }, cardType(summary)),
                     headlineFigure(summary.headline)),
                 checkButton(summary)),
             cardBar(summary),
             h('div', { class: 'card-foot' },
                 avatarStack(membersMeLast(summary.members), 34),
-                subline(summary) ? h('p', { class: 'card-sub' }, subline(summary)) : null));
+                subline(summary) ? h('p', { class: subClass(summary, 'card-sub') }, subline(summary)) : null));
     }
 
     function abstinenceCard(summary) {
         return h('article', { class: cardClasses(summary, 'big-card side deco bl') },
             cardLink(summary),
             h('div', { class: 'side-left' },
-                h('p', { class: 'card-type' }, `${summary.ref.name} · ${TYPE_NAMES[summary.ref.type]}`),
+                h('p', { class: 'card-type' }, cardType(summary)),
                 avatarStack(membersMeLast(summary.members), 34),
                 subline(summary) ? h('p', { class: 'card-sub' }, subline(summary)) : null),
             h('div', { class: 'side-right' }, headlineFigure(summary.headline)));
@@ -249,13 +264,16 @@ export function mount(root, params, ctx) {
     }
 
     function row(summary) {
-        const text = summary.status === 'UNAVAILABLE' && summary.unavailableText ? summary.unavailableText : summary.listLine;
+        const text = summary.status === 'UNAVAILABLE' && summary.unavailableText ? summary.unavailableText
+            // Waehrend eine Zahl wartet, steht der Satz von heute statt der Zeile des Dienstes.
+            : summary.limit && limits.isWaiting(summary.ref.id, summary.limit.date) ? limits.today(summary).text
+                : summary.listLine;
         const g = gauge(summary);
         let sub;
         if (g && g.bar != null) {
             sub = [text ? h('span', { class: 'row-sub' }, h('span', null, text)) : null, progressBar(g.bar, 'row-bar')];
         } else {
-            sub = h('span', { class: 'row-sub' },
+            sub = h('span', { class: subClass(summary, 'row-sub') },
                 g && g.dots ? weekDots(g.dots.done, g.dots.goal) : null,
                 text ? h('span', null, text) : null);
         }
