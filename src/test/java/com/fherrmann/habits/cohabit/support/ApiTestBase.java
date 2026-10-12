@@ -80,6 +80,8 @@ public abstract class ApiTestBase {
     @Autowired
     protected FakeSources.Steps steps;
     @Autowired
+    protected FakeSources.Logbook logbook;
+    @Autowired
     protected AutoSources autoSources;
     @Autowired
     protected RecordingTransport iosTransport;
@@ -113,6 +115,7 @@ public abstract class ApiTestBase {
         food.days = (person, day) -> new com.fherrmann.habits.client.FoodClient.Day(0, 0, java.util.Set.of());
         food.unavailable = false;
         steps.perDay = (person, day) -> 0;
+        logbook.reset();
         autoSources.forgetHistory();
     }
 

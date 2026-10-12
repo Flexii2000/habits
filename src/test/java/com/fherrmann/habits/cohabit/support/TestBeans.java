@@ -35,6 +35,12 @@ public class TestBeans {
     }
 
     @Bean
+    @Primary
+    public FakeSources.Logbook fakeLogbook(HealthUsers users) {
+        return new FakeSources.Logbook(users);
+    }
+
+    @Bean
     public RecordingTransport iosTransport() {
         return new RecordingTransport("ios");
     }

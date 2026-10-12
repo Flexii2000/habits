@@ -32,7 +32,8 @@ import java.util.List;
  * @param shared         mehr als ein Mitglied; Loeschen heisst dann Verlassen
  * @param admin          ob die Person die Einstellungen aendern darf
  * @param backfillFrom   der frueheste Tag, den der Dienst noch annimmt
- * @param summary        nur bei GOAL und CHALLENGE: die Zusammenfassung wie in {@code GET /cohabits}
+ * @param summary        bei GOAL und CHALLENGE, seit 12.10. auch bei einer Abstinenz mit Tageslimit:
+ *                       die Zusammenfassung wie in {@code GET /cohabits} (dort mit {@code limit})
  * @param focus          nur bei FOCUS: Kategorie aus dem Wald ({@code null}: alle Baeume) und Zeitraum
  */
 public record ClassicHabit(

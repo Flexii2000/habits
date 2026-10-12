@@ -11,6 +11,8 @@ import com.fherrmann.habits.cohabit.model.FocusPeriod;
 import com.fherrmann.habits.cohabit.model.GoalCounting;
 import com.fherrmann.habits.cohabit.model.GoalMode;
 import com.fherrmann.habits.cohabit.model.HealthConfig;
+import com.fherrmann.habits.cohabit.model.LimitConfig;
+import com.fherrmann.habits.cohabit.model.LimitSource;
 import com.fherrmann.habits.cohabit.model.Palette;
 import com.fherrmann.habits.cohabit.model.Recurrence;
 import com.fherrmann.habits.cohabit.model.Rhythm;
@@ -20,6 +22,7 @@ import com.fherrmann.habits.cohabit.model.Scoring;
 import com.fherrmann.habits.cohabit.model.StreakConfig;
 import com.fherrmann.habits.cohabit.model.Tracking;
 import com.fherrmann.habits.cohabit.model.TrackingMode;
+import com.fherrmann.habits.cohabit.rules.Limits;
 import com.fherrmann.habits.cohabit.rules.StreakModel;
 import com.fherrmann.habits.cohabit.rules.Texts;
 
@@ -109,6 +112,9 @@ public final class CohabitConfigs {
             c.auto = null;
         }
         c.streak = null;
+        // Das Limit gibt es nur beim Anlegen; ein Bearbeiten ohne (aeltere Clients kennen es
+        // nicht) laesst es stehen.
+        LimitConfig oldLimit = c.abstinence == null ? null : c.abstinence.limit();
         c.abstinence = null;
         if (c.type != CohabitType.GOAL) {
             c.goal = null;
@@ -119,10 +125,19 @@ public final class CohabitConfigs {
         switch (c.type) {
             case STREAK -> streak(c, in, existing, sources);
             case ABSTINENCE -> {
-                c.abstinence = new AbstinenceConfig(in.abstinence() != null && in.abstinence().groupMode());
+                LimitConfig limit = limit(in.abstinence() == null ? null : in.abstinence().limit(), oldLimit, existing);
+                c.abstinence = new AbstinenceConfig(limit == null && in.abstinence() != null && in.abstinence().groupMode(),
+                        limit);
                 // Eine Unterbrechung hat weder Wert noch Beweisfoto.
                 c.tracking = Tracking.CHECK;
                 c.photoRequired = false;
+                if (limit != null) {
+                    // Das Verhalten gehoert zu einem Logbook - eine Person, Berliner Tage, und
+                    // nachtragen wie dort.
+                    c.membersCanInvite = false;
+                    c.timezone = Limits.ZONE;
+                    c.backfillHours = Limits.BACKFILL_HOURS;
+                }
             }
             case GOAL -> goal(c, in, existing, today);
             case CHALLENGE -> challenge(c, in, existing, today);
@@ -340,5 +355,44 @@ public final class CohabitConfigs {
             throw Errors.badRequest("Die Pace-Grenze muss zwischen 1:00 und 60:00 min/km liegen.");
         }
         return out;
+    }
+
+    /**
+     * Das Tageslimit: beim Anlegen mit Verhalten und Zahl, beim Bearbeiten nur die Zahl - das
+     * Verhalten bleibt, und ein Co-Habit ohne Limit bekommt nachtraeglich keins (seine Serie
+     * kam aus Eintraegen, nicht aus dem Logbook).
+     */
+    private static LimitConfig limit(LimitConfig in, LimitConfig old, boolean existing) {
+        if (existing) {
+            if (old == null) {
+                if (in != null) {
+                    throw Errors.badRequest("Ein Co-Habit zählt nachträglich nicht aus dem Logbook.");
+                }
+                return null;
+            }
+            if (in == null) {
+                return old;
+            }
+            if (in.behaviorId() != null && !in.behaviorId().equals(old.behaviorId())) {
+                throw Errors.badRequest("Das Verhalten lässt sich nicht ändern.");
+            }
+            return new LimitConfig(old.source(), old.behaviorId(), perDay(in.perDay() == null ? old.perDay() : in.perDay()),
+                    old.behaviorName(), old.unitLabel());
+        }
+        if (in == null) {
+            return null;
+        }
+        if (in.behaviorId() == null || in.behaviorId().isBlank()) {
+            throw Errors.badRequest("Welches Verhalten aus dem Logbook?");
+        }
+        return new LimitConfig(in.source() == null ? LimitSource.LOGBOOK : in.source(), in.behaviorId().trim(),
+                perDay(in.perDay()), in.behaviorName(), in.unitLabel());
+    }
+
+    private static int perDay(Integer perDay) {
+        if (perDay == null || perDay < 0 || perDay > Limits.MAX_PER_DAY) {
+            throw Errors.badRequest("Das Tageslimit muss zwischen 0 und 1.000 liegen.");
+        }
+        return perDay;
     }
 }

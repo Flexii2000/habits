@@ -15,6 +15,7 @@ import com.fherrmann.habits.cohabit.push.PushMessage;
 import com.fherrmann.habits.cohabit.push.Setting;
 import com.fherrmann.habits.cohabit.rules.CohabitEval;
 import com.fherrmann.habits.cohabit.rules.CohabitEval.MemberEval;
+import com.fherrmann.habits.cohabit.rules.Limits;
 import com.fherrmann.habits.cohabit.rules.StreakModel;
 import com.fherrmann.habits.cohabit.rules.Texts;
 import com.fherrmann.habits.cohabit.store.CohabitStore;
@@ -112,7 +113,7 @@ public class SchedulerService implements DevController.Tickable {
                 if (c.archived) {
                     continue;
                 }
-                CohabitEval eval = CohabitEval.evaluate(c, tx.checkins(c.id), facts.of(c.id), at);
+                CohabitEval eval = CohabitEval.evaluate(c, tx.checkins(c.id), facts.of(c.id), facts.logbookOf(c.id), at);
                 ZonedDateTime local = at.atZone(eval.zone);
                 reminders(tx, eval, local);
                 atRisk(tx, eval, local);
@@ -132,6 +133,10 @@ public class SchedulerService implements DevController.Tickable {
 
     /** Ob ein automatisches Co-Habit jetzt seine Quelle braucht. */
     private boolean needsSource(Cohabit c, Instant now) {
+        if (Limits.isLogbookLimit(c)) {
+            // Das Logbook alle 15 Minuten, wie die automatischen Quellen - fuer die Meilensteine.
+            return now.atZone(CohabitEval.zoneOf(c)).getMinute() % SOURCE_EVERY_MINUTES == 0;
+        }
         if (c.auto == null) {
             return false;
         }

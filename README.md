@@ -98,6 +98,14 @@ Personen mit dieser Quelle):
 | `STEPS_WEEKLY` | Schritte Mo–So ≥ Wochenziel (Serie in Wochen) | Weight Tracker `/api/steps` – Felix mit `WEIGHT_APP_TOKEN`, andere per Bearer |
 | `FOCUS` | Minuten der Wald-Sessions ≥ Tagesziel (Vorgabe 240) | `data/focus.json` – nur Felix |
 
+**Abstinenz mit Tageslimit** (seit 2026-10-12): Die Zahl je Tag liegt im Logbook von
+Healthy (Weight Tracker, eine Verhaltensweise mit Menge) – coHabit liest sie dort (`LogbookClient`,
+`LogbookSource`) und schreibt beim Zählen dorthin (`PUT /cohabits/{id}/count/{date}`, absolut). Ein Tag
+mit mehr als `perDay` bricht die Serie, heute sofort; ohne Eintrag zählt ein Tag als 0. Nur allein,
+Berliner Tage, 14 Tage nachtragen; keine Check-ins, keine Meldung je Tasse, nicht in `/me/days`.
+Antwortet das Logbook nicht, steht „–“ statt einer Zahl. Angelegt wird es per
+`deploy/create-limit-habit.sh` (noch ohne Oberfläche). Details im Vertrag, §2.5a.
+
 Beide Nachbardienste laufen auf derselben Kiste, gefragt wird über localhost. Vergangene
 Tage des Kalorienzählers merkt sich der Dienst im Speicher (heute und gestern immer
 frisch). Die automatischen Serien schauen wie früher bis zu 730 Tage zurück, auch vor den
@@ -135,7 +143,8 @@ coHabit-Vertrag; hier der Überblick:
 | ich | `GET/PUT /me`, `PUT/DELETE /me/avatar`, `GET/PUT /me/notifications`, `GET/PUT /me/type-colors`, `GET/POST/DELETE /me/app-links[/{id\|current}]`, `GET /me/export` (ZIP), `DELETE /me` (`{"confirm":"LÖSCHEN"}`), `GET /me/archived`, `GET /me/days?from=&to=` (Tagesreihen für das Logbook in Healthy, Vertrag §3.11), `POST /me/friend-link`, `GET /me/invitations` |
 | Freunde | `GET /friends`, `GET /people/search?q=`, `POST /friends/requests`, `POST /friends/requests/{id}/accept\|decline`, `DELETE /friends/{id}`, `GET/POST/DELETE /blocks` |
 | Co-Habits | `GET/POST /cohabits`, `GET/PUT/DELETE /cohabits/{id}`, `POST …/archive\|unarchive`, `GET …/invite-candidates`, `POST …/invitations`, `POST …/invite-link`, `DELETE …/members/{id\|me}`, `PUT …/admin`, `PUT …/settings/me`, `POST/DELETE …/pauses`, `POST …/dialogs/{id}/seen`, `POST /invitations/{id}/accept\|decline` |
-| Einträge | `POST/PUT/DELETE /cohabits/{id}/checkins[/{checkinId}]`, `PUT /cohabits/{id}/health/{date}` |
+| Einträge | `POST/PUT/DELETE /cohabits/{id}/checkins[/{checkinId}]`, `PUT /cohabits/{id}/health/{date}`, `PUT /cohabits/{id}/count/{date}` (Tageslimit, schreibt ins Logbook) |
+| Logbook | `GET /logbook/behaviors` (eigene Verhaltensweisen mit Menge, zur Wahl für ein Tageslimit) |
 | Chat | `GET/POST /cohabits/{id}/messages` (Text, Foto, GIF), `DELETE …/messages/{id}`, `POST …/messages/{id}/report`, `POST …/read`, `POST/DELETE /reactions`, `GET /gifs/config` |
 | Übersicht | `GET /today`, `GET /timeline?exclude=`, `POST /timeline/seen`, `GET /stats?range=WEEK\|MONTH\|YEAR`, `GET /widget`, `POST /cohabits/{id}/nudges`, `POST /nudges/{id}/seen` |
 | Fotos | `POST /photos` (multipart `photo`: JPEG, PNG, GIF, ≤ 10 MB, `Idempotency-Key`), `GET /photos/{id}?size=thumb\|full` |
@@ -282,6 +291,10 @@ Vorlagen: `deploy/`.
 
 Rhythmus eines eigenen Streaks auf „N× pro Woche“ umstellen (fragt interaktiv):
 `ssh -t HeimServerRemote '~/services/habits/deploy/set-rhythm.sh'`.
+
+Abstinenz mit Tageslimit aus dem Logbook anlegen (fragt Verhalten, Limit und Namen; legt für
+dasselbe Verhalten kein zweites an):
+`ssh -t HeimServerRemote '~/services/habits/deploy/create-limit-habit.sh'`.
 
 Die GIF-Suche braucht einmalig einen Schlüssel aus dem Partner-Panel von KLIPY:
 `ssh -t HeimServerRemote '~/services/habits/deploy/set-klipy-key.sh'` fragt ihn ab, setzt

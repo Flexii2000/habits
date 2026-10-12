@@ -225,6 +225,35 @@ class SchedulerTest extends ApiTestBase {
         assertEquals(1, felix("milestone").size());
     }
 
+    /** Tageslimit: gefeiert wird nur mit frisch gelesenen Zahlen - und ohne Logbook gar nicht. */
+    @Test
+    void tageslimitMeilensteinNurMitFrischenZahlen() {
+        logbook.behavior("felix", "b-a", "Verhalten A", "Tassen", false);
+        at(23, 9, 0);
+        String id = id(create(FELIX, map("type", "ABSTINENCE", "name", "Gewohnheit A", "color", "mint",
+                "abstinence", map("groupMode", false, "limit", map("behaviorId", "b-a", "perDay", 4)))));
+        logbook.value("felix", "b-a", LocalDate.of(2026, 9, 24), 4);
+        at(29, 0, 1);
+        tick();
+        List<String> texts = store.read(data -> data.messages(id).stream().map(m -> m.systemText).toList());
+        assertFalse(texts.contains("Felix hat 7 Tage geschafft"), "ausserhalb des 15-Minuten-Takts fragt er nicht");
+        logbook.unavailable = true;
+        at(29, 0, 15);
+        tick();
+        texts = store.read(data -> data.messages(id).stream().map(m -> m.systemText).toList());
+        assertFalse(texts.contains("Felix hat 7 Tage geschafft"), "ohne Logbook keine Feier");
+        logbook.unavailable = false;
+        at(29, 0, 30);
+        tick();
+        texts = store.read(data -> data.messages(id).stream().map(m -> m.systemText).toList());
+        assertTrue(texts.contains("Felix hat 7 Tage geschafft"), texts.toString());
+        logbook.value("felix", "b-a", LocalDate.of(2026, 9, 29), 5);
+        at(29, 0, 45);
+        tick();
+        int best = store.read(data -> data.cohabit(id).orElseThrow().members.getFirst().bestStreak);
+        assertEquals(7, best, "der Rekord bleibt nach der fuenften Tasse");
+    }
+
     @Test
     void abgelaufeneEinladungslinksVerschwinden() {
         at(1, 9, 0);

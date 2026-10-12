@@ -6,7 +6,9 @@ import com.fherrmann.habits.cohabit.model.CohabitType;
 import com.fherrmann.habits.cohabit.model.Member;
 import com.fherrmann.habits.cohabit.rules.AbstinenceCalc;
 import com.fherrmann.habits.cohabit.rules.AutoFacts;
+import com.fherrmann.habits.cohabit.rules.CohabitEval;
 import com.fherrmann.habits.cohabit.rules.Evaluations;
+import com.fherrmann.habits.cohabit.rules.Limits;
 import com.fherrmann.habits.cohabit.rules.StreakCalc;
 import com.fherrmann.habits.cohabit.rules.StreakModel;
 import com.fherrmann.habits.cohabit.rules.StreakUnit;
@@ -68,6 +70,10 @@ public final class Milestones {
      * stuenden sonst 40 Tage als „Rekord 40 Wochen" da (12.10.).
      */
     public static List<Object> seriesRule(Cohabit c) {
+        if (Limits.isLogbookLimit(c)) {
+            // Ein anderes Tageslimit macht andere Tage zu Unterbrechungen.
+            return List.of(String.valueOf(c.abstinence.limit().perDay()));
+        }
         if (c.type != CohabitType.STREAK) {
             return List.of();
         }
@@ -95,12 +101,33 @@ public final class Milestones {
             m.bestStreak = 0;
             m.bestAnnouncedRun = null;
             m.milestones.clear();
-            if (c.auto == null) {
+            if (c.auto == null && !Limits.isLogbookLimit(c)) {
                 silentBaseline(c, m, checkins, today);
             } else {
                 m.baselinePending = true;
             }
         }
+    }
+
+    /**
+     * Aus einer fertigen Rechnung - fuer Quellen und das Tageslimit, deren Zahlen nur die
+     * Rechnung kennt (die Eintraege allein ergaeben dort eine Serie ohne Unterbrechung).
+     */
+    public static void silentBaseline(Cohabit c, Member m, CohabitEval eval, CohabitEval.MemberEval me) {
+        if (Limits.isLogbookLimit(c) && me.abstinence != null) {
+            AbstinenceCalc.Outcome o = me.abstinence;
+            m.bestStreak = Math.max(m.bestStreak, o.record());
+            m.milestones.clear();
+            if (o.runStart() != null) {
+                m.milestones.put(o.runStart().toString(), reached(c.type, StreakUnit.DAYS, o.current()));
+                if (o.current() >= o.record()) {
+                    m.bestAnnouncedRun = o.runStart();
+                }
+            }
+            m.baselinePending = false;
+            return;
+        }
+        silentBaseline(c, m, eval.checkins, me.facts, eval.today);
     }
 
     /** Fuer Co-Habits ohne Quelle: alles bis jetzt Erreichte vermerken, ohne etwas zu melden. */

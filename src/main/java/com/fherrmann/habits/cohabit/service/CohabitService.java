@@ -1,17 +1,21 @@
 package com.fherrmann.habits.cohabit.service;
 
+import com.fherrmann.habits.client.LogbookClient;
 import com.fherrmann.habits.cohabit.api.CohabitDetail;
 import com.fherrmann.habits.cohabit.api.CohabitSummary;
 import com.fherrmann.habits.cohabit.api.InvitationView;
 import com.fherrmann.habits.cohabit.api.InviteCandidates;
 import com.fherrmann.habits.cohabit.api.LinkView;
 import com.fherrmann.habits.cohabit.api.PersonView;
+import com.fherrmann.habits.cohabit.model.AbstinenceConfig;
 import com.fherrmann.habits.cohabit.model.ChallengeState;
 import com.fherrmann.habits.cohabit.model.Cohabit;
 import com.fherrmann.habits.cohabit.model.CohabitType;
 import com.fherrmann.habits.cohabit.model.Invitation;
 import com.fherrmann.habits.cohabit.model.InviteLinkKind;
 import com.fherrmann.habits.cohabit.model.HealthMetric;
+import com.fherrmann.habits.cohabit.model.LimitConfig;
+import com.fherrmann.habits.cohabit.model.LimitSource;
 import com.fherrmann.habits.cohabit.model.Member;
 import com.fherrmann.habits.cohabit.model.MessagesFile;
 import com.fherrmann.habits.cohabit.model.Pause;
@@ -22,6 +26,7 @@ import com.fherrmann.habits.cohabit.push.Notifier;
 import com.fherrmann.habits.cohabit.push.PushMessage;
 import com.fherrmann.habits.cohabit.push.Setting;
 import com.fherrmann.habits.cohabit.rules.CohabitEval;
+import com.fherrmann.habits.cohabit.rules.Limits;
 import com.fherrmann.habits.cohabit.store.CohabitStore;
 import com.fherrmann.habits.security.Viewer;
 import com.fherrmann.habits.service.FocusService;
@@ -44,6 +49,7 @@ import java.util.UUID;
 public class CohabitService {
 
     static final int MAX_PAUSE_DAYS = 366;
+    static final String SOLO = "Ein Limit aus dem Logbook führst du allein.";
 
     private final CohabitStore store;
     private final ViewService views;
@@ -54,10 +60,11 @@ public class CohabitService {
     private final InviteLinks links;
     private final KcalSync kcal;
     private final FocusService focus;
+    private final LogbookSource logbook;
 
     public CohabitService(CohabitStore store, ViewService views, EventService events, Notifier notifier,
                           AutoSources sources, PhotoFiles photos, InviteLinks links, KcalSync kcal,
-                          FocusService focus) {
+                          FocusService focus, LogbookSource logbook) {
         this.store = store;
         this.views = views;
         this.events = events;
@@ -67,6 +74,7 @@ public class CohabitService {
         this.links = links;
         this.kcal = kcal;
         this.focus = focus;
+        this.logbook = logbook;
     }
 
     private Instant now() {
@@ -104,7 +112,7 @@ public class CohabitService {
     public CohabitDetail create(Viewer viewer, CohabitInput input) {
         String me = viewer.personId();
         Instant now = now();
-        CohabitInput checked = withFocusCategory(input, null);
+        CohabitInput checked = withLimit(withFocusCategory(input, null), me);
         String id = store.write(tx -> {
             PeopleService.requirePerson(tx, me);
             Cohabit c = new Cohabit();
@@ -156,6 +164,59 @@ public class CohabitService {
                 in.challenge(), in.health(), auto, in.invitePersonIds());
     }
 
+    /**
+     * Abstinenz mit Tageslimit: das Verhalten muss im eigenen Logbook stehen, aktiv sein und
+     * eine Menge haben. Name und Einheit kommen von dort - nie vom Client. Gefragt wird vor
+     * dem Lock, wie bei der Fokus-Kategorie.
+     */
+    private CohabitInput withLimit(CohabitInput in, String me) {
+        if (in == null || in.type() != CohabitType.ABSTINENCE || in.abstinence() == null
+                || in.abstinence().limit() == null) {
+            return in;
+        }
+        if (!logbook.hasLogbook(me)) {
+            throw Errors.forbidden("Dafür braucht es einen Healthy-Zugang.");
+        }
+        if (in.invitePersonIds() != null && !in.invitePersonIds().isEmpty()) {
+            throw Errors.badRequest(SOLO);
+        }
+        LimitConfig limit = in.abstinence().limit();
+        if (limit.behaviorId() == null || limit.behaviorId().isBlank()) {
+            throw Errors.badRequest("Welches Verhalten aus dem Logbook?");
+        }
+        LogbookClient.Behavior b = logbook.behavior(me, limit.behaviorId().trim());
+        if (b == null) {
+            throw Errors.badRequest("Unbekanntes Verhalten.");
+        }
+        if (b.archived()) {
+            throw Errors.badRequest("Das Verhalten ist archiviert.");
+        }
+        if (b.unit() == null) {
+            throw Errors.badRequest("Das Verhalten hat keine Menge.");
+        }
+        LimitConfig filled = new LimitConfig(LimitSource.LOGBOOK, b.id(), limit.perDay(), b.name(), b.unit());
+        return new CohabitInput(in.type(), in.name(), in.color(), in.timezone(), in.tracking(), in.photoRequired(),
+                in.backfillHours(), in.reminderTime(), in.membersCanInvite(), in.streak(),
+                new AbstinenceConfig(false, filled), in.goal(), in.challenge(), in.health(), in.auto(),
+                in.invitePersonIds());
+    }
+
+    /**
+     * Name und Einheit des Verhaltens, wie das Logbook sie gerade fuehrt - beim Speichern der
+     * Einstellungen nachgezogen. Antwortet das Logbook nicht, bleibt der alte Stand.
+     */
+    private LogbookClient.Behavior currentBehavior(String id, String me) {
+        LimitConfig limit = store.read(data -> data.cohabit(id).map(Limits::of).orElse(null));
+        if (limit == null) {
+            return null;
+        }
+        try {
+            return logbook.behavior(me, limit.behaviorId());
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
     private static ZoneId zoneOrDefault(String zone) {
         try {
             return zone == null || zone.isBlank() ? ZoneId.of("Europe/Berlin") : ZoneId.of(zone.trim());
@@ -179,6 +240,7 @@ public class CohabitService {
         String keptCategory = store.read(data -> data.cohabit(id)
                 .map(c -> c.auto == null ? null : c.auto.focusCategoryId()).orElse(null));
         CohabitInput checked = withFocusCategory(input, keptCategory);
+        LogbookClient.Behavior behavior = currentBehavior(id, me);
         store.update(tx -> {
             Cohabit c = adminOnly(tx, id, me);
             if (c.archived) {
@@ -187,6 +249,11 @@ public class CohabitService {
             tx.cohabitsW();
             List<Object> rule = Milestones.seriesRule(c);
             CohabitConfigs.apply(c, checked, true, today(c, now), sources.sourcesOf(me));
+            LimitConfig limit = Limits.of(c);
+            if (limit != null && behavior != null && behavior.id().equals(limit.behaviorId())) {
+                c.abstinence = new AbstinenceConfig(false, new LimitConfig(limit.source(), limit.behaviorId(),
+                        limit.perDay(), behavior.name(), behavior.unit() == null ? limit.unitLabel() : behavior.unit()));
+            }
             if (!rule.equals(Milestones.seriesRule(c))) {
                 Milestones.resetSeries(c, tx.checkins(c.id), today(c, now));
             }
@@ -230,6 +297,9 @@ public class CohabitService {
     public void join(CohabitStore.Tx tx, Cohabit c, String personId, String inviterId, Instant now) {
         if (c.isMember(personId)) {
             return;
+        }
+        if (Limits.isLogbookLimit(c)) {
+            throw Errors.conflict(SOLO);
         }
         tx.cohabitsW();
         c.members.add(newMember(personId, Role.MEMBER, now, today(c, now)));
@@ -446,6 +516,9 @@ public class CohabitService {
         Instant now = now();
         return store.write(tx -> {
             Cohabit c = ViewService.visible(tx, id, me);
+            if (Limits.isLogbookLimit(c)) {
+                throw Errors.badRequest(SOLO);
+            }
             if (!Views.canInvite(c, me)) {
                 throw Errors.forbidden("Einladen darf hier nur der Admin.");
             }
@@ -490,6 +563,9 @@ public class CohabitService {
         Instant now = now();
         return store.write(tx -> {
             Cohabit c = ViewService.visible(tx, id, me);
+            if (Limits.isLogbookLimit(c)) {
+                throw Errors.badRequest(SOLO);
+            }
             if (!Views.canInvite(c, me)) {
                 throw Errors.forbidden("Einladen darf hier nur der Admin.");
             }

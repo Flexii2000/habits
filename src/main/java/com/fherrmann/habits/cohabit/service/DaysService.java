@@ -18,6 +18,7 @@ import com.fherrmann.habits.cohabit.rules.DaySeriesCalc.CheckinFact;
 import com.fherrmann.habits.cohabit.rules.DaySeriesCalc.Snapshot;
 import com.fherrmann.habits.cohabit.rules.DaySeriesCalc.Span;
 import com.fherrmann.habits.cohabit.rules.Evaluations;
+import com.fherrmann.habits.cohabit.rules.Limits;
 import com.fherrmann.habits.cohabit.rules.Texts;
 import com.fherrmann.habits.cohabit.store.CohabitStore;
 import com.fherrmann.habits.security.Viewer;
@@ -74,7 +75,9 @@ public class DaysService {
             List<Item> list = new ArrayList<>();
             for (Cohabit c : data.cohabits().cohabits) {
                 Member m = c.member(me).orElse(null);
-                if (m == null) {
+                // Ein Tageslimit zaehlt aus dem Logbook - als Reihe stuende es dort doppelt, und
+                // die Anfrage liefe im Kreis (Logbook fragt coHabit fragt Logbook).
+                if (m == null || Limits.isLogbookLimit(c)) {
                     continue;
                 }
                 ZoneId zone = CohabitEval.zoneOf(c);

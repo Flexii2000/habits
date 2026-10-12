@@ -47,7 +47,7 @@ public class Achievements {
         if (m.baselinePending) {
             if (me.unavailable == null) {
                 tx.cohabitsW();
-                Milestones.silentBaseline(c, m, eval.checkins, me.facts, eval.today);
+                Milestones.silentBaseline(c, m, eval, me);
             }
             return;
         }
@@ -69,6 +69,10 @@ public class Achievements {
             }
             milestones(tx, c, m, personId, current, runStart, unit, now);
         } else {
+            if (me.unavailable != null) {
+                // Abstinenz mit Tageslimit ohne Logbook: keine Zahl - also auch keine Feier.
+                return;
+            }
             int current = me.abstinence.current();
             if (current > m.bestStreak) {
                 tx.cohabitsW();

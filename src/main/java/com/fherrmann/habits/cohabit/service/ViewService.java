@@ -9,6 +9,8 @@ import com.fherrmann.habits.cohabit.model.Pause;
 import com.fherrmann.habits.cohabit.rules.AutoFacts;
 import com.fherrmann.habits.cohabit.rules.CohabitEval;
 import com.fherrmann.habits.cohabit.rules.Evaluations;
+import com.fherrmann.habits.cohabit.rules.Limits;
+import com.fherrmann.habits.cohabit.rules.LogbookFacts;
 import com.fherrmann.habits.cohabit.rules.StreakModel;
 import com.fherrmann.habits.cohabit.store.CohabitStore;
 import org.springframework.stereotype.Service;
@@ -36,11 +38,13 @@ public class ViewService {
 
     private final CohabitStore store;
     private final AutoSources sources;
+    private final LogbookSource logbook;
     private final Clock clock;
 
-    public ViewService(CohabitStore store, AutoSources sources, Clock clock) {
+    public ViewService(CohabitStore store, AutoSources sources, LogbookSource logbook, Clock clock) {
         this.store = store;
         this.sources = sources;
+        this.logbook = logbook;
         this.clock = clock;
     }
 
@@ -48,13 +52,21 @@ public class ViewService {
         return Instant.now(clock).truncatedTo(ChronoUnit.SECONDS);
     }
 
-    /** Die Quellen-Daten je Co-Habit und Person. */
-    public record Facts(Map<String, Map<String, AutoFacts>> byCohabit) {
+    /**
+     * Die Quellen-Daten je Co-Habit und Person: automatische Quellen und, fuer eine Abstinenz
+     * mit Tageslimit, die Mengen aus dem Logbook.
+     */
+    public record Facts(Map<String, Map<String, AutoFacts>> byCohabit,
+                        Map<String, Map<String, LogbookFacts>> logbookByCohabit) {
 
-        public static final Facts NONE = new Facts(Map.of());
+        public static final Facts NONE = new Facts(Map.of(), Map.of());
 
         public Map<String, AutoFacts> of(String cohabitId) {
             return byCohabit.getOrDefault(cohabitId, Map.of());
+        }
+
+        public Map<String, LogbookFacts> logbookOf(String cohabitId) {
+            return logbookByCohabit.getOrDefault(cohabitId, Map.of());
         }
     }
 
@@ -62,9 +74,31 @@ public class ViewService {
                         List<Pause> pauses) {
     }
 
-    /** Holt die Quellen fuer alle automatischen Co-Habits, die die Auswahl trifft. */
+    private record LimitNeed(String cohabitId, String personId, String behaviorId, LocalDate start, LocalDate today) {
+    }
+
+    /** Holt die Quellen fuer alle automatischen Co-Habits und Tageslimits, die die Auswahl trifft. */
     public Facts fetchFacts(Predicate<Cohabit> which) {
         Instant now = now();
+        List<LimitNeed> limits = store.read(data -> {
+            List<LimitNeed> list = new ArrayList<>();
+            for (Cohabit c : data.cohabits().cohabits) {
+                if (!Limits.isLogbookLimit(c) || !which.test(c)) {
+                    continue;
+                }
+                LocalDate today = LocalDate.ofInstant(now, CohabitEval.zoneOf(c));
+                for (Member m : c.members) {
+                    list.add(new LimitNeed(c.id, m.personId, c.abstinence.limit().behaviorId(),
+                            Evaluations.memberStart(c, m), today));
+                }
+            }
+            return list;
+        });
+        Map<String, Map<String, LogbookFacts>> logbookFacts = new HashMap<>();
+        for (LimitNeed need : limits) {
+            LogbookFacts facts = logbook.facts(need.personId(), need.behaviorId(), need.start(), need.today());
+            logbookFacts.computeIfAbsent(need.cohabitId(), k -> new HashMap<>()).put(need.personId(), facts);
+        }
         List<Need> needs = store.read(data -> {
             List<Need> list = new ArrayList<>();
             for (Cohabit c : data.cohabits().cohabits) {
@@ -86,7 +120,7 @@ public class ViewService {
             }
             return list;
         });
-        if (needs.isEmpty()) {
+        if (needs.isEmpty() && logbookFacts.isEmpty()) {
             return Facts.NONE;
         }
         Map<String, Map<String, AutoFacts>> result = new HashMap<>();
@@ -95,7 +129,7 @@ public class ViewService {
                     StreakModel.paused(need.pauses()));
             result.computeIfAbsent(need.cohabitId(), k -> new HashMap<>()).put(need.personId(), facts);
         }
-        return new Facts(result);
+        return new Facts(result, logbookFacts);
     }
 
     public Facts factsForViewer(String viewerId) {
@@ -107,7 +141,7 @@ public class ViewService {
     }
 
     public CohabitEval evaluate(CohabitStore.Data data, Cohabit c, Facts facts, Instant now) {
-        return CohabitEval.evaluate(c, data.checkins(c.id), facts.of(c.id), now);
+        return CohabitEval.evaluate(c, data.checkins(c.id), facts.of(c.id), facts.logbookOf(c.id), now);
     }
 
     /** Ein Co-Habit, das die Person sehen darf - sonst 404 (auch wenn es existiert). */

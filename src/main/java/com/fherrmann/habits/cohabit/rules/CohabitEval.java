@@ -76,6 +76,8 @@ public final class CohabitEval {
         public boolean entryToday;
         public Set<LocalDate> doneDays = new HashSet<>();
         public Set<LocalDate> breakDays = new HashSet<>();
+        /** Abstinenz mit Tageslimit: die Menge je Tag aus dem Logbook; fehlend = 0. */
+        public LogbookFacts limit;
     }
 
     private CohabitEval(Cohabit cohabit, List<Checkin> checkins, Instant now) {
@@ -103,6 +105,15 @@ public final class CohabitEval {
      *              Co-Habits; fehlt eine Person, gilt die Quelle als nicht erreichbar)
      */
     public static CohabitEval evaluate(Cohabit c, List<Checkin> checkins, Map<String, AutoFacts> facts, Instant now) {
+        return evaluate(c, checkins, facts, Map.of(), now);
+    }
+
+    /**
+     * @param logbook je Person die Mengen aus dem Logbook (nur bei einer Abstinenz mit
+     *                Tageslimit; fehlt eine Person, gilt das Logbook als nicht erreichbar)
+     */
+    public static CohabitEval evaluate(Cohabit c, List<Checkin> checkins, Map<String, AutoFacts> facts,
+                                       Map<String, LogbookFacts> logbook, Instant now) {
         CohabitEval eval = new CohabitEval(c, checkins, now);
         for (Member m : c.members) {
             MemberEval me = new MemberEval();
@@ -114,7 +125,13 @@ public final class CohabitEval {
         }
         switch (c.type) {
             case STREAK -> eval.evaluateStreak(facts == null ? Map.of() : facts);
-            case ABSTINENCE -> eval.evaluateAbstinence();
+            case ABSTINENCE -> {
+                if (Limits.isLogbookLimit(c)) {
+                    eval.evaluateLimit(logbook == null ? Map.of() : logbook);
+                } else {
+                    eval.evaluateAbstinence();
+                }
+            }
             case GOAL -> eval.evaluateGoal();
             case CHALLENGE -> eval.evaluateChallenge();
         }
@@ -211,6 +228,38 @@ public final class CohabitEval {
         }
         if (cohabit.abstinence != null && cohabit.abstinence.groupMode()) {
             groupDays = AbstinenceCalc.groupDays(cohabit.startDate, allBreaks, today);
+        }
+    }
+
+    /**
+     * Abstinenz mit Tageslimit: Unterbrechung ist jeder Tag ueber dem Limit, die Zahl kommt aus
+     * dem Logbook. Heute zaehlt mit - und ist es heute schon drueber, steht die Serie gleich auf
+     * null, wie bei einer eingetragenen Unterbrechung. Ohne Logbook keine Serie: "nicht
+     * erreichbar" statt einer falschen 0 oder einer erfundenen Serie.
+     */
+    private void evaluateLimit(Map<String, LogbookFacts> logbook) {
+        int perDay = cohabit.abstinence.limit().perDay() == null ? 0 : cohabit.abstinence.limit().perDay();
+        for (MemberEval me : members.values()) {
+            me.limit = logbook.get(me.member.personId);
+            if (me.limit == null) {
+                me.limit = LogbookFacts.unavailable("Logbook nicht abgefragt");
+            }
+            if (me.limit.isUnavailable()) {
+                me.unavailable = me.limit.unavailable();
+                me.breakDays = new HashSet<>();
+                me.abstinence = new AbstinenceCalc.Outcome(0, me.member.bestStreak, me.member.bestStreak, false,
+                        List.of(), null);
+                continue;
+            }
+            Set<LocalDate> over = new HashSet<>();
+            for (Map.Entry<LocalDate, Double> day : me.limit.values().entrySet()) {
+                if (day.getValue() > perDay && !day.getKey().isBefore(me.start) && !day.getKey().isAfter(today)) {
+                    over.add(day.getKey());
+                }
+            }
+            me.breakDays = over;
+            me.abstinence = AbstinenceCalc.evaluate(me.start, over, today);
+            me.entryToday = me.limit.count(today) > 0;
         }
     }
 

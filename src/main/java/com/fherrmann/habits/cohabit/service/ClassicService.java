@@ -20,6 +20,7 @@ import com.fherrmann.habits.cohabit.model.Tracking;
 import com.fherrmann.habits.cohabit.rules.CohabitEval;
 import com.fherrmann.habits.cohabit.rules.CohabitEval.MemberEval;
 import com.fherrmann.habits.cohabit.rules.Judge;
+import com.fherrmann.habits.cohabit.rules.Limits;
 import com.fherrmann.habits.cohabit.rules.PeriodScheme;
 import com.fherrmann.habits.cohabit.rules.StreakCalc;
 import com.fherrmann.habits.cohabit.rules.StreakModel;
@@ -96,7 +97,7 @@ public class ClassicService {
             List<ClassicHabit> list = new ArrayList<>();
             for (Cohabit c : ViewService.mine(data, me, false)) {
                 CohabitEval e = views.evaluate(data, c, facts, now);
-                list.add(isClassic(c) ? habit(e, me) : goalOrChallenge(data, e, me));
+                list.add(isClassic(c) ? habit(e, me, limitSummary(data, e, me)) : goalOrChallenge(data, e, me));
             }
             return list;
         });
@@ -107,7 +108,8 @@ public class ClassicService {
         Instant now = views.now();
         return store.read(data -> {
             Cohabit c = classic(data, cohabitId, me);
-            return habit(views.evaluate(data, c, facts, now), me);
+            CohabitEval e = views.evaluate(data, c, facts, now);
+            return habit(e, me, limitSummary(data, e, me));
         });
     }
 
@@ -123,8 +125,18 @@ public class ClassicService {
         return c;
     }
 
+    /** Beim Tageslimit die Zusammenfassung - die Zeile zeigt daraus „2/4“ und zaehlt mit „+“. */
+    private static CohabitSummary limitSummary(CohabitStore.Data data, CohabitEval e, String me) {
+        return Limits.isLogbookLimit(e.cohabit) ? Views.summary(data, e, me) : null;
+    }
+
     /** Der Stand einer Person in der Form der alten API. */
     public static ClassicHabit habit(CohabitEval e, String me) {
+        return habit(e, me, null);
+    }
+
+    /** @param summary nur beim Tageslimit, sonst {@code null} */
+    static ClassicHabit habit(CohabitEval e, String me, CohabitSummary summary) {
         Cohabit c = e.cohabit;
         MemberEval m = e.member(me);
         LocalDate today = e.today;
@@ -132,6 +144,12 @@ public class ClassicService {
         boolean admin = m.member.role == Role.ADMIN;
         LocalDate backfillFrom = Views.backfillFrom(e, m);
         if (c.type == CohabitType.ABSTINENCE) {
+            if (m.unavailable != null) {
+                // Tageslimit ohne Logbook: keine Zahl, also auch keine Punkte.
+                return new ClassicHabit(c.id, c.name, ClassicKind.QUIT, StreakUnit.DAYS, null, 0, false, false, null,
+                        List.of(), m.unavailable, null, null, null, List.of(), m.start, false, shared, admin,
+                        backfillFrom, summary, null);
+            }
             // Wie "Lassen" frueher: ein Tag zaehlt, wenn er nach dem Start liegt und keinen
             // Rueckfall hat - heute eingeschlossen, gefaehrdet ist hier nie etwas.
             List<Boolean> recent = new ArrayList<>();
@@ -142,7 +160,7 @@ public class ClassicService {
             boolean doneToday = !today.isBefore(m.start) && !m.breakDays.contains(today);
             return new ClassicHabit(c.id, c.name, ClassicKind.QUIT, StreakUnit.DAYS, null,
                     m.abstinence.current(), doneToday, false, null, recent, null, null, null, null,
-                    marked(m.breakDays, today), m.start, false, shared, admin, backfillFrom, null, null);
+                    marked(m.breakDays, today), m.start, false, shared, admin, backfillFrom, summary, null);
         }
 
         PeriodScheme scheme = StreakModel.scheme(c);

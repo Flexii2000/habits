@@ -24,6 +24,7 @@ import com.fherrmann.habits.cohabit.push.PushMessage;
 import com.fherrmann.habits.cohabit.push.Setting;
 import com.fherrmann.habits.cohabit.rules.CohabitEval;
 import com.fherrmann.habits.cohabit.rules.CohabitEval.MemberEval;
+import com.fherrmann.habits.cohabit.rules.Limits;
 import com.fherrmann.habits.cohabit.rules.RunPoints;
 import com.fherrmann.habits.cohabit.rules.StreakModel;
 import com.fherrmann.habits.cohabit.rules.Texts;
@@ -153,6 +154,9 @@ public class CheckinService {
         }
         if (c.auto != null) {
             throw Errors.forbidden("Dieses Co-Habit wird automatisch erfasst.");
+        }
+        if (Limits.isLogbookLimit(c)) {
+            throw Errors.forbidden("Dieses Co-Habit zählt aus dem Logbook.");
         }
     }
 

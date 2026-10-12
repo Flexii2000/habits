@@ -20,6 +20,7 @@ import com.fherrmann.habits.cohabit.model.Person;
 import com.fherrmann.habits.cohabit.model.TrackingMode;
 import com.fherrmann.habits.cohabit.rules.CohabitEval;
 import com.fherrmann.habits.cohabit.rules.CohabitEval.MemberEval;
+import com.fherrmann.habits.cohabit.rules.Limits;
 import com.fherrmann.habits.cohabit.rules.StreakCalc;
 import com.fherrmann.habits.cohabit.rules.StreakModel;
 import com.fherrmann.habits.cohabit.rules.StreakUnit;
@@ -219,7 +220,15 @@ public class OverviewService {
                 // "1" gross und darunter "Tag · …", nicht "Tage".
                 yield s.headline().unit() + " · " + detail;
             }
-            case ABSTINENCE -> s.headline().unit() + " · Rekord " + m.abstinence.record();
+            case ABSTINENCE -> {
+                if (m.unavailable != null) {
+                    yield m.unavailable;
+                }
+                // Beim Tageslimit zaehlt, wo heute steht: "Tage · 2/4".
+                yield s.limit() != null
+                        ? s.headline().unit() + " · " + Limits.count(s.limit().count()) + "/" + s.limit().perDay()
+                        : s.headline().unit() + " · Rekord " + m.abstinence.record();
+            }
             case GOAL -> (c.goal.mode() == GoalMode.TEAM ? "Teamziel" : "Einzelziel") + " · "
                     + Texts.number(Views.goalTotal(x.eval, m));
             case CHALLENGE -> {
@@ -304,6 +313,10 @@ public class OverviewService {
                         }
                     }
                     case ABSTINENCE -> {
+                        if (m.unavailable != null) {
+                            // Tageslimit ohne Logbook: keine Zahl - nicht "alles sauber".
+                            continue;
+                        }
                         LocalDate start = from.isBefore(m.start) ? m.start : from;
                         LocalDate end = to.isAfter(e.today) ? e.today : to;
                         int days = 0;

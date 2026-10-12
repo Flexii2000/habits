@@ -13,6 +13,11 @@ public final class Errors {
         return new ResponseStatusException(HttpStatus.BAD_REQUEST, message);
     }
 
+    /** Ein Nachbardienst (das Logbook) antwortet nicht - die Aenderung kann spaeter durchgehen. */
+    public static ResponseStatusException unavailable(String message) {
+        return new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, message);
+    }
+
     public static ResponseStatusException forbidden(String message) {
         return new ResponseStatusException(HttpStatus.FORBIDDEN, message);
     }

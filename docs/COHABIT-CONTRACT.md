@@ -174,7 +174,8 @@ Avatar-Kreis (aus der ID abgeleitet, stabil).
   `{"kind":"TIMES_PER_WEEK","times":3}` (1–7) · `{"kind":"TIMES_PER_MONTH","times":2}` (1–31,
   **[Entscheidung]** zusätzlich zum Katalog, weil Felix' „Politisch aktiv sein, 2× im Monat" sonst
   verloren ginge) · `{"kind":"INTERVAL","days":2}` (2–30).
-- `abstinence` (nur ABSTINENCE): `{"groupMode": bool}`.
+- `abstinence` (nur ABSTINENCE): `{"groupMode": bool, "limit": LimitConfig|null}` — `limit` nur bei einer
+  Abstinenz mit Tageslimit aus dem Logbook (§2.5a), sonst `null`.
 - `goal` (nur GOAL): `{"target": number > 0, "start": date, "deadline": date, "counting":"ENTRIES|AMOUNT",
   "mode":"INDIVIDUAL|TEAM"}` (`start` = Anlagetag, nicht änderbar).
 - `challenge` (nur CHALLENGE): `{"start": date, "end": date, "scoring":"MOST_ENTRIES|HIGHEST_SUM|FIRST_TO_TARGET|RUN_POINTS",
@@ -274,7 +275,8 @@ Ein Eintrag trägt **bis zu vier** Beweisfotos (optional mehr als eins; bei `pho
   → Systemmeldung + Timeline-Ereignis `NEW_BEST`.
 - Meilensteine STREAK: 7, 30, 100, 365 Tage · 4, 12, 26, 52 Wochen · 3, 6, 12 Monate.
 - **Regel geändert → Rekord neu** (seit 2026-10-12): Ändert ein Admin, was eine Serie ausmacht —
-  Rhythmus samt Einheit, bei automatischen Quellen auch Ziel, Kategorie oder Zeitraum —, gelten
+  Rhythmus samt Einheit, bei automatischen Quellen auch Ziel, Kategorie oder Zeitraum, beim Tageslimit
+  (§2.5a) die Zahl —, gelten
   gespeicherte Bestserie und erreichte Meilensteine nicht mehr. Der Dienst erfasst sie still neu unter
   der neuen Regel: Rekord = längste Serie nach der neuen Regel, erreichte Meilensteine gelten als
   gemeldet, nichts wird angekündigt. Ohne Quelle sofort aus den Einträgen, mit Quelle beim nächsten
@@ -290,6 +292,48 @@ Ein Eintrag trägt **bis zu vier** Beweisfotos (optional mehr als eins; bei `pho
 - Meilensteine: 7, 14, 30, 50, 100, 200, 365, dann jährlich → Timeline `MILESTONE`, Systemmeldung.
 - Unterbrechungen erscheinen im Chat/der Timeline nur, wenn das Mitglied das für dieses Co-Habit
   freigibt (`shareBreaks`, Vorgabe aus).
+
+### 2.5a Abstinenz mit Tageslimit aus dem Logbook (seit 2026-10-12, Felix)
+Anlass: ein Verhalten, von dem Felix höchstens 4 am Tag will („Tassen“). Er trägt es in coHabit **oder** im
+Logbook von Healthy ein, und beides zählt dieselbe Zahl.
+- `abstinence.limit`: `{"source":"LOGBOOK","behaviorId":"…","perDay":4,"behaviorName":"…","unitLabel":"Tassen"}`.
+  Die Zahl je Tag liegt **nur im Logbook**, als Verhaltensweise mit Menge im Weight Tracker. coHabit speichert
+  dafür keine Einträge: Es liest die Werte (`GET /api/logbook`, `GET /api/logbook/days`) und schreibt beim
+  Zählen dorthin (`PUT /api/logbook/days/{date}/values/{id}`). Felix' Zugang ist `WEIGHT_APP_TOKEN` als
+  Cookie, andere Healthy-Personen senden ihren Token als Bearer (wie die Schritte).
+- **Anlegen** (`POST /cohabits`, `type ABSTINENCE`) mit `limit.behaviorId` und `limit.perDay` (0–1.000):
+  - Nur mit Healthy-Zugang, sonst 403 „Dafür braucht es einen Healthy-Zugang.“
+  - Die Verhaltensweise muss im eigenen Logbook stehen, aktiv sein und eine Einheit haben. Sonst 400
+    „Unbekanntes Verhalten.“, „Das Verhalten ist archiviert.“ bzw. „Das Verhalten hat keine Menge.“
+  - Antwortet das Logbook nicht: 503 „Logbook nicht erreichbar“.
+  - `behaviorName` und `unitLabel` trägt der Dienst aus dem Logbook ein; was ein Client schickt, gilt nicht.
+    Beim Speichern der Einstellungen zieht er beide nach.
+  - **Allein:** `invitePersonIds` → 400 „Ein Limit aus dem Logbook führst du allein.“
+  - `groupMode` und `membersCanInvite` sind immer false. Zeitzone ist immer Europe/Berlin, die
+    Nachtragsfrist immer 336 h (wie im Logbook); andere Werte vom Client gelten nicht.
+- **Bearbeiten:**
+  - Änderbar ist nur `perDay`. Eine andere `behaviorId` → 400 „Das Verhalten lässt sich nicht ändern.“
+  - Ein Rumpf ohne `limit` (ältere Clients) lässt das Limit stehen.
+  - Ein Co-Habit ohne Limit bekommt nachträglich keins: 400 „Ein Co-Habit zählt nachträglich nicht aus
+    dem Logbook.“
+- **Rechnung:**
+  - Eine Unterbrechung ist jeder Tag ab dem Start mit **mehr als** `perDay`. Ein Tag ohne Wert zählt als 0.
+  - Sonst wie §2.5: Heute zählt mit; ist heute schon zu viel, steht die Serie sofort auf 0.
+  - Rekord und Meilensteine wie bei jeder Abstinenz. Ändert sich `perDay`, gilt §2.4 „Regel geändert →
+    Rekord neu“.
+- **Logbook nicht erreichbar oder Verhaltensweise dort gelöscht:**
+  - `status: "UNAVAILABLE"`, Kennzahl „–“, `unavailableText` „Logbook nicht erreichbar“ bzw. „Das
+    Verhalten gibt es im Logbook nicht mehr.“
+  - Kein Zählen, keine Meilensteine – nie eine falsche 0 und nie eine erfundene Serie.
+- **Gesperrt:**
+  - Check-ins und klassische Haken: 403 „Dieses Co-Habit zählt aus dem Logbook.“
+  - Einladungen und Einladungslinks: 400 wie oben. Beitreten: 409.
+  - Pausen wie bei jeder Abstinenz.
+- **Stille:** Keine Timeline-, Chat- oder Push-Meldung je Tasse, keine Erinnerung, kein „gefährdet“.
+  Meilensteine gibt es nur mit frisch gelesenen Zahlen: im Scheduler alle 15 Minuten und direkt nach dem
+  Zählen.
+- In `GET /me/days` (§3.11) fehlt ein Tageslimit. Die Zahl kommt ja aus dem Logbook: als Reihe stünde sie
+  dort doppelt, und die Anfrage liefe im Kreis.
 
 ### 2.6 GOAL und CHALLENGE
 - GOAL TEAM: Summe aller Beiträge; INDIVIDUAL: jede Person gegen dasselbe Ziel.
@@ -590,6 +634,8 @@ sich im Web nicht ab); Apps melden sich immer über `DELETE /me/app-links/curren
 | PUT | `/cohabits/{id}/settings/me` | `{"muted","checkins","chat","shareBreaks","healthConsent"}` → `CohabitDetail` |
 | POST | `/cohabits/{id}/pauses` | `{"from","to"}` → `CohabitDetail` · DELETE `/cohabits/{id}/pauses/{pauseId}` |
 | POST | `/cohabits/{id}/dialogs/{dialogId}/seen` | → 204 (Abschlussdialog gesehen) |
+| PUT | `/cohabits/{id}/count/{date}` | `{"count":3}` → `CohabitDetail`; nur beim Tageslimit (§2.5a). Setzt die Zahl des Tages im Logbook, absolut (ein Nachsenden zählt nichts doppelt). 400: „Dieses Co-Habit zählt nicht aus dem Logbook.“, „Außerhalb der Nachtragsfrist.“, „Die Zahl muss zwischen 0 und 10.000 liegen.“ oder der Grund des Logbooks. 409 archiviert, 503 „Logbook nicht erreichbar“ |
+| GET | `/logbook/behaviors` | → `[{"id","name","unitLabel"}]`: die aktiven Verhaltensweisen mit Menge aus dem eigenen Logbook, zur Wahl für ein Tageslimit. 403 ohne Healthy, 503 Logbook nicht erreichbar |
 | GET | `/me/invitations` | → `[InvitationView]` |
 | POST | `/invitations/{id}/accept` · `/decline` | → `CohabitDetail` / 204 |
 
@@ -616,7 +662,8 @@ CohabitSummary {"ref":CohabitRef,"archived":false,
   "progress":{"done":2,"goal":3,"fraction":0.67} ,   // Wochen-/Monatsfortschritt, Ziel-%; CHALLENGE (seit
                                                      // 05.10.): eigener Stand gegen `target` bzw. den Führenden; sonst null
   "rank":{"mine":2,"of":4,"gapText":"noch 2 bis Lena"},  // nur CHALLENGE, sonst null
-  "unreadMessages":2}
+  "unreadMessages":2,
+  "limit":LimitView|null}                       // nur Tageslimit (§2.5a), seit 12.10.
 
 CohabitDetail {"summary":CohabitSummary,"config":CohabitConfig,
   "createdBy":"felix","createdAt":"…","myRole":"ADMIN","canInvite":true,
@@ -647,7 +694,17 @@ StreakBlock {"current":6,"unit":"WEEKS","unitLabel":"Wochen","atRisk":true,
 AbstinenceBlock {"currentDays":23,"record":41,"toRecordText":"noch 18 bis zum Rekord",
   "members":[{"person":PersonView,"days":23,"newPersonalRecord":false}],
   "series":[{"label":"Mai","days":12,"current":false},{"label":"aktuell","days":23,"current":true}],
-  "group":{"days":12}|null}
+  "group":{"days":12}|null,
+  "limitDays":[{"date":"2026-10-12","count":2,"countText":"2","over":false},
+               {"date":"2026-10-11","count":null,"countText":"–","over":false}]|null}
+               // nur Tageslimit: die Tage der Nachtragsfrist ab dem Start, neueste zuerst; count null = nichts
+               // eingetragen (zählt als 0); null ohne Logbook
+
+LimitView {"date":"2026-10-12",            // der Tag, auf den „+“ zählt (heute in Berlin, vom Dienst)
+  "count":2,"perDay":4,"unit":"Tassen",
+  "text":"heute 2 von 4 Tassen",
+  "over":false,                           // heute schon mehr als erlaubt
+  "canCount":true}                        // ohne Logbook: count und text null, canCount false
 
 GoalBlock {"target":100000,"targetText":"100.000","unitLabel":"Schritte","deadline":"2026-10-31",
   "counting":"AMOUNT","mode":"TEAM","typeLine":"Teamziel · bis 31.10.",
@@ -678,7 +735,7 @@ InvitationView {"id","from":PersonView,"createdAt",
 ### 3.5 Einträge
 | Methode | Pfad | Rumpf → Antwort |
 |---|---|---|
-| POST | `/cohabits/{id}/checkins` | `{"id":"<uuid>","kind":"DONE","date":"2026-09-30"\|null,"value":null,"note":null,"photoId":null,"caption":null,"durationMinutes":null,"distanceKm":null}` → 201 `{"checkin":Checkin,"cohabit":CohabitDetail}`. 400 Foto fehlt / außerhalb der Frist / Wert fehlt; 403 automatisches Co-Habit; 409 schon erledigt (STREAK) |
+| POST | `/cohabits/{id}/checkins` | `{"id":"<uuid>","kind":"DONE","date":"2026-09-30"\|null,"value":null,"note":null,"photoId":null,"caption":null,"durationMinutes":null,"distanceKm":null}` → 201 `{"checkin":Checkin,"cohabit":CohabitDetail}`. 400 Foto fehlt / außerhalb der Frist / Wert fehlt; 403 automatisches Co-Habit oder Tageslimit (§2.5a); 409 schon erledigt (STREAK) |
 | PUT | `/cohabits/{id}/checkins/{checkinId}` | `{"value","note","caption","durationMinutes","distanceKm"}` → wie POST (Lauf-Felder: `null` = unverändert) |
 | DELETE | `/cohabits/{id}/checkins/{checkinId}` | → `CohabitDetail` |
 | PUT | `/cohabits/{id}/health/{date}` | `{"value":8200}` → `CohabitDetail`; nur mit `health` und `healthConsent`; legt den HEALTH-Eintrag des Tages an oder aktualisiert ihn (Timeline-Ereignis wird aktualisiert, nicht verdoppelt) |
@@ -828,8 +885,9 @@ ClassicHabit {"id","name","kind":"BUILD|QUIT|FOOD|STEPS|FOCUS","unit":"DAYS|WEEK
   "recent":[false,true,…],              // 7 Zeiträume, älteste zuerst; [] wenn die Quelle nicht antwortet
   "unavailable":null,"markedDays":["2026-09-28"],"createdAt":"2026-08-01",
   "photoRequired":false,"shared":false,"admin":true,"backfillFrom":"2026-09-16",
-  "summary":CohabitSummary|null,       // nur GOAL/CHALLENGE: wie in GET /cohabits (Kennzahl, listLine,
-                                        // progress, canCheckIn, valueUnit, checkInLabel …)
+  "summary":CohabitSummary|null,       // GOAL/CHALLENGE, seit 12.10. auch Tageslimit (dann mit `limit`, §2.5a):
+                                        // wie in GET /cohabits (Kennzahl, listLine, progress, canCheckIn,
+                                        // valueUnit, checkInLabel …)
   "focus":{"categoryId":string|null,"categoryName":string|null,"period":"DAY|WEEK"}|null}
                                         // nur FOCUS; bei WEEK: unit WEEKS, progress = Minuten der Woche,
                                         // atRisk nie gesetzt (wie die Schritte)
@@ -860,7 +918,7 @@ DaysView {"from":"2026-09-24","to":"2026-09-30","series":[{
   "days":[{"date":"2026-09-25","value":0},{"date":"2026-09-26","value":1}]}]}
 ```
 Jedes Co-Habit, in dem die Person Mitglied ist, **aktiv und archiviert**, in der Reihenfolge der
-Datei. Ein Tag steht nur da, wenn das Co-Habit für die Person galt: ab Beitritt bzw. Start (nie
+Datei – außer einem Tageslimit (§2.5a), dessen Zahl ohnehin aus dem Logbook kommt. Ein Tag steht nur da, wenn das Co-Habit für die Person galt: ab Beitritt bzw. Start (nie
 davor), bis heute bzw. zum Tag des Archivierens, ohne Pausen, bei Zielen in `[start, deadline]`, bei
 Challenges in der laufenden und den früheren Runden. **Ein fehlender Tag heißt „unbekannt“, 0 heißt
 „nicht getan“.**
@@ -1064,6 +1122,34 @@ deshalb selbst, welche Farbe jeder Typ bei ihr hat.
   Reihen zu fünf (umbrechend, nie seitlich scrollend), die gewählte mit Ring und Haken. Antippen speichert sofort
   (nur dieser Platz) und färbt die App sofort um; schlägt es fehl, springt die Wahl zurück und die Meldung des
   Dienstes erscheint. Keine Erklärtexte, kein Zurücksetzen-Knopf (die Vorgabe wählt man wie jede andere Farbe).
+
+### 5.2c Tageslimit zählen (seit 2026-10-12, Felix – Web, iOS, Android gleich)
+Ein Co-Habit mit `summary.limit` (§2.5a) wird gezählt, nicht abgehakt.
+- **Heute** (Liste und Dashboard-Karte):
+  - Die Kennzahl ist wie bei jeder Abstinenz die Zahl der Tage, darunter steht `limit.text` („heute 2 von 4
+    Tassen“).
+  - An der Stelle des Hakens steht ein rundes „+“, nur bei `canCount`. Ein Tipp zählt eine mehr:
+    `PUT /cohabits/{id}/count/{limit.date}` mit `count + 1`.
+  - Ist `limit.over`, steht die Zahl in der Farbe für „nicht geschafft“. Die Kennzahl kommt immer vom
+    Dienst (0 nach der fünften Tasse).
+- **Detail:**
+  - Unter dem Abstinenz-Block steht für heute „− 3 +“. − und + ändern die Zahl um 1, nie unter 0.
+  - Darunter „Letzte Tage“ aus `abstinence.limitDays`: Datum und Zahl, über dem Limit markiert. Ein Tipp auf
+    einen Tag öffnet denselben Zähler für diesen Tag.
+  - Kein Abhak-Knopf, kein „Unterbrechung eintragen“.
+- **Bearbeiten:**
+  - „Höchstens pro Tag“ (0–1.000) statt Gruppenmodus. Das Verhalten (`behaviorName`) wird nur angezeigt.
+  - Einladen und Einladungslink fehlen (`canInvite` ist false).
+- **Klassische Liste** (iOS): Die Zeile zeigt „2/4“ aus `summary.limit` und ein „+“ statt des Rückfall-Hakens.
+- **Schreiben:**
+  - Absolut: Je Co-Habit und Tag gewinnt die neueste Zahl; was gerade unterwegs ist, wird nicht ersetzt.
+  - Schnelles Tippen fasst der Client zusammen (0,5 s Ruhe).
+  - Ohne Netz steht die Zahl sofort mit Uhr da und geht später raus. iOS nutzt den Postausgang (Fall
+    `limitCount`), Android `Outbox.enqueueLatest`, das Web nur den Speicher der Seite.
+  - Lehnt der Dienst ab (400/409), springt die Zahl auf seinen Stand zurück und seine Meldung erscheint.
+    503 heißt „später nochmal“.
+- **Ohne Logbook** (`status UNAVAILABLE`): Kennzahl „–“, `unavailableText`, kein „+“.
+- **Anlegen:** vorerst nur per Skript (`deploy/create-limit-habit.sh`), ohne Oberfläche.
 
 ### 5.3 Abhak-Beschriftungen (`checkInLabel`, vom Dienst)
 STREAK ohne Foto „Abhaken", mit Foto „Beweisfoto & abhaken", erledigt „Heute erledigt" (Knopf

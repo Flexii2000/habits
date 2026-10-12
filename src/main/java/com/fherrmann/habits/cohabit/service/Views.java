@@ -12,6 +12,8 @@ import com.fherrmann.habits.cohabit.api.GoalBlock;
 import com.fherrmann.habits.cohabit.api.Headline;
 import com.fherrmann.habits.cohabit.api.HealthBlock;
 import com.fherrmann.habits.cohabit.api.InviteCohabit;
+import com.fherrmann.habits.cohabit.api.LimitDayView;
+import com.fherrmann.habits.cohabit.api.LimitView;
 import com.fherrmann.habits.cohabit.api.MemberView;
 import com.fherrmann.habits.cohabit.api.MySettings;
 import com.fherrmann.habits.cohabit.api.PauseView;
@@ -32,6 +34,7 @@ import com.fherrmann.habits.cohabit.model.GoalCounting;
 import com.fherrmann.habits.cohabit.model.HealthMetric;
 import com.fherrmann.habits.cohabit.model.GoalMode;
 import com.fherrmann.habits.cohabit.model.Invitation;
+import com.fherrmann.habits.cohabit.model.LimitConfig;
 import com.fherrmann.habits.cohabit.model.Member;
 import com.fherrmann.habits.cohabit.model.Message;
 import com.fherrmann.habits.cohabit.model.MessagesFile;
@@ -49,6 +52,7 @@ import com.fherrmann.habits.cohabit.rules.AbstinenceCalc;
 import com.fherrmann.habits.cohabit.rules.CohabitEval;
 import com.fherrmann.habits.cohabit.rules.CohabitEval.MemberEval;
 import com.fherrmann.habits.cohabit.rules.CohabitEval.Place;
+import com.fherrmann.habits.cohabit.rules.Limits;
 import com.fherrmann.habits.cohabit.rules.PeriodScheme;
 import com.fherrmann.habits.cohabit.rules.RunPoints;
 import com.fherrmann.habits.cohabit.rules.StreakModel;
@@ -104,7 +108,8 @@ public final class Views {
     }
 
     public static boolean canInvite(Cohabit c, String personId) {
-        if (c.archived) {
+        // Ein Tageslimit zaehlt aus dem Logbook einer Person - zu zweit gibt es das nicht.
+        if (c.archived || Limits.isLogbookLimit(c)) {
             return false;
         }
         return c.member(personId).map(m -> m.role == Role.ADMIN || c.membersCanInvite).orElse(false);
@@ -145,7 +150,8 @@ public final class Views {
     public static String typeLine(Cohabit c, LocalDate today) {
         return switch (c.type) {
             case STREAK -> "Streak · " + (c.auto != null ? Texts.autoRhythm(c.auto) : Texts.rhythm(StreakModel.rhythm(c)));
-            case ABSTINENCE -> c.abstinence != null && c.abstinence.groupMode() ? "Abstinenz · Gruppenmodus" : "Abstinenz";
+            case ABSTINENCE -> Limits.isLogbookLimit(c) ? "Limit · höchstens " + limitAmount(c.abstinence.limit()) + " am Tag"
+                    : c.abstinence != null && c.abstinence.groupMode() ? "Abstinenz · Gruppenmodus" : "Abstinenz";
             case GOAL -> (c.goal != null && c.goal.mode() == GoalMode.INDIVIDUAL ? "Einzelziel" : "Teamziel")
                     + (c.goal == null ? "" : " · bis " + Texts.dateShort(c.goal.deadline()));
             case CHALLENGE -> "Challenge" + (c.challenge == null ? "" : " · " + periodLabel(c.challenge.start(),
@@ -195,6 +201,11 @@ public final class Views {
         }
         if (c.auto != null) {
             rules.add(Texts.autoRule(c.auto));
+        }
+        if (Limits.isLogbookLimit(c)) {
+            LimitConfig limit = c.abstinence.limit();
+            rules.add("Aus dem Logbook: " + (limit.behaviorName() == null ? "Verhalten" : limit.behaviorName()));
+            rules.add("Höchstens " + limitAmount(limit) + " am Tag");
         }
         if (c.type == CohabitType.CHALLENGE && c.challenge != null && c.challenge.runPoints()) {
             rules.addAll(runRules(RunPoints.scoringOf(c)));
@@ -452,9 +463,52 @@ public final class Views {
         }
     }
 
+    /** „4 Tassen“, „1 Tasse“ geht nicht ohne Woerterbuch - die Einheit steht, wie im Logbook. */
+    static String limitAmount(LimitConfig limit) {
+        int perDay = limit.perDay() == null ? 0 : limit.perDay();
+        return limit.unitLabel() == null || limit.unitLabel().isBlank() ? String.valueOf(perDay)
+                : perDay + " " + limit.unitLabel();
+    }
+
+    /** Heute bei einem Tageslimit - fuer Zusammenfassung, Widget und klassische Liste. */
+    static LimitView limitView(CohabitEval e, MemberEval me) {
+        LimitConfig limit = e.cohabit.abstinence.limit();
+        int perDay = limit.perDay() == null ? 0 : limit.perDay();
+        String unit = limit.unitLabel();
+        if (me.unavailable != null) {
+            return new LimitView(e.today, null, perDay, unit, null, false, false);
+        }
+        double count = me.limit.count(e.today);
+        String text = "heute " + Limits.count(count) + " von " + limitAmount(limit);
+        boolean canCount = !e.cohabit.archived && !e.today.isBefore(me.start);
+        return new LimitView(e.today, count, perDay, unit, text, count > perDay, canCount);
+    }
+
+    private static CohabitSummary limitSummary(CohabitStore.Data data, CohabitEval e, MemberEval me,
+                                               List<PersonView> members, String viewerId) {
+        Cohabit c = e.cohabit;
+        LimitView limit = limitView(e, me);
+        if (me.unavailable != null) {
+            return new CohabitSummary(CohabitRef.of(c), c.archived, new Headline("–", "Tage", "–"), typeLine(c, e.today),
+                    me.unavailable, me.unavailable, "UNAVAILABLE", "RUNNING", me.unavailable, false, false, null, null,
+                    false, members, members.size(), List.of(), null, null, unread(data, c, viewerId), limit);
+        }
+        AbstinenceCalc.Outcome o = me.abstinence;
+        int days = o.current();
+        Headline headline = new Headline(String.valueOf(days), Texts.plural(days, "Tag", "Tage"), days + " T");
+        String record = "Rekord " + o.record() + " " + Texts.plural(o.record(), "Tag", "Tage");
+        String today = "heute " + Limits.count(limit.count()) + " von " + limit.perDay();
+        return new CohabitSummary(CohabitRef.of(c), c.archived, headline, typeLine(c, e.today), limit.text(),
+                today + " · " + record, "RUNNING", "RUNNING", null, false, false, null, null, false, members,
+                members.size(), List.of(), null, null, unread(data, c, viewerId), limit);
+    }
+
     private static CohabitSummary abstinenceSummary(CohabitStore.Data data, CohabitEval e, MemberEval me,
                                                     List<PersonView> members, String viewerId) {
         Cohabit c = e.cohabit;
+        if (Limits.isLogbookLimit(c)) {
+            return limitSummary(data, e, me, members, viewerId);
+        }
         AbstinenceCalc.Outcome o = me.abstinence;
         int days = e.groupDays != null ? e.groupDays : o.current();
         Headline headline = new Headline(String.valueOf(days), Texts.plural(days, "Tag", "Tage"), days + " T");
@@ -880,7 +934,21 @@ public final class Views {
             series.add(new AbstinenceBlock.SeriesItem(label, s.days(), s.current()));
         }
         return new AbstinenceBlock(o.current(), o.record(), toRecordText(o), members, series,
-                e.groupDays == null ? null : new AbstinenceBlock.Group(e.groupDays));
+                e.groupDays == null ? null : new AbstinenceBlock.Group(e.groupDays), limitDays(e, me));
+    }
+
+    /** Die Tage, die sich bei einem Tageslimit noch korrigieren lassen - neueste zuerst. */
+    static List<LimitDayView> limitDays(CohabitEval e, MemberEval me) {
+        if (!Limits.isLogbookLimit(e.cohabit) || me.unavailable != null) {
+            return null;
+        }
+        int perDay = e.cohabit.abstinence.limit().perDay() == null ? 0 : e.cohabit.abstinence.limit().perDay();
+        List<LimitDayView> days = new ArrayList<>();
+        for (LocalDate d = e.today; !d.isBefore(backfillFrom(e, me)); d = d.minusDays(1)) {
+            Double count = me.limit.values().get(d);
+            days.add(new LimitDayView(d, count, count == null ? "–" : Limits.count(count), count != null && count > perDay));
+        }
+        return days;
     }
 
     // MARK: - GOAL-Block
