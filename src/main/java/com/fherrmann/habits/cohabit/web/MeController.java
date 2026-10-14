@@ -80,6 +80,8 @@ public class MeController {
     public DaysView days(Viewer viewer,
                          @RequestParam("from") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
                          @RequestParam("to") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        // Kein Gym-Abgleich hier: der Weight Tracker fragt gerade selbst, und ein Training von
+        // heute zaehlt in den Effekten erst gegen die Recovery von morgen - der 15-Minuten-Takt reicht.
         return daySeries.days(viewer, from, to);
     }
 

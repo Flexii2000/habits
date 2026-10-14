@@ -528,6 +528,9 @@ public class CheckinService {
             if (c.health.metric() == HealthMetric.KCAL) {
                 throw Errors.badRequest("Die kcal kommen aus Healthy.");
             }
+            if (c.health.metric() == HealthMetric.GYM) {
+                throw Errors.badRequest("Die Trainings kommen aus Healthy.");
+            }
             if (c.archived) {
                 throw Errors.conflict("Das Co-Habit ist archiviert.");
             }
@@ -592,22 +595,59 @@ public class CheckinService {
                 e.value = v;
             });
         } else {
-            Checkin ch = new Checkin();
-            ch.id = UUID.randomUUID().toString();
-            ch.cohabitId = c.id;
-            ch.personId = personId;
-            ch.kind = CheckinKind.DONE;
-            ch.date = date;
-            ch.createdAt = now;
-            ch.value = v;
-            ch.source = CheckinSource.HEALTH;
-            tx.checkinsW(c.id).add(ch);
-            Event e = events.event(tx, c, EventKind.HEALTH, personId, now);
-            e.checkinId = ch.id;
-            e.checkinDate = date;
-            e.value = v;
-            ch.eventId = e.id;
+            addHealthCheckin(tx, c, personId, date, v, now);
         }
+        afterHealthChange(tx, c, personId, now);
+        return true;
+    }
+
+    /**
+     * Ein Tag aus dem Gym von Healthy ({@link GymSync}): mit beendetem Training ein Eintrag
+     * ohne Wert, ohne Training keiner. Hat die Person den Tag schon von Hand abgehakt, kommt
+     * kein zweiter dazu; zurueckgenommen wird nur, was aus Healthy kam.
+     *
+     * @return ob sich etwas geaendert hat
+     */
+    boolean applyGymDay(CohabitStore.Tx tx, Cohabit c, String personId, LocalDate date, boolean trained, Instant now) {
+        List<Checkin> mine = tx.checkins(c.id).stream()
+                .filter(x -> x.personId.equals(personId) && x.date.equals(date) && x.kind == CheckinKind.DONE)
+                .toList();
+        Checkin fromHealthy = mine.stream().filter(x -> x.source == CheckinSource.HEALTH).findFirst().orElse(null);
+        if (!trained) {
+            if (fromHealthy == null) {
+                return false;
+            }
+            removeCheckin(tx, c, fromHealthy);
+            return true;
+        }
+        if (!mine.isEmpty()) {
+            return false;
+        }
+        addHealthCheckin(tx, c, personId, date, null, now);
+        afterHealthChange(tx, c, personId, now);
+        return true;
+    }
+
+    private void addHealthCheckin(CohabitStore.Tx tx, Cohabit c, String personId, LocalDate date, Double value,
+                                  Instant now) {
+        Checkin ch = new Checkin();
+        ch.id = UUID.randomUUID().toString();
+        ch.cohabitId = c.id;
+        ch.personId = personId;
+        ch.kind = CheckinKind.DONE;
+        ch.date = date;
+        ch.createdAt = now;
+        ch.value = value;
+        ch.source = CheckinSource.HEALTH;
+        tx.checkinsW(c.id).add(ch);
+        Event e = events.event(tx, c, EventKind.HEALTH, personId, now);
+        e.checkinId = ch.id;
+        e.checkinDate = date;
+        e.value = value;
+        ch.eventId = e.id;
+    }
+
+    private void afterHealthChange(CohabitStore.Tx tx, Cohabit c, String personId, Instant now) {
         CohabitEval after = CohabitEval.evaluate(c, tx.checkins(c.id), Map.of(), now);
         if (c.type == CohabitType.STREAK) {
             achievements.check(tx, after, personId, now);
@@ -615,7 +655,6 @@ public class CheckinService {
         if (c.type == CohabitType.CHALLENGE) {
             challenges.finishIfTargetReached(tx, after, now);
         }
-        return true;
     }
 
     /**

@@ -1,5 +1,6 @@
 package com.fherrmann.habits.cohabit.web;
 
+import com.fherrmann.habits.cohabit.service.GymSync;
 import com.fherrmann.habits.cohabit.api.ClassicHabit;
 import com.fherrmann.habits.cohabit.service.ClassicService;
 import com.fherrmann.habits.security.Viewer;
@@ -27,13 +28,16 @@ import java.util.List;
 public class ClassicController {
 
     private final ClassicService classic;
+    private final GymSync gym;
 
-    public ClassicController(ClassicService classic) {
+    public ClassicController(ClassicService classic, GymSync gym) {
         this.classic = classic;
+        this.gym = gym;
     }
 
     @GetMapping
     public List<ClassicHabit> list(Viewer viewer) {
+        gym.refresh(viewer.personId());
         return classic.list(viewer);
     }
 

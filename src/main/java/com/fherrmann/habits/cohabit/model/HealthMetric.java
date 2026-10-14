@@ -7,5 +7,16 @@ public enum HealthMetric {
      * sie der Dienst selbst ({@code KcalSync}) - je Mitglied mit Einwilligung und
      * Healthy-Zugang; die Apps schicken hier nichts.
      */
-    KCAL
+    KCAL,
+    /**
+     * Ein beendetes Training im Gym-Tab von Healthy (Weight Tracker, Felix 14.10.). Holt der
+     * Dienst selbst wie die kcal ({@code GymSync}); nur als Serie, und abgehakt wird ohne Wert -
+     * von Hand geht es weiter.
+     */
+    GYM;
+
+    /** Kommt aus Healthy (Kalorienzaehler, Weight Tracker) statt von Apple Health/Health Connect. */
+    public boolean fromHealthy() {
+        return this == KCAL || this == GYM;
+    }
 }

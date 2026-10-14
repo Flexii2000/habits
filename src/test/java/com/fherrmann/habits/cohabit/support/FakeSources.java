@@ -1,6 +1,7 @@
 package com.fherrmann.habits.cohabit.support;
 
 import com.fherrmann.habits.client.FoodClient;
+import com.fherrmann.habits.client.GymClient;
 import com.fherrmann.habits.client.LogbookClient;
 import com.fherrmann.habits.client.SourceUnavailableException;
 import com.fherrmann.habits.client.StepsClient;
@@ -20,6 +21,45 @@ import java.util.function.BiFunction;
 public final class FakeSources {
 
     private FakeSources() {
+    }
+
+    /** Das Gym im Weight Tracker: je Person die Tage mit beendetem Training. */
+    public static final class Gym extends GymClient {
+        /** Je Person ({@code "felix"}) Tag → Zahl der beendeten Trainings. */
+        public final Map<String, Map<LocalDate, Integer>> trained = new ConcurrentHashMap<>();
+        public final AtomicInteger calls = new AtomicInteger();
+        /** Der Weight Tracker antwortet nicht. */
+        public volatile boolean unavailable;
+
+        public Gym(HealthUsers users) {
+            super(JsonMapper.builder().build(), "http://127.0.0.1:9", "test-weight", users);
+        }
+
+        public void reset() {
+            trained.clear();
+            calls.set(0);
+            unavailable = false;
+        }
+
+        public void train(String personId, LocalDate day) {
+            trained.computeIfAbsent(personId, k -> new ConcurrentHashMap<>()).merge(day, 1, Integer::sum);
+        }
+
+        @Override
+        public Map<LocalDate, Integer> trainingDays(String personId, LocalDate from, LocalDate to,
+                                                    java.time.Duration timeout) {
+            calls.incrementAndGet();
+            if (unavailable) {
+                throw new SourceUnavailableException("Gym", 503);
+            }
+            Map<LocalDate, Integer> result = new HashMap<>();
+            trained.getOrDefault(personId, Map.of()).forEach((day, n) -> {
+                if (!day.isBefore(from) && !day.isAfter(to)) {
+                    result.put(day, n);
+                }
+            });
+            return result;
+        }
     }
 
     public static final class Food extends FoodClient {

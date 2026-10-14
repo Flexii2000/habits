@@ -41,6 +41,12 @@ public class TestBeans {
     }
 
     @Bean
+    @Primary
+    public FakeSources.Gym fakeGym(HealthUsers users) {
+        return new FakeSources.Gym(users);
+    }
+
+    @Bean
     public RecordingTransport iosTransport() {
         return new RecordingTransport("ios");
     }

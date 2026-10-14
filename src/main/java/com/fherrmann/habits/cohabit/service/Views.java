@@ -819,7 +819,7 @@ public final class Views {
         }
         return new HealthBlock(c.health.metric().name(), Texts.healthLabel(c.health.metric()),
                 m.settings.healthConsent, m.lastHealthSyncAt, Texts.healthShareText(c.health.metric()),
-                c.health.metric() == HealthMetric.KCAL ? "HEALTHY" : "DEVICE");
+                c.health.metric().fromHealthy() ? "HEALTHY" : "DEVICE");
     }
 
     // MARK: - STREAK-Block

@@ -90,6 +90,10 @@ public final class DaySeriesCalc {
                 case STEPS_WEEKLY, FOCUS -> Kind.AMOUNT;
             };
         }
+        if (s.health() == HealthMetric.GYM) {
+            // Trainiert oder nicht - die Effekte in Healthy vergleichen Ja gegen Nein.
+            return Kind.BINARY;
+        }
         if (s.health() != null) {
             return Kind.AMOUNT;
         }
@@ -118,6 +122,7 @@ public final class DaySeriesCalc {
                 case WORKOUTS -> ValueUnit.COUNT;
                 case WORKOUT_MINUTES -> ValueUnit.MINUTES;
                 case KCAL -> ValueUnit.KCAL;
+                case GYM -> ValueUnit.COUNT;
             };
         }
         if (s.challenge() != null && s.challenge().runPoints()) {
@@ -183,7 +188,9 @@ public final class DaySeriesCalc {
             }
         }
 
-        if (s.health() != null) {
+        // Gym zaehlt wie ein gewoehnlicher Haken: ab dem Start jeder Tag, getan oder nicht -
+        // ob aus Healthy oder von Hand.
+        if (s.health() != null && s.health() != HealthMetric.GYM) {
             healthDays(s, done, sums, lo, hi, days);
             return series;
         }

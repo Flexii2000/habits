@@ -59,12 +59,13 @@ public class CohabitService {
     private final PhotoFiles photos;
     private final InviteLinks links;
     private final KcalSync kcal;
+    private final GymSync gym;
     private final FocusService focus;
     private final LogbookSource logbook;
 
     public CohabitService(CohabitStore store, ViewService views, EventService events, Notifier notifier,
                           AutoSources sources, PhotoFiles photos, InviteLinks links, KcalSync kcal,
-                          FocusService focus, LogbookSource logbook) {
+                          GymSync gym, FocusService focus, LogbookSource logbook) {
         this.store = store;
         this.views = views;
         this.events = events;
@@ -73,6 +74,7 @@ public class CohabitService {
         this.photos = photos;
         this.links = links;
         this.kcal = kcal;
+        this.gym = gym;
         this.focus = focus;
         this.logbook = logbook;
     }
@@ -129,6 +131,11 @@ public class CohabitService {
                 c.challengeState.roundStartAnnounced = true;
             }
             Member admin = newMember(me, Role.ADMIN, now, c.startDate);
+            // Wer ein Gym-Habit anlegt, will seine Trainings darin - die Einwilligung ist die
+            // Wahl der Quelle selbst. Wer spaeter beitritt, stimmt selbst zu (wie bei den kcal).
+            if (c.health != null && c.health.metric() == HealthMetric.GYM && gym.canProvide(me)) {
+                admin.settings.healthConsent = true;
+            }
             c.members.add(admin);
             tx.cohabitsW().cohabits.add(c);
             tx.checkinsW(c.id);
@@ -137,6 +144,7 @@ public class CohabitService {
             invite(tx, c, me, invite, now);
             return c.id;
         });
+        gym.sync(id, me, now);
         return views.detail(me, id);
     }
 
@@ -400,19 +408,22 @@ public class CohabitService {
             }
             if (body.containsKey("healthConsent")) {
                 boolean consent = bool(body.get("healthConsent"));
-                boolean kcalMetric = c.health != null && c.health.metric() == HealthMetric.KCAL;
-                if (consent && kcalMetric && !kcal.canProvide(me)) {
+                // kcal und Gym holt der Dienst selbst aus Healthy - zustimmen kann nur, wer Healthy hat.
+                boolean fromHealthy = c.health != null && c.health.metric().fromHealthy();
+                if (consent && fromHealthy && !kcal.canProvide(me)) {
                     throw Errors.badRequest("Dafür braucht es einen Healthy-Zugang.");
                 }
                 boolean newlyGiven = consent && !m.settings.healthConsent;
                 m.settings.healthConsent = consent;
-                return newlyGiven && kcalMetric;
+                return newlyGiven && fromHealthy;
             }
             return false;
         });
         if (kcalConsent) {
             // Gleich holen, was die Nachtragsfrist hergibt - nicht erst beim naechsten Scheduler-Lauf.
+            // Jeder Abgleich nimmt nur Co-Habits seiner Messgroesse.
             kcal.sync(id, me, now());
+            gym.sync(id, me, now());
         }
         return views.detail(me, id);
     }

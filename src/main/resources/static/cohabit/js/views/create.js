@@ -23,8 +23,9 @@ const TYPES = [
 const BACKFILL = [[0, 'Keine'], [24, '24 Stunden'], [48, '48 Stunden'], [72, '72 Stunden'], [168, '7 Tage'], [336, '14 Tage']];
 const UNITS = Object.entries(UNIT_LABELS);
 // KCAL holt der Dienst selbst aus dem Kalorienzaehler (Healthy) - je Mitglied mit Einwilligung.
-const HEALTH = [[null, 'Keine'], ['STEPS', 'Schritte'], ['RUNNING_DISTANCE', 'Laufdistanz'], ['WORKOUTS', 'Trainings'], ['WORKOUT_MINUTES', 'Trainingsminuten'], ['KCAL', 'kcal aus Healthy']];
-const HEALTH_UNIT = { STEPS: 'STEPS', RUNNING_DISTANCE: 'KM', WORKOUTS: 'COUNT', WORKOUT_MINUTES: 'MINUTES', KCAL: 'KCAL' };
+// GYM ebenso aus dem Gym-Tab von Healthy: nur als Serie, ein Haken ohne Wert.
+const HEALTH = [[null, 'Keine'], ['STEPS', 'Schritte'], ['RUNNING_DISTANCE', 'Laufdistanz'], ['WORKOUTS', 'Trainings'], ['WORKOUT_MINUTES', 'Trainingsminuten'], ['KCAL', 'kcal aus Healthy'], ['GYM', 'Gym aus Healthy']];
+const HEALTH_UNIT = { STEPS: 'STEPS', RUNNING_DISTANCE: 'KM', WORKOUTS: 'COUNT', WORKOUT_MINUTES: 'MINUTES', KCAL: 'KCAL', GYM: 'COUNT' };
 const SOURCES = { FOOD: 'Track food', FOOD_TARGET_WEEKLY: 'Kalorienziel im Wochenmittel', STEPS_WEEKLY: 'Schritte pro Woche', FOCUS: 'Fokus-Zeit' };
 const FOCUS_PERIODS = [['DAY', 'Täglich'], ['WEEK', 'Pro Woche']];
 /** Kategorien aus dem Wald der Fokus-App (nur Felix hat die Quelle) - einmal je Seitenaufruf geholt. */
@@ -322,16 +323,20 @@ function settingsForm(d, { edit = false, errorEl, onChange } = {}) {
         if (d.type !== 'ABSTINENCE' && !d.auto) {
             rows.push(toggleRow('Beweisfoto-Pflicht', { checked: d.photoRequired, onchange: v => { d.photoRequired = v; } }));
         }
-        if (d.type === 'STREAK' && !d.auto) {
+        if (d.type === 'STREAK' && !d.auto && d.health !== 'GYM') {
             rows.push(toggleRow('Mit Wert erfassen', { checked: d.valueTracking, onchange: v => { d.valueTracking = v; rerender(); } }));
         }
         if (needsValue(d)) {
             rows.push(selectRow('Einheit', UNITS, d.unit, v => { d.unit = v; }));
         }
-        if (!d.auto && d.type !== 'ABSTINENCE' && !isRun(d) && (d.type !== 'STREAK' || d.valueTracking)) {
-            rows.push(selectRow('Health-Metrik', HEALTH, d.health, v => {
+        // Bei einer Serie immer: Gym aus Healthy ist ein Haken ohne Wert, die anderen schalten den Wert ein.
+        if (!d.auto && d.type !== 'ABSTINENCE' && !isRun(d)) {
+            const metrics = d.type === 'STREAK' ? HEALTH : HEALTH.filter(([v]) => v !== 'GYM');
+            rows.push(selectRow('Health-Metrik', metrics, d.health, v => {
                 d.health = v;
-                if (v) {
+                if (v === 'GYM') {
+                    d.valueTracking = false;
+                } else if (v) {
                     d.unit = HEALTH_UNIT[v];
                     if (d.type === 'STREAK') d.valueTracking = true;
                     if (d.type === 'GOAL') d.goal.counting = 'AMOUNT';

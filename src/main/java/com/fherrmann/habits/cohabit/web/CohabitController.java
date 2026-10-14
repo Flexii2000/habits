@@ -1,5 +1,6 @@
 package com.fherrmann.habits.cohabit.web;
 
+import com.fherrmann.habits.cohabit.service.GymSync;
 import com.fherrmann.habits.cohabit.api.CohabitDetail;
 import com.fherrmann.habits.cohabit.api.CohabitSummary;
 import com.fherrmann.habits.cohabit.api.InvitationView;
@@ -41,13 +42,16 @@ public class CohabitController {
     }
 
     private final CohabitService cohabits;
+    private final GymSync gym;
 
-    public CohabitController(CohabitService cohabits) {
+    public CohabitController(CohabitService cohabits, GymSync gym) {
         this.cohabits = cohabits;
+        this.gym = gym;
     }
 
     @GetMapping("/cohabits")
     public List<CohabitSummary> list(Viewer viewer) {
+        gym.refresh(viewer.personId());
         return cohabits.list(viewer);
     }
 
@@ -63,6 +67,7 @@ public class CohabitController {
 
     @GetMapping("/cohabits/{id}")
     public CohabitDetail get(Viewer viewer, @PathVariable("id") String id) {
+        gym.refresh(viewer.personId());
         return cohabits.get(viewer, id);
     }
 

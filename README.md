@@ -160,6 +160,14 @@ holt der Dienst selbst aus dem Kalorienzähler (`KcalSync`) – je Mitglied mit 
 ein Wert je Tag in der Nachtragsfrist, sofort nach der Zustimmung und danach alle 15 Minuten. Details im
 Vertrag, §3.9.
 
+**Gym aus Healthy** (seit 2026-10-14): Eine Serie kann als Health-Metrik `GYM` nutzen – etwa „Gym, 2× pro
+Woche“. Der Dienst fragt den Weight Tracker (`GET /api/gym/days`, im Namen der Person) nach Tagen mit
+beendetem Training („Training beenden“ im Gym-Tab von Healthy) und hakt sie ab (`GymSync`): beim Anlegen
+(die Anlegerin stimmt damit zu), nach der Zustimmung, alle 15 Minuten und beim Öffnen der App (Heute,
+Liste, Detail, Widget; höchstens einmal je Minute und Person, 2 s Frist). Von Hand abhaken geht weiter;
+ein Haken ohne Wert, nur als Serie. In `/me/days` eine Ja/Nein-Reihe – so kommt es in die Effekte des
+Logbooks. Details im Vertrag, §3.9.
+
 **Klassische Liste** (seit 2026-09-30): Felix' alte Habit-Ansicht aus der Fokus-App lässt sich in
 der iOS-App von coHabit per Schalter zurückholen. Dafür liefert `/classic/habits` Streaks und
 Abstinenz der Person – auch geteilte, seit 01.10. auch Ziele und Challenges (mit der Zusammenfassung

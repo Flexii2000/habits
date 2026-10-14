@@ -11,6 +11,7 @@ import com.fherrmann.habits.cohabit.model.FocusPeriod;
 import com.fherrmann.habits.cohabit.model.GoalCounting;
 import com.fherrmann.habits.cohabit.model.GoalMode;
 import com.fherrmann.habits.cohabit.model.HealthConfig;
+import com.fherrmann.habits.cohabit.model.HealthMetric;
 import com.fherrmann.habits.cohabit.model.LimitConfig;
 import com.fherrmann.habits.cohabit.model.LimitSource;
 import com.fherrmann.habits.cohabit.model.Palette;
@@ -150,8 +151,16 @@ public final class CohabitConfigs {
                 throw Errors.badRequest("Health passt nicht zu diesem Co-Habit.");
             }
             c.health = new HealthConfig(in.health().metric());
-            // Der Wert kommt aus Health - die Einheit folgt der Metrik.
-            c.tracking = new Tracking(TrackingMode.VALUE, Texts.unitOf(in.health().metric()));
+            if (in.health().metric() == HealthMetric.GYM) {
+                if (c.type != CohabitType.STREAK) {
+                    throw Errors.badRequest("Gym aus Healthy gibt es nur als Serie.");
+                }
+                // Ein Training ist ein Haken, keine Menge - von Hand abhaken geht ohne Zahl.
+                c.tracking = Tracking.CHECK;
+            } else {
+                // Der Wert kommt aus Health - die Einheit folgt der Metrik.
+                c.tracking = new Tracking(TrackingMode.VALUE, Texts.unitOf(in.health().metric()));
+            }
         }
         if (c.type == CohabitType.GOAL && c.goal.counting() == GoalCounting.AMOUNT && !c.tracking.withValue()) {
             throw Errors.badRequest("Für eine Menge braucht es „Mit Wert erfassen“.");

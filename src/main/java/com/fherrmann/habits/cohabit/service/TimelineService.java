@@ -114,8 +114,13 @@ public class TimelineService {
                 }
             }
             case HEALTH -> {
-                String amount = e.value == null ? "" : Texts.valueText(e.value, c.tracking.unit());
-                title = "Health hat " + amount + " für " + (me.equals(e.personId) ? "dich" : name) + " eingetragen";
+                String who = me.equals(e.personId) ? "dich" : name;
+                if (c.health != null && c.health.metric() == com.fherrmann.habits.cohabit.model.HealthMetric.GYM) {
+                    title = "Healthy hat ein Training für " + who + " eingetragen";
+                } else {
+                    String amount = e.value == null ? "" : Texts.valueText(e.value, c.tracking.unit());
+                    title = "Health hat " + amount + " für " + who + " eingetragen";
+                }
                 subtitle = time + " · " + c.name;
                 if (e.checkinDate != null && !e.checkinDate.equals(e.day)) {
                     subtitle = subtitle + " · für " + Texts.dateShort(e.checkinDate);

@@ -64,13 +64,14 @@ public class SchedulerService implements DevController.Tickable {
     private final Notifier notifier;
     private final PhotoService photos;
     private final KcalSync kcal;
+    private final GymSync gym;
     private final Clock clock;
     private final boolean enabled;
     private volatile Instant lastCleanup = Instant.EPOCH;
 
     public SchedulerService(CohabitStore store, ViewService views, ChallengeService challenges,
                             Achievements achievements, EventService events, Notifier notifier, PhotoService photos,
-                            KcalSync kcal, Clock clock, @Value("${cohabit.scheduler.enabled:true}") boolean enabled) {
+                            KcalSync kcal, GymSync gym, Clock clock, @Value("${cohabit.scheduler.enabled:true}") boolean enabled) {
         this.store = store;
         this.views = views;
         this.challenges = challenges;
@@ -79,6 +80,7 @@ public class SchedulerService implements DevController.Tickable {
         this.notifier = notifier;
         this.photos = photos;
         this.kcal = kcal;
+        this.gym = gym;
         this.clock = clock;
         this.enabled = enabled;
     }
@@ -105,6 +107,11 @@ public class SchedulerService implements DevController.Tickable {
                 kcal.syncAll(at);
             } catch (RuntimeException e) {
                 log.warn("kcal-Abgleich fehlgeschlagen", e);
+            }
+            try {
+                gym.syncAll(at);
+            } catch (RuntimeException e) {
+                log.warn("Gym-Abgleich fehlgeschlagen", e);
             }
         }
         ViewService.Facts facts = views.fetchFacts(c -> !c.archived && needsSource(c, at));

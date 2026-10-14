@@ -82,6 +82,10 @@ public abstract class ApiTestBase {
     @Autowired
     protected FakeSources.Logbook logbook;
     @Autowired
+    protected FakeSources.Gym gym;
+    @Autowired
+    protected com.fherrmann.habits.cohabit.service.GymSync gymSync;
+    @Autowired
     protected AutoSources autoSources;
     @Autowired
     protected RecordingTransport iosTransport;
@@ -116,6 +120,8 @@ public abstract class ApiTestBase {
         food.unavailable = false;
         steps.perDay = (person, day) -> 0;
         logbook.reset();
+        gym.reset();
+        com.fherrmann.habits.cohabit.service.GymSyncAccess.forget(gymSync);
         autoSources.forgetHistory();
     }
 

@@ -133,6 +133,8 @@ public final class Texts {
             case WORKOUTS -> ValueUnit.COUNT;
             case WORKOUT_MINUTES -> ValueUnit.MINUTES;
             case KCAL -> ValueUnit.KCAL;
+            // Ein Training ist ein Haken - die Einheit traegt nur die Reihe nicht.
+            case GYM -> ValueUnit.COUNT;
         };
     }
 
@@ -143,6 +145,7 @@ public final class Texts {
             case WORKOUTS -> "Trainings";
             case WORKOUT_MINUTES -> "Trainingsminuten";
             case KCAL -> "kcal aus Healthy";
+            case GYM -> "Gym aus Healthy";
         };
     }
 
@@ -153,6 +156,7 @@ public final class Texts {
             case WORKOUTS -> "nur die Zahl der Trainings wird geteilt";
             case WORKOUT_MINUTES -> "nur die Trainingsminuten werden geteilt";
             case KCAL -> "nur die kcal des Tages werden geteilt";
+            case GYM -> "nur die Tage mit beendetem Training werden geteilt";
         };
     }
 

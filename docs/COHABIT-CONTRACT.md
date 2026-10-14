@@ -181,9 +181,11 @@ Avatar-Kreis (aus der ID abgeleitet, stabil).
 - `challenge` (nur CHALLENGE): `{"start": date, "end": date, "scoring":"MOST_ENTRIES|HIGHEST_SUM|FIRST_TO_TARGET|RUN_POINTS",
   "target": number|null (nur FIRST_TO_TARGET), "stake": string|null (≤ 80), "recurrence":"NONE|WEEKLY|MONTHLY",
   "run": RunScoring|null (nur RUN_POINTS, §2.6a)}`.
-- `health`: `{"metric":"STEPS|RUNNING_DISTANCE|WORKOUTS|WORKOUT_MINUTES|KCAL"}` oder `null` — Werte kommen
+- `health`: `{"metric":"STEPS|RUNNING_DISTANCE|WORKOUTS|WORKOUT_MINUTES|KCAL|GYM"}` oder `null` — Werte kommen
   aus Apple Health / Health Connect über die Apps (§3.9); `KCAL` (seit 01.10., Felix) holt der Dienst selbst
   aus dem Kalorienzähler (Healthy). Sinnvoll für GOAL/CHALLENGE/STREAK mit Wert; Einheit dann `KCAL`.
+  `GYM` (seit 14.10., Felix) holt der Dienst aus dem Gym-Tab von Healthy (Weight Tracker) — **nur STREAK**
+  (sonst 400 „Gym aus Healthy gibt es nur als Serie.“), `tracking` wird `CHECK` (ein Haken ohne Wert).
 - `auto` **[Entscheidung, für Felix' bisherige automatische Habits]**: `{"source":"FOOD|FOOD_TARGET_WEEKLY|STEPS_WEEKLY|FOCUS",
   "weeklyStepGoal": int|null, "focusMinutesGoal": int|null, "focusCategoryId": string|null,
   "focusCategoryName": string|null, "focusPeriod": "DAY|WEEK"|null}` oder `null`. Nur bei STREAK. Ein
@@ -674,7 +676,7 @@ CohabitDetail {"summary":CohabitSummary,"config":CohabitConfig,
   "goal":GoalBlock|null,"challenge":ChallengeBlock|null,
   "health":{"metric":"STEPS","label":"Schritte","consent":true,"lastSyncAt":"…"|null,
             "shareText":"nur die Schrittzahl wird geteilt",
-            "source":"DEVICE|HEALTHY"}|null,   // HEALTHY: der Dienst holt selbst (KCAL)
+            "source":"DEVICE|HEALTHY"}|null,   // HEALTHY: der Dienst holt selbst (KCAL, GYM)
   "myCheckins":[Checkin],          // eigene, innerhalb der Nachtragsfrist + heute, neueste zuerst
   "backfillFrom":"2026-09-28",
   "myPauses":[{"id","from","to"}],
@@ -857,6 +859,18 @@ Healthy-Zugang.“; `PUT /cohabits/{id}/health/{date}` bei KCAL: 400 „Die kcal
 lesen für `source: HEALTHY` nichts aus Apple Health/Health Connect und zeigen statt der System-Abfrage nur
 den Schalter (gesperrt ohne Quelle `FOOD`).
 
+**Gym aus Healthy** (`metric: GYM`, `source: HEALTHY`, Label „Gym aus Healthy“, seit 14.10.): Der Dienst fragt
+den Weight Tracker (`GET /api/gym/days?from=&to=`, im Namen der Person wie beim Logbook) nach Tagen mit
+**beendetem** Training und legt je solchem Tag einen HEALTH-Eintrag **ohne Wert** an (`GymSync`); fällt ein
+Tag weg, geht nur dieser Eintrag. Hat die Person den Tag schon von Hand abgehakt, kommt keiner dazu; ein
+Haken von Hand auf einen Tag aus Healthy: 409. Je Mitglied mit `healthConsent` und Healthy-Zugang, in der
+Nachtragsfrist, mindestens heute und gestern. Wann: **beim Anlegen** (die Anlegerin bekommt
+`healthConsent: true`, wenn sie Healthy hat — die Wahl der Quelle ist die Einwilligung), sofort nach einer
+Zustimmung, alle 15 Minuten und **beim Öffnen** (`GET /today`, `/widget`, `/cohabits`, `/cohabits/{id}`,
+`/classic/habits`; höchstens einmal je Minute und Person, 2 s Frist, nie ein Fehler). `PUT
+/cohabits/{id}/health/{date}` bei GYM: 400 „Die Trainings kommen aus Healthy.“ Timeline: „Healthy hat ein
+Training für dich eingetragen“.
+
 ### 3.10 Klassische Liste (nur iOS, seit 2026-09-30)
 Felix mochte die alte Habit-Liste der Fokus-App lieber: coHabit (iOS) bekommt dafür im Profil den
 Schalter „Klassische Liste“; ist er an, zeigt der Tab Heute die alte Liste. Der Dienst liefert
@@ -913,7 +927,7 @@ Weight Tracker fragt dafür je Person mit ihrem Healthy-Token:
 DaysView {"from":"2026-09-24","to":"2026-09-30","series":[{
   "ref":CohabitRef,"archived":false,
   "kind":"BINARY|AMOUNT","unit":null|"COUNT|MINUTES|KM|STEPS|KCAL","unitLabel":null|"Kilometer",
-  "healthMetric":null|"STEPS|RUNNING_DISTANCE|WORKOUTS|WORKOUT_MINUTES|KCAL",
+  "healthMetric":null|"STEPS|RUNNING_DISTANCE|WORKOUTS|WORKOUT_MINUTES|KCAL|GYM",
   "unavailableText":null|"Kalorienzähler antwortete mit HTTP 503",
   "days":[{"date":"2026-09-25","value":0},{"date":"2026-09-26","value":1}]}]}
 ```
@@ -931,6 +945,7 @@ Challenges in der laufenden und den früheren Runden. **Ein fehlender Tag heißt
 | GOAL nach Einträgen / nach Menge | BINARY / AMOUNT | 1/0 bzw. Summe der Werte (Eintrag ohne Wert = 0, wie beim Ziel) |
 | CHALLENGE meiste Einträge / Summe, zuerst am Ziel / Laufpunkte | BINARY / AMOUNT / AMOUNT KM | 1/0 bzw. Summe (Eintrag ohne Wert = 1, wie in der Wertung) bzw. gelaufene km |
 | Health-Metrik | AMOUNT (Einheit der Metrik) | Summe; zwischen erstem Eintrag und letztem Abgleich fehlt ein Tag nicht, er ist 0 — außer bei `KCAL` (0 kcal heißt „nichts getrackt“) |
+| Health-Metrik `GYM` | BINARY | wie eine Serie ohne Wert: ab dem Start 1 mit Eintrag (aus Healthy oder von Hand), sonst 0 |
 | auto FOOD | BINARY | getrackt (Regel „Track food“) 1, sonst 0 |
 | auto FOOD_TARGET_WEEKLY | BINARY | an getrackten Tagen 1, wenn die kcal höchstens beim Ziel lagen, sonst 0; ungetrackt fehlt |
 | auto STEPS_WEEKLY | AMOUNT STEPS | Schritte; Tage ohne Messung fehlen |

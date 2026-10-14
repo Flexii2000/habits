@@ -1,5 +1,6 @@
 package com.fherrmann.habits.cohabit.web;
 
+import com.fherrmann.habits.cohabit.service.GymSync;
 import com.fherrmann.habits.cohabit.api.StatsView;
 import com.fherrmann.habits.cohabit.api.TodayView;
 import com.fherrmann.habits.cohabit.api.WidgetData;
@@ -19,18 +20,23 @@ import java.time.LocalDate;
 public class OverviewController {
 
     private final OverviewService overview;
+    private final GymSync gym;
 
-    public OverviewController(OverviewService overview) {
+    public OverviewController(OverviewService overview, GymSync gym) {
         this.overview = overview;
+        this.gym = gym;
     }
 
     @GetMapping("/today")
     public TodayView today(Viewer viewer) {
+        // Ein eben beendetes Training soll beim Oeffnen schon abgehakt sein.
+        gym.refresh(viewer.personId());
         return overview.today(viewer);
     }
 
     @GetMapping("/widget")
     public WidgetData widget(Viewer viewer) {
+        gym.refresh(viewer.personId());
         return overview.widget(viewer);
     }
 

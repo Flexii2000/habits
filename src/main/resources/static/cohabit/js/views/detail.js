@@ -346,14 +346,14 @@ export function mount(root, params, ctx) {
     function healthCard() {
         const hl = detail.health;
         const sub = [hl.consent && hl.lastSyncAt ? `zuletzt ${fmtTime(hl.lastSyncAt)}` : null, hl.shareText].filter(Boolean).join(' · ');
-        // kcal aus Healthy holt der Dienst selbst - die Einwilligung geht darum auch hier,
+        // kcal und Gym aus Healthy holt der Dienst selbst - die Einwilligung geht darum auch hier,
         // fuer Apple Health/Health Connect nur in den Apps. Zustimmen kann, wer Healthy hat.
         const healthy = hl.source === 'HEALTHY';
         const canConsent = healthy && ((state.me && state.me.sources) || []).includes('FOOD');
         const control = healthy ? toggle({
             checked: hl.consent,
             disabled: !canConsent && !hl.consent,
-            label: 'kcal aus Healthy übernehmen',
+            label: `${hl.label} übernehmen`,
             onchange: async on => {
                 try {
                     apply(await put(`${base}/settings/me`, { healthConsent: on }));
