@@ -4,59 +4,37 @@ set -euo pipefail
 # Deployt eine neue Version von habits - dem Backend von coHabit
 # (fherrmann.com/cohabit) und dem Wald der Fokus-App (fherrmann.com/habits).
 #
-#     ssh -t HeimServerRemote '~/services/habits/deploy/update-habits.sh'
+#     ssh HeimServerLocal '~/services/habits/deploy/update-habits.sh'
 #
 # Baut auf dem Server aus ~/services/habits und installiert nach /opt/habits.
-# Der Build laeuft als flexii, nur die Installation braucht Root - deshalb
-# NICHT das ganze Skript mit sudo starten (das -t braucht sudo fuers Passwort).
+# Der Build laeuft als flexii, installiert wird ueber das Root-Skript
+# update-service.sh - ohne Passwort, also auch fuer Agenten. NICHT mit sudo starten.
 #
 # /opt/habits/data/ wird NICHT angefasst - auch nicht data/cohabit/. Beim ersten
 # Start mit coHabit uebernimmt der Dienst die Habits aus habits.json (danach nur
 # noch gelesen); Umgebung, Push und nginx richtet einmalig setup-cohabit.sh ein.
 
 BUILD_DIR="$HOME/services/habits"
-APP_DIR="/opt/habits"
-TARGET="$APP_DIR/app.jar"
 JAR="$BUILD_DIR/build/libs/Habits-0.0.1-SNAPSHOT.jar"
 JAVA="/opt/java/jdk-25.0.1+8/bin/java"
-PORT=48190
+STAGING="$HOME/staging/habits"
+ROOT_SCRIPT="/usr/local/sbin/update-service.sh"
 
 [[ $EUID -ne 0 ]] || { echo "Bitte OHNE sudo starten - das Skript ruft sudo selbst auf." >&2; exit 1; }
 
-echo "[1/5] git pull ..."
+echo "[1/4] git pull ..."
 git -C "$BUILD_DIR" pull --ff-only
 
-echo "[2/5] Jar bauen ..."
+echo "[2/4] Jar bauen ..."
 (cd "$BUILD_DIR" && JAVA_HOME="$(dirname "$(dirname "$JAVA")")" ./gradlew bootJar --quiet)
 [[ -f "$JAR" ]] || { echo "    FEHLER: $JAR fehlt." >&2; exit 1; }
 
-echo "[3/5] Laufendes Jar sichern ..."
-BACKUP="$TARGET.bak-$(date +%Y%m%d-%H%M%S)"
-sudo cp -p "$TARGET" "$BACKUP"
-echo "    Backup: $BACKUP"
+echo "[3/4] Jar bereitlegen ..."
+mkdir -p "$STAGING"
+cp "$JAR" "$STAGING/app.jar"
 
-echo "[4/5] Installieren und neu starten ..."
-sudo install -o habits -g habits -m 644 "$JAR" "$TARGET"
-sudo systemctl restart habits
-
-echo "[5/5] Health-Check ..."
-for i in $(seq 1 45); do
-    code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "http://127.0.0.1:$PORT/cohabit/api/me" || true)"
-    # Ohne Anmeldung ist 401 die richtige Antwort; jeder Status heisst "App bedient".
-    if [[ "$code" != "000" ]]; then
-        echo "    OK (HTTP $code)"
-        if ! sudo grep -q '^COHABIT_PUBLIC_URL=' /etc/habits.env; then
-            echo "    HINWEIS: coHabit ist noch nicht eingerichtet -"
-            echo "             ssh -t HeimServerRemote '~/services/habits/deploy/setup-cohabit.sh'"
-        fi
-        echo "habits erfolgreich aktualisiert."
-        exit 0
-    fi
-    sleep 1
-done
-
-echo "    FEHLER: App antwortet nicht. Rollback auf $BACKUP ..." >&2
-sudo install -o habits -g habits -m 644 "$BACKUP" "$TARGET"
-sudo systemctl restart habits
-echo "    Zurueckgerollt. Logs: journalctl -u habits -n 50" >&2
-exit 1
+echo "[4/4] Installieren ..."
+# Ohne Passwort ueber /usr/local/sbin/update-service.sh und die Regel
+# /etc/sudoers.d/23-agent-deploy (~/scripts/setup-agent-deploy.sh, SERVER-CONTEXT.md):
+# sichern, installieren, neu starten, pruefen, notfalls zurueckrollen.
+sudo "$ROOT_SCRIPT" habits

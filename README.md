@@ -284,8 +284,8 @@ ist, was die alte API geliefert hätte – die alte Rechnung liegt dafür im Tes
 `location /cohabit/` (**ohne** Gate – der Dienst prüft jeden Zugang selbst; 12 MB für Fotos).
 
 ```bash
-# Code-Update
-ssh -t HeimServerRemote '~/services/habits/deploy/update-habits.sh'
+# Code-Update (ohne Passwort, auch für Agenten: update-service.sh, SERVER-CONTEXT.md)
+ssh HeimServerLocal '~/services/habits/deploy/update-habits.sh'
 # einmalig nach dem ersten coHabit-Deploy: Healthy-Token, APNs/FCM, Android-Verzeichnis, nginx
 ssh -t HeimServerRemote '~/services/habits/deploy/setup-cohabit.sh'
 ```

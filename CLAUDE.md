@@ -60,7 +60,7 @@ stellbarer Uhr, Quellen ohne Netz und Push-Wegen, die nur mitschreiben.
   aus den Stellen, an denen es ohnehin steht, und setzen nur einzelne Zeilen (`set_env`).
 - **Keine neuen Abhängigkeiten** ohne Not: APNs, FCM und Bilder laufen mit dem JDK.
 - **Committen und pushen.** Der Server baut aus dem Repo – was nicht gepusht ist, wird nicht
-  deployt. Deploys stößt Felix selbst an.
+  deployt. Ausrollen ohne Passwort: `ssh HeimServerLocal '~/services/habits/deploy/update-habits.sh'`.
 
 ## Doku aktuell halten – im selben Arbeitsgang
 
