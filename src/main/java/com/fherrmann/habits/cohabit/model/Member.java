@@ -29,4 +29,6 @@ public class Member {
      * uebernommene automatische Co-Habits) - sonst meldete der erste Lauf alte Erfolge als neu.
      */
     public boolean baselinePending;
+    /** Laufender Timer (Minuten pro Woche mit Timer): seit wann; {@code null}, wenn keiner laeuft. */
+    public Instant timerStartedAt;
 }

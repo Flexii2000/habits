@@ -173,7 +173,9 @@ Avatar-Kreis (aus der ID abgeleitet, stabil).
   Rhythm: `{"kind":"DAILY"}` · `{"kind":"WEEKDAYS","weekdays":[1,3,5]}` (ISO, 1 = Montag) ·
   `{"kind":"TIMES_PER_WEEK","times":3}` (1–7) · `{"kind":"TIMES_PER_MONTH","times":2}` (1–31,
   **[Entscheidung]** zusätzlich zum Katalog, weil Felix' „Politisch aktiv sein, 2× im Monat" sonst
-  verloren ginge) · `{"kind":"INTERVAL","days":2}` (2–30).
+  verloren ginge) · `{"kind":"INTERVAL","days":2}` (2–30) · `{"kind":"MINUTES_PER_WEEK","minutes":140}`
+  (1–10.080, seit 28.10., §2.4b).
+- `tracking.timer` (bool, fehlt = aus): nur bei `MINUTES_PER_WEEK`, Start und Stopp in der Liste (§2.4b).
 - `abstinence` (nur ABSTINENCE): `{"groupMode": bool, "limit": LimitConfig|null}` — `limit` nur bei einer
   Abstinenz mit Tageslimit aus dem Logbook (§2.5a), sonst `null`.
 - `goal` (nur GOAL): `{"target": number > 0, "start": date, "deadline": date, "counting":"ENTRIES|AMOUNT",
@@ -284,6 +286,48 @@ Ein Eintrag trägt **bis zu vier** Beweisfotos (optional mehr als eins; bei `pho
   gemeldet, nichts wird angekündigt. Ohne Quelle sofort aus den Einträgen, mit Quelle beim nächsten
   Lauf, der ihre Werte hat. Name, Farbe, Erinnerung, Gruppen-Streak usw. ändern nichts daran. Anlass:
   nach täglich → 4× pro Woche standen 28 Tage als „Rekord 28 Wo.“ da.
+
+### 2.4b Minuten pro Woche und Timer (seit 2026-10-28, Felix)
+Anlass: „Klavier spielen“, 140 Minuten in der Woche, gestartet und gestoppt direkt in der Liste.
+- **Rhythmus** `{"kind":"MINUTES_PER_WEEK","minutes":140}` – nur STREAK ohne `auto`. 400 „Minuten pro Woche
+  gehen von 1 bis 10.080.“; mit `health` 400 „Health passt nicht zu Minuten pro Woche.“
+- **Rechnung:** Eine Woche (Mo–So, Zone des Co-Habits) ist erfüllt, wenn die Summe der eigenen Minuten
+  (`value` der `DONE`-Einträge) das Wochenziel erreicht. Pausen anteilig wie bei „pro Woche“
+  (`ceil(minutes × unpausierte Tage / 7)`). Serie in Wochen, Meilensteine 4/12/26/52 Wochen, die laufende
+  Woche darf offen sein. Ändert sich `minutes`, gilt §2.4 „Regel geändert → Rekord neu“.
+- **Einträge:** beliebig viele je Person und Tag (kein 409 „Heute schon erledigt.“). `value` ist Pflicht und
+  wird auf ganze Minuten gerundet: 400 „Die Minuten fehlen.“ / „Die Minuten müssen zwischen 1 und 1.440
+  liegen.“ (beim Anlegen und Bearbeiten).
+- **Einstellungen:** Der Dienst setzt `tracking` immer auf `{"mode":"VALUE","unit":"MINUTES"}`, was der Client
+  schickt, gilt nur für `timer`. `timer: true` nur bei `MINUTES_PER_WEEK`, sonst 400 „Einen Timer gibt es nur bei
+  Minuten pro Woche.“ Mit Timer ist `photoRequired` immer false (gestoppt wird ohne Blatt). Ein Bearbeiten ohne
+  `timer` (`null`, ältere Clients) lässt ihn, wie er war. Wird der Timer abgeschaltet, verfallen laufende Timer
+  ohne Eintrag.
+- **Timer:** je Person und Co-Habit höchstens einer; die Startzeit liegt beim Dienst (`Member.timerStartedAt`),
+  damit er nach einem Neustart der App und auf jedem Gerät weiterläuft.
+  - `POST /cohabits/{id}/timer` `{"startedAt": Instant|null}` → `CohabitDetail`. `null` oder Zukunft = jetzt.
+    Läuft er schon, bleibt der erste Start (kein Fehler: zweites Gerät, Postausgang). Älter als 24 h → 400 „Der
+    Start liegt zu weit zurück.“; vor dem eigenen Start → 400 „Außerhalb der Nachtragsfrist.“; ohne Timer 400
+    „Dieses Co-Habit hat keinen Timer.“; archiviert 409.
+  - `POST /cohabits/{id}/timer/stop` `{"id":"<uuid>","stoppedAt": Instant|null}` → `{"checkin":Checkin|null,
+    "cohabit":CohabitDetail}`, 201 mit neuem Eintrag, sonst 200. Minuten = (Stopp − Start) auf ganze Minuten
+    gerundet; der Eintrag gehört zum **Tag des Starts**, ist ein gewöhnliches `DONE` (`source MANUAL`) mit
+    Timeline, Push und Bestserie; die Nachtragsfrist gilt dafür nicht. Unter 30 s: kein Eintrag (`checkin: null`),
+    der Timer steht. Über 24 h: 400 „Der Timer lief länger als 24 Stunden.“, der Timer läuft weiter (verwerfen
+    und von Hand nachtragen). Gibt es einen Eintrag mit dieser `id` schon → 200 mit ihm (Nachsenden). Läuft keiner
+    → 409 „Der Timer läuft nicht.“ `stoppedAt` `null` oder Zukunft = jetzt; vor dem Start → 400.
+  - `DELETE /cohabits/{id}/timer` → `CohabitDetail`: verwirft ohne Eintrag; steht er, passiert nichts.
+- **Antworten:** `CohabitSummary.timer`: `{"startedAt":"2026-10-28T17:05:00Z"}`, `startedAt` `null` = steht;
+  das ganze Feld `null` bei Co-Habits ohne Timer. Hochzählen tun die Clients selbst ab `startedAt`
+  (Ausnahme zu „Clients zählen nicht“, es ist reine Uhrzeit). Texte: `typeLine` „Streak · 140 Min. pro Woche“,
+  `listLine` „45 von 140 Min.“, `subline`/`remainingText` „noch 95 Min. diese Woche“ / „diese Woche geschafft“ /
+  „pausiert“, `progress` Minuten gegen Soll, `valueUnit` `MINUTES`, `checkInLabel` „Minuten eintragen“,
+  `canCheckIn` bleibt nach einem Eintrag true. `status`: `DONE` mit Eintrag heute oder geschaffter Woche, sonst
+  `OPEN` (wie „pro Woche“). Timeline-Titel „Felix hat 25 Min. Klavier spielen eingetragen“. „Gefährdet“ am Sonntag
+  um 20:00, solange Minuten fehlen – auch nach einer Sitzung heute („… – diese Woche noch 35 Min.“).
+  Widget: `sub` „Wochen · 45/140“, kein `quickCheckIn`. Klassische Liste: `BUILD`, `unit WEEKS`, `period null`,
+  `progress` Minuten, `summary` (mit `timer`) gesetzt; das alte Formular ändert den Rhythmus nicht.
+  `/me/days`: Minuten je Tag (`AMOUNT`, `MINUTES`).
 
 ### 2.5 ABSTINENCE
 - Serie = Tage seit Start (Beitritt) bzw. seit dem letzten `BREAK`; heute zählt mit; Unterbrechung heute
@@ -1165,6 +1209,31 @@ Ein Co-Habit mit `summary.limit` (§2.5a) wird gezählt, nicht abgehakt.
     503 heißt „später nochmal“.
 - **Ohne Logbook** (`status UNAVAILABLE`): Kennzahl „–“, `unavailableText`, kein „+“.
 - **Anlegen:** vorerst nur per Skript (`deploy/create-limit-habit.sh`), ohne Oberfläche.
+
+### 5.2d Minuten pro Woche und Timer (seit 2026-10-28, Felix – Web, iOS, Android gleich)
+Ein Co-Habit mit `summary.timer` (§2.4b) wird gestartet und gestoppt, nicht abgehakt.
+- **Heute** (Liste, Karte, iOS auch die klassische Liste):
+  - An der Stelle des runden Hakens ein runder **Start**-Knopf (▶). Tipp → `POST /cohabits/{id}/timer` mit
+    `startedAt` = Tippzeit; der Timer läuft sofort (optimistisch).
+  - Läuft er (`timer.startedAt` gesetzt), wird der Knopf **Stopp** (■, gefüllt in der Typfarbe), und statt
+    `listLine` steht die laufende Zeit („12:34“, ab 1 h „1:02:05“), jede Sekunde ab `startedAt` hochgezählt.
+    Tipp → `POST …/timer/stop` mit neuer UUID als `id` und `stoppedAt` = Tippzeit; danach `cohabit.summary`
+    der Antwort übernehmen. Lehnt der Dienst ab (über 24 h), erscheint seine Meldung, der Timer läuft weiter.
+  - Kontextmenü bzw. langes Drücken: `checkInLabel` („Minuten eintragen“, das gewohnte Eintragsblatt) und,
+    solange er läuft, „Timer verwerfen“ (`DELETE …/timer`, ohne Nachfrage).
+  - Balken aus `progress` wie bei „pro Woche“. Ein Tipp auf die Karte öffnet wie sonst das Detail.
+- **Detail:** Hauptknopf „Start“ bzw. „Stopp · 12:34“, darunter `checkInLabel` für Minuten von Hand; solange er
+  läuft, zusätzlich „Timer verwerfen“.
+- **Eintragsblatt** bei `valueUnit MINUTES`: Feld „Minuten“ (Ziffernblock), „Anderer Tag“ wie gewohnt.
+- **Anlegen/Bearbeiten (Streak):** Rhythmus „Minuten pro Woche“ neben den anderen; dazu „Minuten“ (1–10.080,
+  Vorgabe 60) und Schalter „Timer“ (Vorgabe an). Gewählt → „Mit Wert erfassen“, Health und Beweisfoto entfallen.
+  Gesendet: `streak.rhythm {"kind":"MINUTES_PER_WEEK","minutes":140}`, `tracking {"mode":"VALUE","unit":"MINUTES",
+  "timer":true}`.
+- **Offline:** Start und Stopp tragen ihre Tippzeit, gehen also später korrekt raus – iOS über den Postausgang,
+  Android über die Outbox, das Web nur online.
+- **Live Activity** (nur iOS): Solange der eigene Timer läuft, Sperrbildschirm und Dynamic Island mit Name,
+  laufender Zeit und Stopp-Knopf; endet mit Stopp oder Verwerfen. Sieht die App einen laufenden Timer ohne
+  Activity (z. B. im Web gestartet), legt sie eine an.
 
 ### 5.3 Abhak-Beschriftungen (`checkInLabel`, vom Dienst)
 STREAK ohne Foto „Abhaken", mit Foto „Beweisfoto & abhaken", erledigt „Heute erledigt" (Knopf

@@ -243,7 +243,7 @@ public class SchedulerService implements DevController.Tickable {
                 String missing = Texts.number(m.streak.currentRequired() - m.streak.currentAchieved());
                 String body = c.auto != null && c.auto.source() == AutoSource.STEPS_WEEKLY
                         ? c.name + ": " + n + " " + unit + " – heute noch " + missing + " Schritte"
-                        : c.auto != null && c.auto.focusWeekly()
+                        : (c.auto != null && c.auto.focusWeekly()) || StreakModel.isMinutesPerWeek(c)
                         ? c.name + ": " + n + " " + unit + " – diese Woche noch " + missing + " Min."
                         : c.name + ": " + n + " " + unit + " – heute noch abhaken";
                 notifier.notify(tx, List.of(m.member.personId), new PushMessage("streak-at-risk",
@@ -264,6 +264,10 @@ public class SchedulerService implements DevController.Tickable {
         if (c.auto != null) {
             // Im Kalorienziel laesst sich am Sonntagabend nichts mehr "nachholen".
             return c.auto.source() != AutoSource.FOOD_TARGET_WEEKLY;
+        }
+        if (StreakModel.isMinutesPerWeek(c)) {
+            // Minuten lassen sich bis Sonntagnacht nachholen - auch nach einer Sitzung heute.
+            return true;
         }
         // Einer je Tag: wer heute schon hat oder mehr als einen braucht, ist nicht mehr zu retten.
         return !m.doneToday && m.streak.currentRequired() - m.streak.currentAchieved() == 1;

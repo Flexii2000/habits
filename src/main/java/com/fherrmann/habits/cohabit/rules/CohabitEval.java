@@ -75,6 +75,8 @@ public final class CohabitEval {
         public int entries;
         public boolean entryToday;
         public Set<LocalDate> doneDays = new HashSet<>();
+        /** Minuten pro Woche: die eingetragenen Minuten je Tag. */
+        public Map<LocalDate, Double> amounts = new HashMap<>();
         public Set<LocalDate> breakDays = new HashSet<>();
         /** Abstinenz mit Tageslimit: die Menge je Tag aus dem Logbook; fehlend = 0. */
         public LogbookFacts limit;
@@ -120,6 +122,7 @@ public final class CohabitEval {
             me.member = m;
             me.start = Evaluations.memberStart(c, m);
             me.doneDays = Evaluations.doneDays(checkins, m.personId);
+            me.amounts = Evaluations.amounts(checkins, m.personId);
             me.breakDays = Evaluations.breakDays(checkins, m.personId);
             eval.members.put(m.personId, me);
         }
@@ -153,7 +156,7 @@ public final class CohabitEval {
                 }
             }
             Predicate<LocalDate> paused = StreakModel.paused(me.member.pauses);
-            me.judge = StreakModel.judge(cohabit, me.doneDays, me.member.pauses, me.facts);
+            me.judge = StreakModel.judge(cohabit, me.doneDays, me.amounts, me.member.pauses, me.facts);
             me.pausedToday = paused.test(today);
             me.dueToday = !me.pausedToday && StreakModel.dueByRhythm(cohabit, today);
             if (me.unavailable != null) {

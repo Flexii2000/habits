@@ -14,6 +14,7 @@ import com.fherrmann.habits.cohabit.model.CohabitType;
 import com.fherrmann.habits.cohabit.model.FocusPeriod;
 import com.fherrmann.habits.cohabit.model.Palette;
 import com.fherrmann.habits.cohabit.model.Rhythm;
+import com.fherrmann.habits.cohabit.model.RhythmKind;
 import com.fherrmann.habits.cohabit.model.Role;
 import com.fherrmann.habits.cohabit.model.StreakConfig;
 import com.fherrmann.habits.cohabit.model.Tracking;
@@ -97,7 +98,7 @@ public class ClassicService {
             List<ClassicHabit> list = new ArrayList<>();
             for (Cohabit c : ViewService.mine(data, me, false)) {
                 CohabitEval e = views.evaluate(data, c, facts, now);
-                list.add(isClassic(c) ? habit(e, me, limitSummary(data, e, me)) : goalOrChallenge(data, e, me));
+                list.add(isClassic(c) ? habit(e, me, rowSummary(data, e, me)) : goalOrChallenge(data, e, me));
             }
             return list;
         });
@@ -109,7 +110,7 @@ public class ClassicService {
         return store.read(data -> {
             Cohabit c = classic(data, cohabitId, me);
             CohabitEval e = views.evaluate(data, c, facts, now);
-            return habit(e, me, limitSummary(data, e, me));
+            return habit(e, me, rowSummary(data, e, me));
         });
     }
 
@@ -125,9 +126,13 @@ public class ClassicService {
         return c;
     }
 
-    /** Beim Tageslimit die Zusammenfassung - die Zeile zeigt daraus „2/4“ und zaehlt mit „+“. */
-    private static CohabitSummary limitSummary(CohabitStore.Data data, CohabitEval e, String me) {
-        return Limits.isLogbookLimit(e.cohabit) ? Views.summary(data, e, me) : null;
+    /**
+     * Beim Tageslimit die Zusammenfassung - die Zeile zeigt daraus „2/4“ und zaehlt mit „+“;
+     * bei Minuten pro Woche zeigt sie „45 von 140 Min.“ und startet und stoppt den Timer.
+     */
+    private static CohabitSummary rowSummary(CohabitStore.Data data, CohabitEval e, String me) {
+        return Limits.isLogbookLimit(e.cohabit) || StreakModel.isMinutesPerWeek(e.cohabit)
+                ? Views.summary(data, e, me) : null;
     }
 
     /** Der Stand einer Person in der Form der alten API. */
@@ -135,7 +140,7 @@ public class ClassicService {
         return habit(e, me, null);
     }
 
-    /** @param summary nur beim Tageslimit, sonst {@code null} */
+    /** @param summary nur beim Tageslimit und bei Minuten pro Woche, sonst {@code null} */
     static ClassicHabit habit(CohabitEval e, String me, CohabitSummary summary) {
         Cohabit c = e.cohabit;
         MemberEval m = e.member(me);
@@ -185,6 +190,12 @@ public class ClassicService {
                 times = StreakModel.times(rhythm);
                 progress = new ClassicHabit.Progress(streak.currentAchieved(), required(streak, times));
             }
+            if (rhythm.kind() == RhythmKind.MINUTES_PER_WEEK) {
+                // Wie die Fokus-Woche: die Minuten der Woche, und gefaehrdet ist eine Woche nie.
+                progress = new ClassicHabit.Progress(streak.currentAchieved(),
+                        required(streak, StreakModel.minutes(rhythm)));
+                atRisk = false;
+            }
         } else {
             switch (c.auto.source()) {
                 case FOOD -> progress = m.unavailable != null ? null
@@ -223,12 +234,12 @@ public class ClassicService {
         if (m.unavailable != null) {
             return new ClassicHabit(c.id, c.name, kind, scheme.unit(), stepGoal, 0, false, false, null, List.of(),
                     m.unavailable, focusGoal, period, times, List.of(), m.start, c.photoRequired, shared, admin,
-                    backfillFrom, null, focus);
+                    backfillFrom, summary, focus);
         }
         List<LocalDate> markedDays = c.auto == null ? marked(m.doneDays, today) : List.of();
         return new ClassicHabit(c.id, c.name, kind, scheme.unit(), stepGoal, streak.current(), m.doneToday, atRisk,
                 progress, recent(scheme, m.judge, today), null, focusGoal, period, times, markedDays, m.start,
-                c.photoRequired, shared, admin, backfillFrom, null, focus);
+                c.photoRequired, shared, admin, backfillFrom, summary, focus);
     }
 
     /**
@@ -379,7 +390,9 @@ public class ClassicService {
                 throw Errors.badRequest("Die Art lässt sich nicht ändern.");
             }
             StreakConfig streak = c.streak;
-            if (c.type == CohabitType.STREAK && c.auto == null && draft.period() != null) {
+            // Minuten pro Woche kennt das alte Formular nicht - es darf sie nicht zu "täglich" machen.
+            if (c.type == CohabitType.STREAK && c.auto == null && draft.period() != null
+                    && !StreakModel.isMinutesPerWeek(c)) {
                 streak = new StreakConfig(rhythm(draft.period(), draft.timesPerPeriod()),
                         c.streak != null && c.streak.groupStreak());
             }

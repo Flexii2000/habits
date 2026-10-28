@@ -3,7 +3,9 @@ package com.fherrmann.habits.cohabit.service;
 import com.fherrmann.habits.cohabit.model.Checkin;
 import com.fherrmann.habits.cohabit.model.Cohabit;
 import com.fherrmann.habits.cohabit.model.CohabitType;
+import com.fherrmann.habits.cohabit.model.ValueUnit;
 import com.fherrmann.habits.cohabit.rules.RunPoints;
+import com.fherrmann.habits.cohabit.rules.StreakModel;
 import com.fherrmann.habits.cohabit.rules.Texts;
 
 import java.util.List;
@@ -19,6 +21,9 @@ public final class TimelineTexts {
     }
 
     public static String checkinTitle(Cohabit c, String name, Double value) {
+        if (c.type == CohabitType.STREAK && value != null && StreakModel.isMinutesPerWeek(c)) {
+            return name + " hat " + Texts.valueText(value, ValueUnit.MINUTES) + " " + c.name + " eingetragen";
+        }
         if (c.type == CohabitType.STREAK) {
             return name + " hat " + c.name + " abgehakt";
         }

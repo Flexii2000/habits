@@ -7,10 +7,15 @@ import java.util.List;
 /**
  * Wie oft ein STREAK erfuellt sein will. Nur die Felder der jeweiligen Art sind
  * gesetzt: {@code weekdays} (ISO, 1 = Montag) bei WEEKDAYS, {@code times} bei
- * TIMES_PER_WEEK/TIMES_PER_MONTH, {@code days} bei INTERVAL.
+ * TIMES_PER_WEEK/TIMES_PER_MONTH, {@code days} bei INTERVAL, {@code minutes} bei
+ * MINUTES_PER_WEEK.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public record Rhythm(RhythmKind kind, List<Integer> weekdays, Integer times, Integer days) {
+public record Rhythm(RhythmKind kind, List<Integer> weekdays, Integer times, Integer days, Integer minutes) {
+
+    public Rhythm(RhythmKind kind, List<Integer> weekdays, Integer times, Integer days) {
+        this(kind, weekdays, times, days, null);
+    }
 
     public static Rhythm daily() {
         return new Rhythm(RhythmKind.DAILY, null, null, null);
@@ -22,5 +27,9 @@ public record Rhythm(RhythmKind kind, List<Integer> weekdays, Integer times, Int
 
     public static Rhythm timesPerMonth(int times) {
         return new Rhythm(RhythmKind.TIMES_PER_MONTH, null, times, null);
+    }
+
+    public static Rhythm minutesPerWeek(int minutes) {
+        return new Rhythm(RhythmKind.MINUTES_PER_WEEK, null, null, null, minutes);
     }
 }

@@ -169,6 +169,7 @@ public final class Texts {
             case TIMES_PER_WEEK -> StreakModel.times(r) + "× pro Woche";
             case TIMES_PER_MONTH -> StreakModel.times(r) + "× pro Monat";
             case INTERVAL -> "alle " + StreakModel.intervalDays(r) + " Tage";
+            case MINUTES_PER_WEEK -> number(StreakModel.minutes(r)) + " Min. pro Woche";
         };
     }
 

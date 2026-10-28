@@ -6,8 +6,10 @@ import com.fherrmann.habits.cohabit.model.Cohabit;
 import com.fherrmann.habits.cohabit.model.Member;
 
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /** Die Rechenregeln fuer ein Mitglied - reine Funktionen ueber Eintraege und Quellen. */
@@ -34,6 +36,17 @@ public final class Evaluations {
         return days;
     }
 
+    /** Die Werte der eigenen Eintraege je Tag (Minuten pro Woche: die Minuten). */
+    public static Map<LocalDate, Double> amounts(List<Checkin> checkins, String personId) {
+        Map<LocalDate, Double> amounts = new HashMap<>();
+        for (Checkin checkin : checkins) {
+            if (checkin.kind == CheckinKind.DONE && checkin.personId.equals(personId) && checkin.value != null) {
+                amounts.merge(checkin.date, checkin.value, Double::sum);
+            }
+        }
+        return amounts;
+    }
+
     public static Set<LocalDate> breakDays(List<Checkin> checkins, String personId) {
         Set<LocalDate> days = new HashSet<>();
         for (Checkin checkin : checkins) {
@@ -45,7 +58,7 @@ public final class Evaluations {
     }
 
     public static Judge judge(Cohabit c, Member m, List<Checkin> checkins, AutoFacts auto) {
-        return StreakModel.judge(c, doneDays(checkins, m.personId), m.pauses, auto);
+        return StreakModel.judge(c, doneDays(checkins, m.personId), amounts(checkins, m.personId), m.pauses, auto);
     }
 
     /**

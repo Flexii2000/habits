@@ -52,6 +52,7 @@ public class CheckinService {
     static final int MAX_CAPTION = 280;
     static final double MAX_VALUE = 1e9;
     static final int MAX_RUN_MINUTES = 24 * 60;
+    static final int MAX_MINUTES = 24 * 60;
     static final double MAX_RUN_KM = 500;
     static final int MAX_PHOTOS = 4;
 
@@ -112,7 +113,8 @@ public class CheckinService {
             CheckinKind kind = kind(c, in == null ? null : in.kind());
             LocalDate date = in == null || in.date() == null ? before.today : in.date();
             checkDate(c, before, mine, date);
-            if (c.type == CohabitType.STREAK && mine.doneDays.contains(date)) {
+            // Minuten pro Woche: jede Sitzung ist ein Eintrag, die Woche zaehlt die Summe.
+            if (c.type == CohabitType.STREAK && !StreakModel.isMinutesPerWeek(c) && mine.doneDays.contains(date)) {
                 throw Errors.conflict(date.equals(before.today) ? "Heute schon erledigt." : "An diesem Tag schon erledigt.");
             }
             if (c.type == CohabitType.ABSTINENCE && mine.breakDays.contains(date)) {
@@ -146,6 +148,27 @@ public class CheckinService {
             return ch.id;
         });
         return new Created(result(me, cohabitId, checkinId), created[0]);
+    }
+
+    /**
+     * Der Eintrag eines gestoppten Timers: ein gewoehnliches DONE mit den Minuten - Timeline,
+     * Push und Bestserie wie beim Eintragen. Die Nachtragsfrist gilt nicht (der Dienst hat
+     * mitgemessen), den Rest prueft {@link TimerService}.
+     */
+    Checkin addTimed(CohabitStore.Tx tx, Cohabit c, String personId, String id, LocalDate date, int minutes,
+                     Instant now) {
+        Checkin ch = new Checkin();
+        ch.id = id;
+        ch.cohabitId = c.id;
+        ch.personId = personId;
+        ch.kind = CheckinKind.DONE;
+        ch.date = date;
+        ch.createdAt = now;
+        ch.source = CheckinSource.MANUAL;
+        ch.value = (double) minutes;
+        tx.checkinsW(c.id).add(ch);
+        afterCheckin(tx, c, ch, now);
+        return ch;
     }
 
     private static void requireWritable(Cohabit c) {
@@ -197,6 +220,9 @@ public class CheckinService {
         if (!c.tracking.withValue()) {
             return null;
         }
+        if (StreakModel.isMinutesPerWeek(c)) {
+            return (double) minutes(value);
+        }
         boolean required = (c.type == CohabitType.GOAL && c.goal.counting() == GoalCounting.AMOUNT)
                 || (c.type == CohabitType.CHALLENGE && c.challenge.scoring() != Scoring.MOST_ENTRIES);
         if (value == null) {
@@ -209,6 +235,18 @@ public class CheckinService {
             throw Errors.badRequest("Der Wert ist ungültig.");
         }
         return Texts.round2(value);
+    }
+
+    /** Minuten pro Woche: ganze Minuten, eine Sitzung hoechstens einen Tag lang. */
+    static int minutes(Double value) {
+        if (value == null) {
+            throw Errors.badRequest("Die Minuten fehlen.");
+        }
+        long minutes = value.isNaN() ? 0 : Math.round(value);
+        if (minutes < 1 || minutes > MAX_MINUTES) {
+            throw Errors.badRequest("Die Minuten müssen zwischen 1 und 1.440 liegen.");
+        }
+        return (int) minutes;
     }
 
     static boolean isRunChallenge(Cohabit c) {
@@ -427,7 +465,7 @@ public class CheckinService {
         };
     }
 
-    private CheckinResult result(String me, String cohabitId, String checkinId) {
+    CheckinResult result(String me, String cohabitId, String checkinId) {
         ViewService.Facts facts = views.factsForCohabit(cohabitId);
         return store.read(data -> {
             CohabitDetail detail = views.detail(data, me, cohabitId, facts);

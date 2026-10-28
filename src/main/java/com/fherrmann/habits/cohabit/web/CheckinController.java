@@ -3,6 +3,7 @@ package com.fherrmann.habits.cohabit.web;
 import com.fherrmann.habits.cohabit.api.CheckinResult;
 import com.fherrmann.habits.cohabit.api.CohabitDetail;
 import com.fherrmann.habits.cohabit.service.CheckinService;
+import com.fherrmann.habits.cohabit.service.TimerService;
 import com.fherrmann.habits.security.Viewer;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -17,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
 
-/** Eintraege und Health-Werte. */
+/** Eintraege, Health-Werte und der Timer (Minuten pro Woche). */
 @RestController
 @RequestMapping("/cohabit/api/cohabits/{id}")
 public class CheckinController {
@@ -26,9 +27,11 @@ public class CheckinController {
     }
 
     private final CheckinService checkins;
+    private final TimerService timer;
 
-    public CheckinController(CheckinService checkins) {
+    public CheckinController(CheckinService checkins, TimerService timer) {
         this.checkins = checkins;
+        this.timer = timer;
     }
 
     /** 201 fuer einen neuen Eintrag, 200 fuer eine schon bekannte ID (Postausgang der Apps). */
@@ -57,5 +60,24 @@ public class CheckinController {
                                 @PathVariable("date") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
                                 @RequestBody HealthRequest request) {
         return checkins.health(viewer, id, date, request.value());
+    }
+
+    @PostMapping("/timer")
+    public CohabitDetail startTimer(Viewer viewer, @PathVariable("id") String id,
+                                    @RequestBody(required = false) TimerService.StartInput input) {
+        return timer.start(viewer, id, input);
+    }
+
+    /** 201 mit dem neuen Eintrag, 200 fuer eine schon bekannte ID oder einen Stopp ohne Eintrag. */
+    @PostMapping("/timer/stop")
+    public ResponseEntity<CheckinResult> stopTimer(Viewer viewer, @PathVariable("id") String id,
+                                                   @RequestBody(required = false) TimerService.StopInput input) {
+        TimerService.Stopped stopped = timer.stop(viewer, id, input);
+        return ResponseEntity.status(stopped.created() ? HttpStatus.CREATED : HttpStatus.OK).body(stopped.result());
+    }
+
+    @DeleteMapping("/timer")
+    public CohabitDetail discardTimer(Viewer viewer, @PathVariable("id") String id) {
+        return timer.discard(viewer, id);
     }
 }

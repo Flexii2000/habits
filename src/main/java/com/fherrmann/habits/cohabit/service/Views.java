@@ -23,6 +23,7 @@ import com.fherrmann.habits.cohabit.api.RankView;
 import com.fherrmann.habits.cohabit.api.RunView;
 import com.fherrmann.habits.cohabit.api.Seats;
 import com.fherrmann.habits.cohabit.api.StreakBlock;
+import com.fherrmann.habits.cohabit.api.TimerView;
 import com.fherrmann.habits.cohabit.model.AutoSource;
 import com.fherrmann.habits.cohabit.model.ChallengeConfig;
 import com.fherrmann.habits.cohabit.model.ChallengeRound;
@@ -304,14 +305,22 @@ public final class Views {
         }
         String subline = others.isEmpty() ? remaining : Texts.names(others) + " heute schon";
         boolean manual = c.auto == null;
-        boolean canCheckIn = manual && !c.archived && !me.doneToday && !e.today.isBefore(me.start);
+        // Minuten pro Woche: jede Sitzung ist ein Eintrag - auch nach der ersten heute.
+        boolean minutes = StreakModel.isMinutesPerWeek(c);
+        boolean canCheckIn = manual && !c.archived && (minutes || !me.doneToday) && !e.today.isBefore(me.start);
         String label = !manual ? null
+                : minutes ? "Minuten eintragen"
                 : me.doneToday ? "Heute erledigt"
                 : c.photoRequired ? "Beweisfoto & abhaken" : "Abhaken";
         return new CohabitSummary(CohabitRef.of(c), c.archived, headline, typeLine(c, e.today), subline,
                 streakListLine(c, e, me, remaining), status, section(status), me.unavailable, canCheckIn,
                 c.photoRequired, valueUnit(c), label, false, members, members.size(), doneTodayBy,
-                streakProgress(e, me), null, unread(data, c, viewerId));
+                streakProgress(e, me), null, unread(data, c, viewerId), null, timerView(c, me));
+    }
+
+    /** Der eigene Timer - nur bei Co-Habits mit Timer, sonst {@code null}. */
+    static TimerView timerView(Cohabit c, MemberEval me) {
+        return c.tracking != null && c.tracking.withTimer() ? new TimerView(me.member.timerStartedAt) : null;
     }
 
     static String streakStatus(Cohabit c, MemberEval me) {
@@ -387,6 +396,10 @@ public final class Views {
         if (r.kind() == RhythmKind.INTERVAL) {
             return (me.streak.currentDone() ? "geschafft bis " : "fällig bis ") + Texts.dateShort(me.streak.currentEnd());
         }
+        if (r.kind() == RhythmKind.MINUTES_PER_WEEK) {
+            return me.streak.currentDone() ? "diese Woche geschafft"
+                    : "noch " + Texts.number(me.streak.currentRequired() - me.streak.currentAchieved()) + " Min. diese Woche";
+        }
         boolean week = r.kind() == RhythmKind.TIMES_PER_WEEK;
         if (me.streak.currentDone()) {
             return week ? "diese Woche geschafft" : "diesen Monat geschafft";
@@ -415,6 +428,9 @@ public final class Views {
         return switch (r.kind()) {
             case TIMES_PER_WEEK, TIMES_PER_MONTH -> me.streak.currentRequired() == 0 ? "pausiert" + photo
                     : me.streak.currentAchieved() + " von " + me.streak.currentRequired() + photo;
+            case MINUTES_PER_WEEK -> me.streak.currentRequired() == 0 ? "pausiert" + photo
+                    : Texts.number(me.streak.currentAchieved()) + " von " + Texts.number(me.streak.currentRequired())
+                    + " Min." + photo;
             case WEEKDAYS -> Texts.rhythm(r) + " · " + remaining + photo;
             default -> remaining + photo;
         };
@@ -435,7 +451,7 @@ public final class Views {
         }
         Rhythm r = StreakModel.rhythm(c);
         switch (r.kind()) {
-            case TIMES_PER_WEEK, TIMES_PER_MONTH -> {
+            case TIMES_PER_WEEK, TIMES_PER_MONTH, MINUTES_PER_WEEK -> {
                 return new ProgressView(me.streak.currentAchieved(), me.streak.currentRequired(),
                         fraction(me.streak.currentAchieved(), me.streak.currentRequired()));
             }

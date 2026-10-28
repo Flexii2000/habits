@@ -23,6 +23,7 @@ import com.fherrmann.habits.cohabit.model.Scoring;
 import com.fherrmann.habits.cohabit.model.StreakConfig;
 import com.fherrmann.habits.cohabit.model.Tracking;
 import com.fherrmann.habits.cohabit.model.TrackingMode;
+import com.fherrmann.habits.cohabit.model.ValueUnit;
 import com.fherrmann.habits.cohabit.rules.Limits;
 import com.fherrmann.habits.cohabit.rules.StreakModel;
 import com.fherrmann.habits.cohabit.rules.Texts;
@@ -48,6 +49,7 @@ public final class CohabitConfigs {
     static final int MAX_STEP_GOAL = 500_000;
     static final int MAX_FOCUS_MINUTES = 24 * 60;
     static final int MAX_FOCUS_MINUTES_WEEK = 7 * 24 * 60;
+    static final int MAX_MINUTES_PER_WEEK = 7 * 24 * 60;
     static final int MAX_RUN_POINTS = 1000;
     static final int MAX_RUN_MINUTES = 600;
     static final int MIN_PACE_LIMIT = 60;
@@ -107,6 +109,7 @@ public final class CohabitConfigs {
         c.reminderTime = reminder;
         c.membersCanInvite = Boolean.TRUE.equals(in.membersCanInvite());
         c.photoRequired = Boolean.TRUE.equals(in.photoRequired());
+        Tracking oldTracking = existing ? c.tracking : null;
         c.tracking = tracking(in.tracking());
         c.health = null;
         if (c.type != CohabitType.STREAK || c.auto == null || !existing) {
@@ -124,7 +127,7 @@ public final class CohabitConfigs {
             c.challenge = null;
         }
         switch (c.type) {
-            case STREAK -> streak(c, in, existing, sources);
+            case STREAK -> streak(c, in, existing, sources, oldTracking);
             case ABSTINENCE -> {
                 LimitConfig limit = limit(in.abstinence() == null ? null : in.abstinence().limit(), oldLimit, existing);
                 c.abstinence = new AbstinenceConfig(limit == null && in.abstinence() != null && in.abstinence().groupMode(),
@@ -144,6 +147,9 @@ public final class CohabitConfigs {
             case CHALLENGE -> challenge(c, in, existing, today);
         }
         if (in.health() != null && in.health().metric() != null) {
+            if (StreakModel.isMinutesPerWeek(c)) {
+                throw Errors.badRequest("Health passt nicht zu Minuten pro Woche.");
+            }
             if (c.type == CohabitType.CHALLENGE && c.challenge.runPoints()) {
                 throw Errors.badRequest("Laufpunkte trägt man von Hand ein.");
             }
@@ -162,6 +168,9 @@ public final class CohabitConfigs {
                 c.tracking = new Tracking(TrackingMode.VALUE, Texts.unitOf(in.health().metric()));
             }
         }
+        if (c.tracking.withTimer() && !StreakModel.isMinutesPerWeek(c)) {
+            throw Errors.badRequest("Einen Timer gibt es nur bei Minuten pro Woche.");
+        }
         if (c.type == CohabitType.GOAL && c.goal.counting() == GoalCounting.AMOUNT && !c.tracking.withValue()) {
             throw Errors.badRequest("Für eine Menge braucht es „Mit Wert erfassen“.");
         }
@@ -177,10 +186,25 @@ public final class CohabitConfigs {
         if (t.unit() == null) {
             throw Errors.badRequest("Mit Wert erfassen braucht eine Einheit.");
         }
-        return new Tracking(TrackingMode.VALUE, t.unit());
+        return new Tracking(TrackingMode.VALUE, t.unit(), t.timer());
     }
 
-    private static void streak(Cohabit c, CohabitInput in, boolean existing, List<AutoSource> sources) {
+    /**
+     * Minuten pro Woche zaehlt Minuten - also immer mit Wert in Minuten. Der Timer gehoert
+     * nur dazu; ein Bearbeiten ohne {@code timer} (aeltere Clients) laesst ihn, wie er war.
+     * Mit Timer gibt es keine Beweisfoto-Pflicht: gestoppt wird in der Liste, ohne Blatt.
+     */
+    private static void minutesTracking(Cohabit c, Tracking in, Tracking old) {
+        Boolean requested = in == null ? null : in.timer();
+        boolean timer = requested != null ? requested : old != null && old.withTimer();
+        c.tracking = new Tracking(TrackingMode.VALUE, ValueUnit.MINUTES, timer ? Boolean.TRUE : null);
+        if (timer) {
+            c.photoRequired = false;
+        }
+    }
+
+    private static void streak(Cohabit c, CohabitInput in, boolean existing, List<AutoSource> sources,
+                               Tracking oldTracking) {
         AutoConfig auto = in.auto();
         if (existing && c.auto != null) {
             // Die Quelle bleibt; Ziele, Fokus-Kategorie und -Zeitraum lassen sich aendern.
@@ -229,6 +253,9 @@ public final class CohabitConfigs {
         c.auto = null;
         Rhythm rhythm = rhythm(in.streak() == null ? null : in.streak().rhythm());
         c.streak = new StreakConfig(rhythm, in.streak() != null && in.streak().groupStreak());
+        if (rhythm.kind() == RhythmKind.MINUTES_PER_WEEK) {
+            minutesTracking(c, in.tracking(), oldTracking);
+        }
     }
 
     static Rhythm rhythm(Rhythm r) {
@@ -269,6 +296,13 @@ public final class CohabitConfigs {
                     throw Errors.badRequest("Das Intervall muss 2 bis 30 Tage lang sein.");
                 }
                 yield new Rhythm(RhythmKind.INTERVAL, null, null, days);
+            }
+            case MINUTES_PER_WEEK -> {
+                int minutes = r.minutes() == null ? 0 : r.minutes();
+                if (minutes < 1 || minutes > MAX_MINUTES_PER_WEEK) {
+                    throw Errors.badRequest("Minuten pro Woche gehen von 1 bis 10.080.");
+                }
+                yield Rhythm.minutesPerWeek(minutes);
             }
             case DAILY -> Rhythm.daily();
         };

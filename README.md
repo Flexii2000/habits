@@ -44,6 +44,13 @@ Enddaten richten sich danach, nie nach dem Gerät.
 und Tag. **Wochentage**: nur die gewählten Tage sind fällig, die anderen werden
 übersprungen. **Intervall n**: Fenster zu n Tagen ab dem Start, erfüllt bei einem Eintrag.
 
+**Minuten pro Woche** (seit 2026-10-28): erfüllt, wenn die eigenen Minuten Mo–So (Summe der
+`value` der Einträge, ganze Minuten 1–1.440) das Wochenziel erreichen; Serie in Wochen, beliebig viele
+Einträge je Tag. Optional mit **Timer** (`tracking.timer`): Start und Stopp in der Liste, die Startzeit
+liegt beim Dienst (`Member.timerStartedAt`), der Stopp trägt die gerundeten Minuten am Tag des Starts
+ein (`POST /cohabits/{id}/timer`, `…/timer/stop`, `DELETE …/timer`). Unter 30 s kein Eintrag, über
+24 h lehnt der Stopp ab und der Timer bleibt zum Verwerfen. Details im Vertrag, §2.4b.
+
 **Pausen** (je Person): Pausentage sind weder fällig noch brechen sie die Serie. Ein
 Zeitraum mit Pausentagen verlangt anteilig weniger, `ceil(n × unpausierte Tage / Tage)`;
 ein ganz pausierter wird übersprungen.
@@ -144,6 +151,7 @@ coHabit-Vertrag; hier der Überblick:
 | Freunde | `GET /friends`, `GET /people/search?q=`, `POST /friends/requests`, `POST /friends/requests/{id}/accept\|decline`, `DELETE /friends/{id}`, `GET/POST/DELETE /blocks` |
 | Co-Habits | `GET/POST /cohabits`, `GET/PUT/DELETE /cohabits/{id}`, `POST …/archive\|unarchive`, `GET …/invite-candidates`, `POST …/invitations`, `POST …/invite-link`, `DELETE …/members/{id\|me}`, `PUT …/admin`, `PUT …/settings/me`, `POST/DELETE …/pauses`, `POST …/dialogs/{id}/seen`, `POST /invitations/{id}/accept\|decline` |
 | Einträge | `POST/PUT/DELETE /cohabits/{id}/checkins[/{checkinId}]`, `PUT /cohabits/{id}/health/{date}`, `PUT /cohabits/{id}/count/{date}` (Tageslimit, schreibt ins Logbook) |
+| Timer | `POST /cohabits/{id}/timer` (starten), `POST /cohabits/{id}/timer/stop` (stoppen und eintragen), `DELETE /cohabits/{id}/timer` (verwerfen) – nur Minuten pro Woche mit Timer |
 | Logbook | `GET /logbook/behaviors` (eigene Verhaltensweisen mit Menge, zur Wahl für ein Tageslimit) |
 | Chat | `GET/POST /cohabits/{id}/messages` (Text, Foto, GIF), `DELETE …/messages/{id}`, `POST …/messages/{id}/report`, `POST …/read`, `POST/DELETE /reactions`, `GET /gifs/config` |
 | Übersicht | `GET /today`, `GET /timeline?exclude=`, `POST /timeline/seen`, `GET /stats?range=WEEK\|MONTH\|YEAR`, `GET /widget`, `POST /cohabits/{id}/nudges`, `POST /nudges/{id}/seen` |

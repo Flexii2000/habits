@@ -265,6 +265,10 @@ public class CohabitService {
             if (!rule.equals(Milestones.seriesRule(c))) {
                 Milestones.resetSeries(c, tx.checkins(c.id), today(c, now));
             }
+            if (!c.tracking.withTimer()) {
+                // Ohne Timer gibt es nichts mehr zu stoppen - ein laufender verfaellt ohne Eintrag.
+                c.members.forEach(m -> m.timerStartedAt = null);
+            }
             events.system(tx, c, Views.name(tx, me) + " hat die Einstellungen geändert", me, now);
         });
         return views.detail(me, id);

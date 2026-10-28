@@ -11,6 +11,7 @@ import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -44,10 +45,20 @@ public final class StreakModel {
         Rhythm r = rhythm(c);
         return switch (r.kind()) {
             case DAILY, WEEKDAYS -> PeriodScheme.days();
-            case TIMES_PER_WEEK -> PeriodScheme.weeks();
+            case TIMES_PER_WEEK, MINUTES_PER_WEEK -> PeriodScheme.weeks();
             case TIMES_PER_MONTH -> PeriodScheme.months();
             case INTERVAL -> PeriodScheme.windows(c.startDate, intervalDays(r));
         };
+    }
+
+    /** Minuten pro Woche: gezaehlt wird die Summe der eingetragenen Minuten Mo-So. */
+    public static boolean isMinutesPerWeek(Cohabit c) {
+        return c.auto == null && c.streak != null && c.streak.rhythm() != null
+                && c.streak.rhythm().kind() == RhythmKind.MINUTES_PER_WEEK;
+    }
+
+    public static int minutes(Rhythm r) {
+        return r.minutes() == null || r.minutes() < 1 ? 1 : r.minutes();
     }
 
     public static int intervalDays(Rhythm r) {
@@ -92,6 +103,12 @@ public final class StreakModel {
      * @param auto     die Quelle (automatische Co-Habits), sonst null
      */
     public static Judge judge(Cohabit c, Set<LocalDate> doneDays, List<Pause> pauses, AutoFacts auto) {
+        return judge(c, doneDays, Map.of(), pauses, auto);
+    }
+
+    /** @param amounts Minuten pro Woche: die eingetragenen Minuten je Tag */
+    public static Judge judge(Cohabit c, Set<LocalDate> doneDays, Map<LocalDate, Double> amounts, List<Pause> pauses,
+                              AutoFacts auto) {
         Predicate<LocalDate> paused = paused(pauses);
         if (c.auto != null) {
             return autoJudge(c.auto, auto, paused);
@@ -110,6 +127,24 @@ public final class StreakModel {
             };
             case TIMES_PER_WEEK, TIMES_PER_MONTH -> countingJudge(times(r), done, paused);
             case INTERVAL -> countingJudge(1, done, paused);
+            case MINUTES_PER_WEEK -> minutesJudge(minutes(r), amounts == null ? Map.of() : Map.copyOf(amounts), paused);
+        };
+    }
+
+    private static Judge minutesJudge(int minutes, Map<LocalDate, Double> amounts, Predicate<LocalDate> paused) {
+        return new Judge() {
+            public int required(LocalDate start, LocalDate end) {
+                return proRated(minutes, start, end, paused);
+            }
+
+            public int achieved(LocalDate start, LocalDate end) {
+                double total = 0;
+                for (LocalDate d = start; !d.isAfter(end); d = d.plusDays(1)) {
+                    total += amounts.getOrDefault(d, 0.0);
+                }
+                // Eingetragen werden ganze Minuten - abrunden rettet keine Woche, die knapp fehlt.
+                return (int) Math.floor(total + 1e-9);
+            }
         };
     }
 
