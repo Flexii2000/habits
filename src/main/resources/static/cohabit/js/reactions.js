@@ -215,8 +215,9 @@ export function openEmojiPicker({ current, onPick }) {
  * Langer Druck (Touch) bzw. Kontextmenue (Rechtsklick, Android meldet langen
  * Druck ebenfalls so) ruft `fn` - je Beruehrung hoechstens einmal, und der
  * Klick nach dem Loslassen geht nicht mehr an das Element darunter.
+ * `overLinks`: auch ueber Links - fuer Karten, die als Ganzes ein Link sind.
  */
-export function onLongPress(node, fn) {
+export function onLongPress(node, fn, { overLinks = false } = {}) {
     let timer = null;
     let touching = false;
     let fired = false;
@@ -234,7 +235,7 @@ export function onLongPress(node, fn) {
         timer = null;
     };
     node.addEventListener('contextmenu', event => {
-        if (event.target.closest('a, input, textarea')) return;
+        if (event.target.closest(overLinks ? 'input, textarea' : 'a, input, textarea')) return;
         event.preventDefault();
         fire();
     });

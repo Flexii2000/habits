@@ -7,6 +7,8 @@ export const ICONS = {
     plus: svg('<path d="M12 5v14M5 12h14"/>'),
     minus: svg('<path d="M5 12h14"/>'),
     check: svg('<path d="m5 12.5 4.5 4.5L19 7.5"/>'),
+    play: svg('<path class="dot" d="M8 6.2v11.6a1.2 1.2 0 0 0 1.8 1l9.2-5.8a1.2 1.2 0 0 0 0-2L9.8 5.2A1.2 1.2 0 0 0 8 6.2z"/>'),
+    stop: svg('<rect class="dot" x="6.5" y="6.5" width="11" height="11" rx="2.2"/>'),
     camera: svg('<path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2.3l1.4-2h5.6l1.4 2h2.3A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z"/><circle cx="12" cy="12.8" r="3.3"/>'),
     chevronRight: svg('<path d="m9.5 5.5 6.5 6.5-6.5 6.5"/>'),
     chevronLeft: svg('<path d="M14.5 5.5 8 12l6.5 6.5"/>'),

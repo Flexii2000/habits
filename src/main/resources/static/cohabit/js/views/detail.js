@@ -10,6 +10,7 @@ import { cached, remember, forget, state } from '../state.js';
 import { TYPE_NAMES, dateLong, dayHeading, dayIn, dayShort, fmtNumber, fmtTime, isMe, personName, plural } from '../format.js';
 import { backfillDays, checkIn, editCheckin } from '../checkin.js';
 import * as limits from '../limit.js';
+import * as timers from '../timer.js';
 import { finishedDialog } from '../finished.js';
 import { nudgeDialog, blockPerson } from '../social.js';
 import { mountChat } from '../chat.js';
@@ -38,6 +39,8 @@ export function mount(root, params, ctx) {
     /** Abstinenz mit Tageslimit aus dem Logbook (Vertrag 2.5a): gezaehlt, nicht abgehakt. */
     const isLimit = () => !!(detail.config.abstinence && detail.config.abstinence.limit);
     const unavailable = () => detail.summary.status === 'UNAVAILABLE';
+    /** Minuten pro Woche mit Timer (Vertrag 2.4b): gestartet und gestoppt statt abgehakt. */
+    const hasTimer = () => !!detail.summary.timer && !archived();
 
     // --- Kopf ---------------------------------------------------------------
 
@@ -140,7 +143,8 @@ export function mount(root, params, ctx) {
         }
         const entries = myEntries();
         if (entries) blocks.push(entries);
-        return h('div', { class: 'd-body' }, blocks);
+        // Unter dem Timer stehen zwei Knoepfe mehr - der Inhalt endet darueber.
+        return h('div', { class: `d-body${hasTimer() ? ' timer-body' : ''}` }, blocks);
     }
 
     function streakBlocks() {
@@ -187,9 +191,9 @@ export function mount(root, params, ctx) {
                     : personName(row.person)));
             row.cells.forEach((state, i) => {
                 const day = week.days[i];
-                // Nachtragen per Tipp auf die eigene Zelle - bei „x-mal pro Woche/Monat"
-                // und Intervall zaehlt jeder Tag, dort auch die nicht faelligen.
-                const anyDay = ['TIMES_PER_WEEK', 'TIMES_PER_MONTH', 'INTERVAL'].includes(rhythmKind);
+                // Nachtragen per Tipp auf die eigene Zelle - bei „x-mal pro Woche/Monat",
+                // Minuten pro Woche und Intervall zaehlt jeder Tag, dort auch die nicht faelligen.
+                const anyDay = ['TIMES_PER_WEEK', 'TIMES_PER_MONTH', 'MINUTES_PER_WEEK', 'INTERVAL'].includes(rhythmKind);
                 const open = state === 'MISSED' || state === 'OPEN' || (anyDay && state === 'NOT_DUE');
                 const tappable = me && !archived() && !detail.config.auto && open && days.includes(day);
                 const label = `${personName(row.person)}, ${WEEKDAYS[i]}: ${cellLabel(state)}`;
@@ -402,6 +406,7 @@ export function mount(root, params, ctx) {
             return h('div', { class: 'action-bar' }, h('div', { class: 'archived-note' }, icon('archive'), 'Archiviert'));
         }
         const s = summary();
+        if (hasTimer()) return timerBar(s);
         if (!s.checkInLabel) return null;
         const outline = type() === 'ABSTINENCE';
         const button = h('button', {
@@ -411,6 +416,29 @@ export function mount(root, params, ctx) {
             onclick: () => startCheckIn(null),
         }, s.photoRequired && s.canCheckIn ? icon('camera') : null, s.checkInLabel);
         return h('div', { class: 'action-bar' }, button);
+    }
+
+    /**
+     * Timer (Vertrag 5.2d): „Start“ bzw. „Stopp · 12:34“ in der Typfarbe, darunter die
+     * Minuten von Hand und, solange er laeuft, „Timer verwerfen“.
+     */
+    function timerBar(s) {
+        const running = timers.isRunning(s);
+        // Abgelehnt: sofort wieder der bekannte Stand (der Timer laeuft weiter), dann der neueste.
+        const handlers = { onChange: render, onSettled: fresh => { if (fresh) apply(fresh); else { render(); load(); } } };
+        const main = h('button', {
+            type: 'button',
+            class: `btn block ${running ? 'timer-stop' : 'primary'}${timers.isBusy(s) ? ' busy' : ''}`,
+            disabled: !running && !s.canCheckIn,
+            onclick: () => (running ? timers.stop : timers.start)(s, handlers),
+        }, icon(running ? 'stop' : 'play'), running ? h('span', null, 'Stopp · ', timers.elapsed(timers.startedAt(s))) : 'Start');
+        const more = [
+            s.canCheckIn && s.checkInLabel
+                ? h('button', { type: 'button', class: 'btn small soft', onclick: () => startCheckIn(null) }, s.checkInLabel) : null,
+            running
+                ? h('button', { type: 'button', class: 'btn small soft timer-discard', onclick: () => timers.discard(s, handlers) }, 'Timer verwerfen') : null,
+        ].filter(Boolean);
+        return h('div', { class: 'action-bar timer-bar' }, main, more.length ? h('div', { class: 'btn-row' }, more) : null);
     }
 
     function startCheckIn(date) {

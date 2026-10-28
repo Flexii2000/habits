@@ -31,6 +31,8 @@ const FOCUS_PERIODS = [['DAY', 'Täglich'], ['WEEK', 'Pro Woche']];
 /** Kategorien aus dem Wald der Fokus-App (nur Felix hat die Quelle) - einmal je Seitenaufruf geholt. */
 let focusCategories = null;
 const MAX_SEATS = 8;
+/** Minuten pro Woche (Vertrag 2.4b): hoechstens eine ganze Woche. */
+const MAX_WEEK_MINUTES = 10080;
 
 function timezones(current) {
     let zones = [];
@@ -60,7 +62,9 @@ function newDraft() {
         backfillHours: 48,
         reminderTime: null,
         membersCanInvite: false,
-        rhythm: { kind: 'DAILY', weekdays: [1, 3, 5], weekTimes: 3, monthTimes: 2, days: 2 },
+        rhythm: { kind: 'DAILY', weekdays: [1, 3, 5], weekTimes: 3, monthTimes: 2, days: 2, minutes: 60 },
+        // Nur bei Minuten pro Woche: Start und Stopp in der Liste (Vertrag 5.2d).
+        timer: true,
         groupStreak: false,
         groupMode: false,
         // Tageslimit aus dem Logbook (Vertrag 2.5a) - nur beim Bearbeiten, anlegen geht per Skript.
@@ -101,6 +105,10 @@ function draftFrom(config) {
         if (r.kind === 'TIMES_PER_WEEK') d.rhythm.weekTimes = r.times;
         if (r.kind === 'TIMES_PER_MONTH') d.rhythm.monthTimes = r.times;
         if (r.kind === 'INTERVAL') d.rhythm.days = r.days;
+        if (r.kind === 'MINUTES_PER_WEEK') {
+            d.rhythm.minutes = r.minutes;
+            d.timer = !!(config.tracking && config.tracking.timer);
+        }
         d.groupStreak = !!config.streak.groupStreak;
     }
     if (config.abstinence) {
@@ -129,9 +137,14 @@ function draftFrom(config) {
     return d;
 }
 
+/** Minuten pro Woche: der Wert ist immer Minuten, ohne Health und ohne Beweisfoto (Vertrag 5.2d). */
+function isMinutes(d) {
+    return d.type === 'STREAK' && !d.auto && d.rhythm.kind === 'MINUTES_PER_WEEK';
+}
+
 function needsValue(d) {
     if (d.auto) return false;
-    if (d.type === 'STREAK') return d.valueTracking;
+    if (d.type === 'STREAK') return d.valueTracking && !isMinutes(d);
     if (d.type === 'GOAL') return d.goal.counting === 'AMOUNT';
     if (d.type === 'CHALLENGE') return d.challenge.scoring !== 'MOST_ENTRIES' && d.challenge.scoring !== 'RUN_POINTS';
     return false;
@@ -170,8 +183,9 @@ function toConfig(d, { forEdit = false } = {}) {
         // Neu: die eigene Farbe des Typs (bzw. von „Automatisch“) - Vertrag 5.2b.
         color: d.storedColor || typeColor(d.type, !!d.auto),
         timezone: d.timezone,
-        tracking: needsValue(d) ? { mode: 'VALUE', unit: d.unit } : { mode: 'CHECK' },
-        photoRequired: d.type === 'ABSTINENCE' || d.auto ? false : d.photoRequired,
+        tracking: isMinutes(d) ? { mode: 'VALUE', unit: 'MINUTES', timer: d.timer }
+            : needsValue(d) ? { mode: 'VALUE', unit: d.unit } : { mode: 'CHECK' },
+        photoRequired: d.type === 'ABSTINENCE' || d.auto || isMinutes(d) ? false : d.photoRequired,
         backfillHours: d.backfillHours,
         reminderTime: d.reminderTime || null,
         membersCanInvite: d.membersCanInvite,
@@ -179,7 +193,7 @@ function toConfig(d, { forEdit = false } = {}) {
         abstinence: null,
         goal: null,
         challenge: null,
-        health: d.health && !d.auto && !isRun(d) ? { metric: d.health } : null,
+        health: d.health && !d.auto && !isRun(d) && !isMinutes(d) ? { metric: d.health } : null,
         auto: null,
     };
     if (d.type === 'STREAK') {
@@ -192,7 +206,13 @@ function toConfig(d, { forEdit = false } = {}) {
         } else if (d.rhythm.kind === 'TIMES_PER_WEEK') rhythm = { kind: 'TIMES_PER_WEEK', times: d.rhythm.weekTimes };
         else if (d.rhythm.kind === 'TIMES_PER_MONTH') rhythm = { kind: 'TIMES_PER_MONTH', times: d.rhythm.monthTimes };
         else if (d.rhythm.kind === 'INTERVAL') rhythm = { kind: 'INTERVAL', days: d.rhythm.days };
-        else rhythm = { kind: 'DAILY' };
+        else if (d.rhythm.kind === 'MINUTES_PER_WEEK') {
+            const minutes = parseNumber(d.rhythm.minutes);
+            if (!Number.isInteger(minutes) || minutes < 1 || minutes > MAX_WEEK_MINUTES) {
+                fail('Minuten pro Woche gehen von 1 bis 10.080.', 'weekMinutes');
+            }
+            rhythm = { kind: 'MINUTES_PER_WEEK', minutes };
+        } else rhythm = { kind: 'DAILY' };
         config.streak = { rhythm, groupStreak: d.groupStreak };
         if (d.auto) {
             const steps = parseNumber(d.weeklyStepGoal);
@@ -320,17 +340,17 @@ function settingsForm(d, { edit = false, errorEl, onChange } = {}) {
 
         // Schalter und Einstellungen
         const rows = [];
-        if (d.type !== 'ABSTINENCE' && !d.auto) {
+        if (d.type !== 'ABSTINENCE' && !d.auto && !isMinutes(d)) {
             rows.push(toggleRow('Beweisfoto-Pflicht', { checked: d.photoRequired, onchange: v => { d.photoRequired = v; } }));
         }
-        if (d.type === 'STREAK' && !d.auto && d.health !== 'GYM') {
+        if (d.type === 'STREAK' && !d.auto && d.health !== 'GYM' && !isMinutes(d)) {
             rows.push(toggleRow('Mit Wert erfassen', { checked: d.valueTracking, onchange: v => { d.valueTracking = v; rerender(); } }));
         }
         if (needsValue(d)) {
             rows.push(selectRow('Einheit', UNITS, d.unit, v => { d.unit = v; }));
         }
         // Bei einer Serie immer: Gym aus Healthy ist ein Haken ohne Wert, die anderen schalten den Wert ein.
-        if (!d.auto && d.type !== 'ABSTINENCE' && !isRun(d)) {
+        if (!d.auto && d.type !== 'ABSTINENCE' && !isRun(d) && !isMinutes(d)) {
             const metrics = d.type === 'STREAK' ? HEALTH : HEALTH.filter(([v]) => v !== 'GYM');
             rows.push(selectRow('Health-Metrik', metrics, d.health, v => {
                 d.health = v;
@@ -367,7 +387,7 @@ function settingsForm(d, { edit = false, errorEl, onChange } = {}) {
             const parts = [h('span', { class: 'field-label' }, 'Rhythmus')];
             parts.push(segmented([
                 ['DAILY', 'Täglich'], ['WEEKDAYS', 'Wochentage'], ['TIMES_PER_WEEK', 'pro Woche'],
-                ['TIMES_PER_MONTH', 'pro Monat'], ['INTERVAL', 'Intervall'],
+                ['TIMES_PER_MONTH', 'pro Monat'], ['INTERVAL', 'Intervall'], ['MINUTES_PER_WEEK', 'Minuten pro Woche'],
             ], d.rhythm.kind, v => { d.rhythm.kind = v; rerender(); }, { className: 'rhythm-seg', label: 'Rhythmus' }));
             if (d.rhythm.kind === 'WEEKDAYS') {
                 parts.push(h('div', { class: 'weekday-picks', role: 'group', 'aria-label': 'Wochentage', 'data-fid': 'weekdays', tabindex: '-1' },
@@ -389,6 +409,11 @@ function settingsForm(d, { edit = false, errorEl, onChange } = {}) {
                 parts.push(stepper(d.rhythm.monthTimes, 1, 31, n => `${n}× pro Monat`, n => { d.rhythm.monthTimes = n; }));
             } else if (d.rhythm.kind === 'INTERVAL') {
                 parts.push(stepper(d.rhythm.days, 2, 30, n => `alle ${n} Tage`, n => { d.rhythm.days = n; }));
+            } else if (d.rhythm.kind === 'MINUTES_PER_WEEK') {
+                parts.push(h('div', { class: 'set-group', style: 'margin:0;padding:0 2px' },
+                    h('label', { class: 'set-row' }, h('span', { class: 'set-label' }, 'Minuten'),
+                        inlineNumber(d.rhythm.minutes, v => { d.rhythm.minutes = v; }, 'weekMinutes')),
+                    toggleRow('Timer', { checked: d.timer, onchange: v => { d.timer = v; } })));
             }
             sections.push(h('section', { class: 'set-group pad stack' }, parts));
         }

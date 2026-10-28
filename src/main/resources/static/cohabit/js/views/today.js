@@ -15,6 +15,7 @@ import { state, cached, remember } from '../state.js';
 import { TYPE_NAMES, dateTimeShort, isMe } from '../format.js';
 import { checkIn } from '../checkin.js';
 import * as limits from '../limit.js';
+import * as timers from '../timer.js';
 import { invitationDialog } from '../invitation.js';
 import { sendNudge } from '../social.js';
 import { navigate } from '../app.js';
@@ -154,6 +155,8 @@ export function mount(root, params, ctx) {
     function checkButton(summary, size = '') {
         // Ein Tageslimit wird gezaehlt, nicht abgehakt (Vertrag 5.2c).
         if (summary.limit) return limits.plusButton(summary, { size, onChange: render, onSettled: () => load() });
+        // Minuten pro Woche mit Timer: gestartet und gestoppt, auch nach einer Sitzung heute (5.2d).
+        if (summary.timer) return timers.roundButton(summary, { size, ...timerHandlers() });
         if (summary.status === 'DONE') {
             return h('span', { class: 'done-mark', role: 'img', title: 'Heute erledigt', 'aria-label': 'Heute erledigt' }, icon('check'));
         }
@@ -176,6 +179,38 @@ export function mount(root, params, ctx) {
             }
         });
         return button;
+    }
+
+    // --- Timer (Minuten pro Woche) ---------------------------------------------
+
+    function timerHandlers() {
+        return { onChange: render, onSettled: timerSettled };
+    }
+
+    /**
+     * Antwort auf Start, Stopp oder Verwerfen: die Zeile aus der Antwort uebernehmen und
+     * gleich neu laden - die Kopfzeile („noch 2 offen“) rechnet der Dienst. Nach einem
+     * Fehler gilt sofort wieder der bekannte Stand, das Laden holt den neuesten.
+     */
+    function timerSettled(fresh) {
+        if (fresh && data) {
+            const id = fresh.summary.ref.id;
+            data = remember('today', { ...data, cohabits: (data.cohabits || []).map(c => (c.ref.id === id ? fresh.summary : c)) });
+            remember(`detail:${id}`, fresh);
+        }
+        render();
+        load();
+    }
+
+    /** Langes Druecken auf Karte oder Zeile: Minuten von Hand, laufenden Timer verwerfen. */
+    function withTimerMenu(card, summary) {
+        if (!summary.timer) return card;
+        return timers.bindMenu(card, summary, { ...timerHandlers(), onEntry: () => checkIn(summary, { onDone: () => load() }) });
+    }
+
+    /** Laeuft der Timer, steht seine Zeit an der Stelle der Zeile darunter. */
+    function runningTime(summary) {
+        return timers.isRunning(summary) ? timers.elapsed(timers.startedAt(summary)) : null;
     }
 
     // --- Dashboard (S. 1) ---------------------------------------------------------
@@ -222,7 +257,8 @@ export function mount(root, params, ctx) {
     }
 
     function streakCard(summary) {
-        return h('article', { class: cardClasses(summary, 'big-card deco tr') },
+        const sub = runningTime(summary) || subline(summary);
+        return withTimerMenu(h('article', { class: cardClasses(summary, 'big-card deco tr') },
             cardLink(summary),
             h('div', { class: 'card-top' },
                 h('div', { class: 'card-head' },
@@ -232,7 +268,7 @@ export function mount(root, params, ctx) {
             cardBar(summary),
             h('div', { class: 'card-foot' },
                 avatarStack(membersMeLast(summary.members), 34),
-                subline(summary) ? h('p', { class: subClass(summary, 'card-sub') }, subline(summary)) : null));
+                sub ? h('p', { class: subClass(summary, 'card-sub') }, sub) : null)), summary);
     }
 
     function abstinenceCard(summary) {
@@ -267,7 +303,7 @@ export function mount(root, params, ctx) {
         const text = summary.status === 'UNAVAILABLE' && summary.unavailableText ? summary.unavailableText
             // Waehrend eine Zahl wartet, steht der Satz von heute statt der Zeile des Dienstes.
             : summary.limit && limits.isWaiting(summary.ref.id, summary.limit.date) ? limits.today(summary).text
-                : summary.listLine;
+                : runningTime(summary) || summary.listLine;
         const g = gauge(summary);
         let sub;
         if (g && g.bar != null) {
@@ -279,11 +315,11 @@ export function mount(root, params, ctx) {
         }
         const action = checkButton(summary, 'sm')
             || h('span', { class: 'row-chevron', 'aria-hidden': 'true' }, icon('chevronRight'));
-        return h('article', { class: `card row-card ${cardClasses(summary, '')}` },
+        return withTimerMenu(h('article', { class: `card row-card ${cardClasses(summary, '')}` },
             cardLink(summary),
             headlineFigure(summary.headline, { className: 'row-figure' }),
             h('div', { class: 'row-main' }, h('span', { class: 'row-name' }, summary.ref.name), sub),
-            action);
+            action), summary);
     }
 
     function newPhotos() {

@@ -2038,6 +2038,19 @@ button.cell:hover { box-shadow: inset 0 0 0 2px var(--c-accent); }
 .limit-day-count { font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .limit-day .icon { width: 18px; height: 18px; color: var(--muted); }
 .sheet-body .limit-counter { margin-top: 4px; }
+
+/* Timer bei Minuten pro Woche (Vertrag 5.2d): ▶ an der Stelle des Hakens, waehrend er
+   laeuft ■ in der Typfarbe und die Zeit statt der Zeile darunter. Langes Druecken auf
+   der Karte oeffnet das eigene Menue, nicht die Link-Vorschau des Browsers. */
+.round-btn.stop { background: var(--c-strong, var(--ink)); color: var(--on-ink); box-shadow: none; }
+.timer-elapsed { font-weight: 800; font-variant-numeric: tabular-nums; }
+.timer-card, .timer-card .card-link { -webkit-touch-callout: none; }
+
+.action-bar.timer-bar { display: flex; flex-direction: column; gap: 10px; }
+.action-bar .btn.small { min-height: 46px; font-size: 15.5px; }
+.btn.timer-stop { background: var(--c-strong, var(--ink)); color: var(--on-ink); }
+.btn.timer-discard { color: var(--danger); }
+.d-body.timer-body { padding-bottom: calc(180px + env(safe-area-inset-bottom)); }
 .series-label { font-size: 15px; color: var(--muted); }
 .series-label.current { color: var(--ink); font-weight: 800; }
 .series-bar { display: flex; align-items: center; gap: 10px; min-width: 0; }

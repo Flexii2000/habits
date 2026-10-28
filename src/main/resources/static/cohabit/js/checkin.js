@@ -7,7 +7,7 @@ import { get, post, put, del, enc, photoUrl } from './api.js';
 import { h, icon, openDialog, sheetHead, toast, showError, uuid, confirmDialog, fill } from './dom.js';
 import { pickFiles, resizeImage, uploadPhoto } from './photo.js';
 import { photoList } from './ui.js';
-import { cohabitClass } from './kinds.js';
+import { cohabitClass, isMinutesPerWeek } from './kinds.js';
 import { addDays, dayIn, dayShort, isMe, joinNames, parseNumber, unitLabel } from './format.js';
 
 const cohabitPath = id => `/cohabits/${enc(id)}`;
@@ -55,15 +55,17 @@ function othersOf(people) {
 }
 
 function valueField(unit, initial) {
+    // Minuten (Vertrag 5.2d) sind ganze Zahlen: Ziffernblock, und das Feld heisst wie die Einheit.
+    const minutes = unit === 'MINUTES';
     const input = h('input', {
-        class: 'field', type: 'text', inputmode: 'decimal', autocomplete: 'off',
+        class: 'field', type: 'text', inputmode: minutes ? 'numeric' : 'decimal', autocomplete: 'off',
         placeholder: '0', 'aria-label': unitLabel(unit) || 'Wert',
         value: initial == null ? '' : String(initial).replace('.', ','),
     });
     return {
         el: h('div', { class: 'field-group' },
-            h('label', { class: 'field-label' }, 'Wert'),
-            h('div', { class: 'field-wrap' }, input, h('span', { class: 'field-suffix' }, unitLabel(unit)))),
+            h('label', { class: 'field-label' }, minutes ? 'Minuten' : 'Wert'),
+            minutes ? input : h('div', { class: 'field-wrap' }, input, h('span', { class: 'field-suffix' }, unitLabel(unit)))),
         input,
         read() {
             const n = parseNumber(input.value);
@@ -144,15 +146,20 @@ export async function checkIn(summary, { detail, date, onDone } = {}) {
     return quickCheckIn(summary, onDone);
 }
 
-function doneText(type) {
-    return type === 'STREAK' ? 'Abgehakt.' : 'Eingetragen.';
+/** Ein Streak wird abgehakt - Minuten pro Woche dagegen sammeln Sitzungen, die man eintraegt. */
+function checksOff(summary) {
+    return summary.ref.type === 'STREAK' && !isMinutesPerWeek(summary);
+}
+
+function doneText(summary) {
+    return checksOff(summary) ? 'Abgehakt.' : 'Eingetragen.';
 }
 
 async function quickCheckIn(summary, onDone) {
     const body = { id: uuid(), kind: 'DONE', date: null, value: null, note: null, photoId: null, caption: null };
     try {
         const res = await post(`${cohabitPath(summary.ref.id)}/checkins`, body);
-        toast(doneText(summary.ref.type));
+        toast(doneText(summary));
         if (onDone) onDone(res.cohabit);
         return res;
     } catch (err) {
@@ -339,7 +346,7 @@ function entrySheet(summary, knownDetail, presetDate, onDone) {
     const note = textField('Notiz (optional)', '', '', 500);
     const dayArea = h('div');
     let day = { value: () => presetDate || null };
-    const label = summary.ref.type === 'STREAK' ? 'Abhaken' : 'Eintragen';
+    const label = checksOff(summary) ? 'Abhaken' : 'Eintragen';
     const submit = h('button', { type: 'button', class: 'btn primary block' }, label);
     submit.addEventListener('click', async () => {
         const amount = value ? value.read() : null;
@@ -353,7 +360,7 @@ function entrySheet(summary, knownDetail, presetDate, onDone) {
                 note: note.read(), photoId: null, caption: null, ...runValues,
             });
             ref.current.close();
-            toast(savedText(res, doneText(summary.ref.type)));
+            toast(savedText(res, doneText(summary)));
             if (onDone) onDone(res.cohabit);
         } catch (err) {
             showError(err);

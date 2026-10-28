@@ -115,6 +115,18 @@ export function typeOrder(summaries) {
 const BAR_SOURCES = new Set(['STEPS_WEEKLY', 'FOCUS']);
 
 /**
+ * Minuten pro Woche (Vertrag 2.4b). Den Rhythmus nennt die Zusammenfassung nicht: mit
+ * Timer verraet ihn `timer`, ohne die Einheit samt Soll - Minuten gegen mehr als sieben,
+ * wo „pro Woche“ hoechstens sieben Tage verlangt.
+ */
+export function isMinutesPerWeek(summary) {
+    const ref = summary && summary.ref;
+    if (!ref || ref.type !== 'STREAK' || isAutomatic(ref)) return false;
+    if (summary.timer) return true;
+    return summary.valueUnit === 'MINUTES' && !!summary.progress && summary.progress.goal > 7;
+}
+
+/**
  * Was den Stand zeigt: ein Balken wie beim Ziel (`{ bar: 0…1 }`), bei manuellen
  * Streaks die Punkte des Zeitraums (`{ dots: { done, goal } }`), sonst null.
  */
@@ -125,6 +137,8 @@ export function gauge(summary) {
     const fraction = Math.max(0, Math.min(1, Number(progress.fraction) || 0));
     if (isAutomatic(ref)) return BAR_SOURCES.has(ref.autoSource) ? { bar: fraction } : null;
     if (ref.type === 'GOAL' || ref.type === 'CHALLENGE') return { bar: fraction };
+    // 140 Minuten sind keine 140 Punkte: Minuten fuellen einen Balken wie beim Ziel.
+    if (isMinutesPerWeek(summary)) return { bar: fraction };
     if (ref.type === 'STREAK' && progress.goal >= 1 && progress.goal <= 7) {
         return { dots: { done: Math.max(0, Math.round(progress.done)), goal: Math.round(progress.goal) } };
     }
